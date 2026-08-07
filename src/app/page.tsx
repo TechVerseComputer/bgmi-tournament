@@ -1,15 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones } from 'lucide-react';
+import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones, Flame } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
+// Your High-End Custom Gaming Wallpapers
 const heroImages = [
-  'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=2070&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?q=80&w=2070&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=2070&auto=format&fit=crop'
+  'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop', // Core Battleground
+  'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=2070&auto=format&fit=crop', // Arena Esports
+  'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?q=80&w=2070&auto=format&fit=crop', // Gaming Setup
+  'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=2070&auto=format&fit=crop'  // Cyber Combat
 ];
 
 export default function Home() {
@@ -28,54 +29,63 @@ export default function Home() {
     };
     fetchLatest();
 
-    // Auto-slide timer (Changes slide every 4 seconds)
+    // Auto-slide timer (Changes slide every 4.5 seconds)
     const slideInterval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroImages.length);
-    }, 4000);
+    }, 4500);
 
     return () => clearInterval(slideInterval);
   }, []);
 
   return (
-    <main className="bg-[#0a0a0a] text-white font-sans selection:bg-orange-500 selection:text-white">
+    <main className="bg-[#050505] text-white font-sans selection:bg-orange-500 selection:text-white overflow-x-hidden">
       
-      {/* Hero Section with 4-Image Auto-Slider */}
-      <section className="relative h-screen flex flex-col items-center justify-center text-center px-4 overflow-hidden">
+      {/* Cinematic Hero Section with Auto-Slider */}
+      <section className="relative h-[90vh] flex flex-col items-center justify-center text-center px-4 overflow-hidden border-b border-zinc-900">
         {heroImages.map((img, index) => (
           <div
             key={index}
-            className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out ${
-              index === currentSlide ? 'opacity-30 scale-105' : 'opacity-0 scale-100'
+            className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-in-out ${
+              index === currentSlide ? 'opacity-40 scale-105' : 'opacity-0 scale-100'
             }`}
-            style={{ backgroundImage: `url(${img})`, transition: 'opacity 1s ease-in-out, transform 6s ease-in-out' }}
+            style={{ backgroundImage: `url(${img})` }}
           />
         ))}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0a0a0a]/80 to-[#0a0a0a]" />
+        {/* Multi-layer Cinematic Gradient Overlays */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
+        <div className="absolute inset-0 bg-radial-at-c from-transparent via-[#050505]/40 to-[#050505]" />
         
-        <div className="relative z-10 max-w-4xl mx-auto mt-16">
-          <h1 className="text-5xl md:text-7xl font-black italic uppercase tracking-tighter leading-none mb-6">
+        <div className="relative z-10 max-w-5xl mx-auto mt-12 space-y-6">
+          <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/30 px-4 py-1.5 rounded-full text-orange-500 text-xs font-black uppercase tracking-widest backdrop-blur-md animate-pulse">
+            <Flame className="w-4 h-4" /> India's Premier BGMI Esports Hub
+          </div>
+
+          <h1 className="text-5xl md:text-8xl font-black italic uppercase tracking-tighter leading-[0.9] drop-shadow-2xl">
             Compete. Conquer.<br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-orange-400">Be The Champion.</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-600 via-orange-500 to-amber-400">Be The Champion.</span>
           </h1>
-          <p className="text-lg md:text-xl text-gray-300 font-medium mb-10 max-w-2xl mx-auto">
-            Join elite BGMI tournaments, showcase your squad's skills, and win massive prize pools every single day.
+          
+          <p className="text-base md:text-xl text-zinc-300 font-medium max-w-2xl mx-auto drop-shadow">
+            Join elite daily BGMI tournaments, battle top squads, and claim your instant cash payouts.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link href="/tournaments" className="w-full sm:w-auto bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black font-black uppercase tracking-widest px-8 py-4 rounded transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(249,115,22,0.4)]">
-              <Users className="w-5 h-5" /> View Matches
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
+            <Link href="/tournaments" className="w-full sm:w-auto bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black font-black uppercase tracking-widest px-8 py-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_0_30px_rgba(249,115,22,0.4)] hover:scale-105">
+              <Users className="w-5 h-5" /> Explore Tournaments
             </Link>
-            <Link href="/dashboard" className="w-full sm:w-auto bg-zinc-900 hover:bg-zinc-800 text-white font-bold uppercase tracking-widest px-8 py-4 rounded transition-all border border-zinc-800 flex items-center justify-center gap-2">
+            <Link href="/dashboard" className="w-full sm:w-auto bg-zinc-900/80 hover:bg-zinc-800 text-white font-bold uppercase tracking-widest px-8 py-4 rounded-xl transition-all border border-zinc-700/80 backdrop-blur-md flex items-center justify-center gap-2 hover:border-orange-500/50">
               Player Portal
             </Link>
           </div>
 
-          {/* Slider Indicators */}
-          <div className="flex justify-center gap-2 mt-8">
+          {/* Elegant Slider Indicators */}
+          <div className="flex justify-center gap-2.5 pt-6">
             {heroImages.map((_, idx) => (
               <button
                 key={idx}
                 onClick={() => setCurrentSlide(idx)}
-                className={`h-1.5 rounded-full transition-all ${idx === currentSlide ? 'w-8 bg-orange-500' : 'w-2 bg-zinc-700'}`}
+                aria-label={`Slide ${idx + 1}`}
+                className={`h-2 rounded-full transition-all duration-300 ${idx === currentSlide ? 'w-10 bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.8)]' : 'w-2.5 bg-zinc-700 hover:bg-zinc-500'}`}
               />
             ))}
           </div>
@@ -83,38 +93,42 @@ export default function Home() {
       </section>
 
       {/* Latest Tournaments Section */}
-      <section className="py-20 px-4 max-w-7xl mx-auto">
-        <div className="flex items-center justify-center gap-4 mb-12">
-          <div className="h-[1px] w-12 bg-orange-500" />
-          <h2 className="text-3xl font-black italic uppercase tracking-wider">Latest <span className="text-orange-500">Matches</span></h2>
-          <div className="h-[1px] w-12 bg-orange-500" />
+      <section className="py-24 px-4 max-w-7xl mx-auto">
+        <div className="flex flex-col items-center text-center mb-16">
+          <span className="text-orange-500 text-xs font-black uppercase tracking-widest mb-2">Live Action</span>
+          <h2 className="text-3xl md:text-5xl font-black italic uppercase tracking-wider">Latest <span className="text-orange-500">Matches</span></h2>
+          <div className="h-1 w-20 bg-orange-500 mt-4 rounded-full" />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {latestTournaments.map((t) => (
-            <div key={t.id} className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden group hover:border-orange-500 transition-colors flex flex-col h-full">
-              <div className="h-40 overflow-hidden relative shrink-0">
-                <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 to-transparent z-10" />
-                <img src={t.map_img} alt={t.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                <h3 className="absolute bottom-3 left-4 z-20 font-black italic text-xl tracking-wider">{t.name}</h3>
+            <div key={t.id} className="bg-zinc-900/80 border border-zinc-800 rounded-2xl overflow-hidden group hover:border-orange-500/80 transition-all duration-300 hover:shadow-[0_0_25px_rgba(249,115,22,0.15)] flex flex-col h-full backdrop-blur-sm">
+              <div className="h-48 overflow-hidden relative shrink-0">
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent z-10" />
+                <img src={t.map_img} alt={t.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                <span className="absolute top-3 right-3 z-20 bg-black/60 backdrop-blur-md text-orange-400 border border-orange-500/30 px-3 py-1 rounded-full text-[10px] font-black uppercase">
+                  {t.status || 'OPEN'}
+                </span>
+                <h3 className="absolute bottom-3 left-4 z-20 font-black italic text-xl tracking-wider text-white drop-shadow-md">{t.name}</h3>
               </div>
               
               <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
                 <div>
                   <div className="flex gap-2 text-xs font-bold mb-4">
-                    <span className="border border-orange-500 bg-orange-500/10 text-orange-500 px-2 py-1 rounded flex items-center gap-1"><Users className="w-3 h-3" /> {t.type}</span>
-                    <span className="border border-zinc-700 bg-zinc-800 text-gray-300 px-2 py-1 rounded">{t.perspective}</span>
+                    <span className="border border-orange-500/30 bg-orange-500/10 text-orange-500 px-2.5 py-1 rounded-md flex items-center gap-1"><Users className="w-3 h-3" /> {t.type}</span>
+                    <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2.5 py-1 rounded-md">{t.perspective}</span>
                   </div>
-                  <div className="mb-4">
-                    <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">Entry Fee</p>
+                  <div>
+                    <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Entry Fee</p>
                     <p className="text-3xl font-black text-orange-500">{t.fee === 0 ? 'FREE' : `₹${t.fee}`}</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 mt-4">
-                  <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-2.5 rounded text-xs transition-colors border border-zinc-700 flex items-center justify-center">
+
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-zinc-800/80">
+                  <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded-xl text-xs transition-colors border border-zinc-700 flex items-center justify-center">
                     View More
                   </Link>
-                  <Link href="/tournaments" className="text-center bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-wider py-2.5 rounded text-xs transition-colors flex items-center justify-center">
+                  <Link href="/tournaments" className="text-center bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-wider py-3 rounded-xl text-xs transition-colors shadow-[0_0_15px_rgba(249,115,22,0.3)] flex items-center justify-center">
                     Join Match
                   </Link>
                 </div>
@@ -123,28 +137,32 @@ export default function Home() {
           ))}
         </div>
         
-        <div className="mt-12 text-center">
-          <Link href="/tournaments" className="inline-flex items-center gap-2 text-zinc-400 hover:text-orange-500 font-bold uppercase tracking-wider transition-colors border border-zinc-800 hover:border-orange-500 px-6 py-3 rounded-full bg-zinc-900">
+        <div className="mt-16 text-center">
+          <Link href="/tournaments" className="inline-flex items-center gap-2 text-zinc-300 hover:text-orange-500 font-bold uppercase tracking-wider transition-colors border border-zinc-800 hover:border-orange-500 px-8 py-4 rounded-2xl bg-zinc-900/50 backdrop-blur-md shadow-lg">
             View All Scheduled Tournaments <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
       </section>
 
       {/* --- TOURNAMENT RULES SECTION --- */}
-      <section className="py-20 px-4 max-w-7xl mx-auto border-t border-zinc-900">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-black italic uppercase tracking-wider">Tournament <span className="text-orange-500">Rules</span></h2>
+      <section className="py-24 px-4 max-w-7xl mx-auto border-t border-zinc-900/80">
+        <div className="text-center mb-16">
+          <span className="text-orange-500 text-xs font-black uppercase tracking-widest mb-2">Fair Play Guaranteed</span>
+          <h2 className="text-3xl md:text-5xl font-black italic uppercase tracking-wider">Tournament <span className="text-orange-500">Rules</span></h2>
+          <div className="h-1 w-20 bg-orange-500 mt-4 mx-auto rounded-full" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
           {[
-            { title: 'Fair Play', desc: 'Use of hacks, cheats or any third-party tools is strictly prohibited.', icon: ShieldCheck },
-            { title: 'Team Composition', desc: 'Ensure your squad is complete before the tournament starts.', icon: Users },
-            { title: 'Match Schedule', desc: 'Be on time. Late entries may lead to disqualification.', icon: Clock },
-            { title: 'Disconnection', desc: 'No rematches will be granted for disconnections or network issues.', icon: AlertTriangle },
-            { title: 'Decisions', desc: "The tournament admin's decision will be final and binding.", icon: Zap },
+            { title: 'Fair Play', desc: 'Use of hacks, cheats or third-party tools is strictly banned.', icon: ShieldCheck },
+            { title: 'Team Composition', desc: 'Ensure your complete squad is ready before start time.', icon: Users },
+            { title: 'Match Schedule', desc: 'Be on time. Late check-ins lead to disqualification.', icon: Clock },
+            { title: 'Disconnection', desc: 'No rematches granted for individual disconnections.', icon: AlertTriangle },
+            { title: 'Decisions', desc: "Tournament admin's final decision is binding.", icon: Zap },
           ].map((rule, idx) => (
-            <div key={idx} className="bg-zinc-900/50 border border-zinc-800/80 p-6 rounded-xl text-center space-y-4 hover:border-orange-500/50 transition-colors">
-              <rule.icon className="w-10 h-10 text-orange-500 mx-auto" />
+            <div key={idx} className="bg-zinc-900/40 border border-zinc-800/80 p-8 rounded-2xl text-center space-y-4 hover:border-orange-500/50 transition-all duration-300 group hover:-translate-y-1">
+              <div className="w-14 h-14 bg-orange-500/10 rounded-2xl flex items-center justify-center mx-auto border border-orange-500/20 group-hover:bg-orange-500 group-hover:text-black transition-colors">
+                <rule.icon className="w-7 h-7 text-orange-500 group-hover:text-black transition-colors" />
+              </div>
               <h3 className="font-black uppercase tracking-wide text-sm">{rule.title}</h3>
               <p className="text-zinc-400 text-xs leading-relaxed">{rule.desc}</p>
             </div>
@@ -153,20 +171,24 @@ export default function Home() {
       </section>
 
       {/* --- WHY PLAY WITH US SECTION --- */}
-      <section className="py-20 px-4 max-w-7xl mx-auto border-t border-zinc-900">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-black italic uppercase tracking-wider">Why Play <span className="text-orange-500">With Us?</span></h2>
+      <section className="py-24 px-4 max-w-7xl mx-auto border-t border-zinc-900/80">
+        <div className="text-center mb-16">
+          <span className="text-orange-500 text-xs font-black uppercase tracking-widest mb-2">The Ultimate Advantage</span>
+          <h2 className="text-3xl md:text-5xl font-black italic uppercase tracking-wider">Why Play <span className="text-orange-500">With Us?</span></h2>
+          <div className="h-1 w-20 bg-orange-500 mt-4 mx-auto rounded-full" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
           {[
-            { title: 'Instant Payouts', desc: 'Winnings directly in your account', icon: Zap },
-            { title: 'Fair & Secure', desc: '100% fair play with anti-cheat system', icon: ShieldCheck },
-            { title: 'Exciting Prizes', desc: 'Real cash prizes for top performers', icon: Trophy },
-            { title: 'Easy to Join', desc: 'Simple registration and quick match', icon: Users },
-            { title: '24/7 Support', desc: "We're here to help you anytime", icon: Headphones },
+            { title: 'Instant Payouts', desc: 'Winnings transferred directly instantly', icon: Zap },
+            { title: 'Fair & Secure', desc: '100% secure anti-cheat environment', icon: ShieldCheck },
+            { title: 'Exciting Prizes', desc: 'Massive daily cash pools for winners', icon: Trophy },
+            { title: 'Easy to Join', desc: 'Lightning-fast automated slot booking', icon: Users },
+            { title: '24/7 Support', desc: 'Dedicated admins ready to assist you', icon: Headphones },
           ].map((feature, idx) => (
-            <div key={idx} className="bg-zinc-900/50 border border-zinc-800/80 p-6 rounded-xl text-center space-y-4 hover:border-orange-500/50 transition-colors">
-              <feature.icon className="w-10 h-10 text-orange-500 mx-auto" />
+            <div key={idx} className="bg-zinc-900/40 border border-zinc-800/80 p-8 rounded-2xl text-center space-y-4 hover:border-orange-500/50 transition-all duration-300 group hover:-translate-y-1">
+              <div className="w-14 h-14 bg-orange-500/10 rounded-2xl flex items-center justify-center mx-auto border border-orange-500/20 group-hover:bg-orange-500 group-hover:text-black transition-colors">
+                <feature.icon className="w-7 h-7 text-orange-500 group-hover:text-black transition-colors" />
+              </div>
               <h3 className="font-black uppercase tracking-wide text-sm">{feature.title}</h3>
               <p className="text-zinc-400 text-xs leading-relaxed">{feature.desc}</p>
             </div>
@@ -175,22 +197,24 @@ export default function Home() {
       </section>
 
       {/* --- HOW IT WORKS SECTION --- */}
-      <section className="py-20 px-4 max-w-7xl mx-auto border-t border-zinc-900">
+      <section className="py-24 px-4 max-w-7xl mx-auto border-t border-zinc-900/80">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-black italic uppercase tracking-wider">How It <span className="text-orange-500">Works?</span></h2>
+          <span className="text-orange-500 text-xs font-black uppercase tracking-widest mb-2">Simple 4-Step Process</span>
+          <h2 className="text-3xl md:text-5xl font-black italic uppercase tracking-wider">How It <span className="text-orange-500">Works?</span></h2>
+          <div className="h-1 w-20 bg-orange-500 mt-4 mx-auto rounded-full" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[
-            { step: '1', title: 'Register', desc: 'Sign up and create your squad' },
-            { step: '2', title: 'Join Tournament', desc: 'Choose any tournament and join' },
-            { step: '3', title: 'Play & Win', desc: 'Compete and be the last squad standing' },
-            { step: '4', title: 'Win Cash', desc: 'Get amazing rewards and cash prizes' },
+            { step: '1', title: 'Register', desc: 'Sign up with Google and setup your player profile' },
+            { step: '2', title: 'Join Tournament', desc: 'Pick your preferred map, mode, and drop slot' },
+            { step: '3', title: 'Play & Win', desc: 'Dominate the lobby and secure top placement' },
+            { step: '4', title: 'Win Cash', desc: 'Collect instant rewards straight to your wallet' },
           ].map((item, idx) => (
-            <div key={idx} className="bg-zinc-900/40 border border-zinc-800/80 p-8 rounded-2xl text-center relative flex flex-col items-center">
-              <div className="w-12 h-12 bg-orange-500 text-black font-black text-xl rounded-full flex items-center justify-center mb-6 shadow-[0_0_15px_rgba(249,115,22,0.4)]">
+            <div key={idx} className="bg-zinc-900/40 border border-zinc-800/80 p-8 rounded-2xl text-center relative flex flex-col items-center hover:border-orange-500/40 transition-all">
+              <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-amber-500 text-black font-black text-2xl rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(249,115,22,0.4)]">
                 {item.step}
               </div>
-              <h3 className="font-black uppercase tracking-wider mb-2">{item.title}</h3>
+              <h3 className="font-black uppercase tracking-wider mb-2 text-white">{item.title}</h3>
               <p className="text-zinc-400 text-xs leading-relaxed">{item.desc}</p>
             </div>
           ))}
@@ -198,19 +222,19 @@ export default function Home() {
       </section>
 
       {/* --- CTA BANNER SECTION --- */}
-      <section className="py-16 px-4 max-w-7xl mx-auto">
-        <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-zinc-900 via-orange-950/30 to-zinc-900 border border-orange-500/30 p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-10" />
-          <div className="relative z-10 text-center md:text-left">
-            <h2 className="text-3xl md:text-4xl font-black italic uppercase tracking-tighter mb-2">Ready to Dominate the <span className="text-orange-500">Battleground?</span></h2>
-            <p className="text-zinc-400 font-medium">Gather your squad and join the battle now!</p>
+      <section className="py-20 px-4 max-w-7xl mx-auto">
+        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-zinc-900 via-orange-950/40 to-zinc-900 border border-orange-500/30 p-10 md:p-16 flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl">
+          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-15" />
+          <div className="relative z-10 text-center md:text-left space-y-2">
+            <h2 className="text-3xl md:text-5xl font-black italic uppercase tracking-tight">Ready to Dominate the <span className="text-orange-500">Battleground?</span></h2>
+            <p className="text-zinc-300 font-medium">Gather your squad, lock in your drop slot, and start winning today.</p>
           </div>
-          <div className="relative z-10 flex flex-wrap gap-4 justify-center">
-            <Link href="/tournaments" className="bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest px-8 py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(249,115,22,0.4)]">
+          <div className="relative z-10 flex flex-wrap gap-4 justify-center shrink-0">
+            <Link href="/tournaments" className="bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest px-8 py-4 rounded-xl transition-all shadow-[0_0_25px_rgba(249,115,22,0.5)] hover:scale-105">
               Register Squad
             </Link>
-            <Link href="/tournaments" className="bg-zinc-900 hover:bg-zinc-800 text-white font-bold uppercase tracking-widest px-8 py-4 rounded-xl transition-all border border-zinc-700">
-              Download App
+            <Link href="/dashboard" className="bg-zinc-900 hover:bg-zinc-800 text-white font-bold uppercase tracking-widest px-8 py-4 rounded-xl transition-all border border-zinc-700">
+              Player Portal
             </Link>
           </div>
         </div>
