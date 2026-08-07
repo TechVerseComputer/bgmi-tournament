@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Trophy, Users, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3, PlusCircle } from 'lucide-react';
+import { Trophy, Users, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3, PlusCircle, Eye } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function AdminDashboard() {
   const supabase = createClient();
+  const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
@@ -240,7 +242,6 @@ export default function AdminDashboard() {
             {/* Create / Edit Form */}
             <div className={`lg:col-span-1 border p-6 rounded h-fit relative transition-colors ${editingId ? 'bg-[#0f172a] border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.15)]' : 'bg-zinc-900 border-zinc-800'}`}>
               
-              {/* NEW: Clear Editing Header & Add New Button */}
               {editingId ? (
                 <div className="mb-6 flex flex-col gap-4 border-b border-blue-500/30 pb-4">
                   <div className="flex items-center gap-2 text-blue-400 font-black italic tracking-widest uppercase">
@@ -267,7 +268,6 @@ export default function AdminDashboard() {
                 <div className="bg-zinc-950 p-4 rounded border border-zinc-800 space-y-4">
                   <div>
                     <label className="text-xs font-bold text-orange-500 uppercase tracking-wider block mb-1">Match Date & Time</label>
-                    {/* NEW: Native DateTime Picker */}
                     <input required type="datetime-local" value={newTourney.match_time} onChange={e => setNewTourney({...newTourney, match_time: e.target.value})} className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-sm focus:border-orange-500 outline-none text-white [color-scheme:dark]" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -316,7 +316,7 @@ export default function AdminDashboard() {
               </form>
             </div>
             
-            {/* Active Matches List */}
+            {/* Active Matches List (Now includes [View More] Button) */}
             <div className="lg:col-span-2 space-y-4">
               <h2 className="text-xl font-black italic uppercase tracking-widest mb-6">Active Database Matches</h2>
               {tournaments.length === 0 ? (
@@ -332,12 +332,15 @@ export default function AdminDashboard() {
                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : t.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>{t.status}</span>
                         </div>
                         <div className="flex gap-2 text-xs font-bold text-zinc-400 mt-1">
-                          {/* Format the raw datetime string nicely for display */}
                           <span className="text-orange-500">{t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'No Time Set'}</span> • <span>{t.type}</span> • <span>Slots: {t.total_slots}</span>
                         </div>
                       </div>
                     </div>
                     <div className="flex gap-2 w-full sm:w-auto">
+                      {/* NEW: View More Button to check slot rosters */}
+                      <button onClick={() => router.push(`/tournaments/${t.id}`)} className="flex-1 sm:flex-none bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 px-4 py-2 rounded text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1">
+                        <Eye className="w-3.5 h-3.5"/> View More
+                      </button>
                       <button onClick={() => handleEditClick(t)} className="flex-1 sm:flex-none bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white border border-blue-500/20 px-4 py-2 rounded text-xs font-black uppercase tracking-wider transition-all">Edit</button>
                       <button onClick={() => handleDeleteTournament(t.id)} className="flex-1 sm:flex-none bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 px-4 py-2 rounded text-xs font-black uppercase tracking-wider transition-all">Delete</button>
                     </div>
@@ -348,8 +351,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* ... (Leaderboard and Rules tabs remain completely untouched) ... */}
-        {/* LEADERBOARD TAB */}
+        {/* LEADERBOARD & RULES TABS */}
         {activeTab === 'leaderboard' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="bg-zinc-900 border border-zinc-800 p-6 rounded h-fit">
