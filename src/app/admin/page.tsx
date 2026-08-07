@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Trophy, Users, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3 } from 'lucide-react';
+import { Trophy, Users, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3, PlusCircle } from 'lucide-react';
 
 export default function AdminDashboard() {
   const supabase = createClient();
   const [user, setUser] = useState<any>(null);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('tournaments'); // Default to Tournaments for now
+  const [activeTab, setActiveTab] = useState('tournaments'); 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -22,7 +22,6 @@ export default function AdminDashboard() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   
-  // NEW: Upgraded Tournament State + Edit Mode
   const defaultTourney = { name: '', type: 'SQUAD', perspective: 'TPP', fee: 0, first_prize: 0, second_prize: 0, match_time: '', total_slots: 25, status: 'OPEN', map_img: '' };
   const [newTourney, setNewTourney] = useState(defaultTourney);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -70,7 +69,6 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
-  // --- WALLET LOGIC ---
   const handleApproveDeposit = async (txId: string, userId: string, amount: number) => {
     setActionLoading(txId);
     await supabase.from('transactions').update({ status: 'SUCCESS' }).eq('id', txId);
@@ -89,7 +87,6 @@ export default function AdminDashboard() {
     setActionLoading(null);
   };
 
-  // --- NEW: TOURNAMENT CREATE & EDIT LOGIC ---
   const handleEditClick = (tourney: any) => {
     setEditingId(tourney.id);
     setNewTourney(tourney);
@@ -108,7 +105,6 @@ export default function AdminDashboard() {
     try {
       let publicUrl = newTourney.map_img;
 
-      // Only upload a new image if the user selected one
       if (imageFile) {
         const fileExt = imageFile.name.split('.').pop();
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
@@ -154,14 +150,11 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteTournament = async (id: string) => { if(confirm("Are you sure you want to delete this match?")) { await supabase.from('tournaments').delete().eq('id', id); fetchAllData(); } };
-
-  // --- LEADERBOARD & RULES LOGIC ---
   const handleCreateLeaderboard = async (e: React.FormEvent) => { e.preventDefault(); const { error } = await supabase.from('leaderboard').insert([newLeaderboard]); if (!error) { setNewLeaderboard({ match_date: '', slot_time: '', winner_1_team: '', winner_2_team: '' }); fetchAllData(); } };
   const handleDeleteLeaderboard = async (id: string) => { if(confirm("Delete this entry?")) { await supabase.from('leaderboard').delete().eq('id', id); fetchAllData(); } };
   const handleCreateRule = async (e: React.FormEvent) => { e.preventDefault(); const { error } = await supabase.from('rules').insert([newRule]); if (!error) { setNewRule({ title: '', description: '' }); fetchAllData(); } };
   const handleDeleteRule = async (id: string) => { if(confirm("Delete this rule?")) { await supabase.from('rules').delete().eq('id', id); fetchAllData(); } };
 
-  // --- AUTH SCREENS ---
   if (authLoading) return <div className="min-h-screen bg-[#050505] text-orange-500 font-black flex items-center justify-center animate-pulse tracking-widest uppercase">Checking Clearance...</div>;
   if (!user) return (
     <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-4">
@@ -240,45 +233,51 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* --- TOURNAMENTS TAB (UPGRADED WITH NEW FIELDS & EDITING) --- */}
+        {/* --- TOURNAMENTS TAB --- */}
         {activeTab === 'tournaments' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
             {/* Create / Edit Form */}
-            <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 p-6 rounded h-fit relative">
-              {editingId && (
-                <button onClick={handleCancelEdit} className="absolute top-6 right-6 text-zinc-400 hover:text-red-500 transition-colors">
-                  <XCircle className="w-5 h-5" />
-                </button>
+            <div className={`lg:col-span-1 border p-6 rounded h-fit relative transition-colors ${editingId ? 'bg-[#0f172a] border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.15)]' : 'bg-zinc-900 border-zinc-800'}`}>
+              
+              {/* NEW: Clear Editing Header & Add New Button */}
+              {editingId ? (
+                <div className="mb-6 flex flex-col gap-4 border-b border-blue-500/30 pb-4">
+                  <div className="flex items-center gap-2 text-blue-400 font-black italic tracking-widest uppercase">
+                    <Edit3 className="w-5 h-5"/> Editing Mode Active
+                  </div>
+                  <button type="button" onClick={handleCancelEdit} className="bg-zinc-950 hover:bg-zinc-800 text-white text-xs font-bold px-4 py-3 rounded uppercase tracking-wider transition-colors border border-zinc-700 flex items-center justify-center gap-2 w-full">
+                    <PlusCircle className="w-4 h-4"/> Create New Match Instead
+                  </button>
+                </div>
+              ) : (
+                <h2 className="text-xl font-black italic uppercase tracking-widest mb-6 border-b border-zinc-800 pb-4 text-white">Create New Match</h2>
               )}
-              <h2 className="text-xl font-black italic uppercase tracking-widest mb-6 border-b border-zinc-800 pb-4">
-                {editingId ? <span className="text-blue-400 flex items-center gap-2"><Edit3 className="w-5 h-5"/> Edit Match</span> : 'Create Match'}
-              </h2>
               
               <form onSubmit={handleSaveTournament} className="space-y-4">
                 <div>
                   <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Match Title</label>
-                  <input required type="text" value={newTourney.name} onChange={e => setNewTourney({...newTourney, name: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none" />
+                  <input required type="text" value={newTourney.name} onChange={e => setNewTourney({...newTourney, name: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none text-white" />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Background Image {editingId && '(Optional to keep old)'}</label>
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Background Image {editingId && '(Optional)'}</label>
                   <input id="imageUpload" type="file" accept="image/*" onChange={e => setImageFile(e.target.files?.[0] || null)} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-sm text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-bold file:bg-orange-500 file:text-black hover:file:bg-orange-400 cursor-pointer" />
                 </div>
                 
-                {/* NEW ROW: Time, Slots, Status */}
                 <div className="bg-zinc-950 p-4 rounded border border-zinc-800 space-y-4">
                   <div>
                     <label className="text-xs font-bold text-orange-500 uppercase tracking-wider block mb-1">Match Date & Time</label>
-                    <input required type="text" placeholder="e.g. 15 Aug, 9:00 PM" value={newTourney.match_time} onChange={e => setNewTourney({...newTourney, match_time: e.target.value})} className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-sm focus:border-orange-500 outline-none" />
+                    {/* NEW: Native DateTime Picker */}
+                    <input required type="datetime-local" value={newTourney.match_time} onChange={e => setNewTourney({...newTourney, match_time: e.target.value})} className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-sm focus:border-orange-500 outline-none text-white [color-scheme:dark]" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-xs font-bold text-orange-500 uppercase tracking-wider block mb-1">Total Slots</label>
-                      <input required type="number" value={newTourney.total_slots} onChange={e => setNewTourney({...newTourney, total_slots: Number(e.target.value)})} className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-sm focus:border-orange-500 outline-none" />
+                      <input required type="number" value={newTourney.total_slots} onChange={e => setNewTourney({...newTourney, total_slots: Number(e.target.value)})} className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-sm focus:border-orange-500 outline-none text-white" />
                     </div>
                     <div>
                       <label className="text-xs font-bold text-orange-500 uppercase tracking-wider block mb-1">Status</label>
-                      <select value={newTourney.status} onChange={e => setNewTourney({...newTourney, status: e.target.value})} className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-sm focus:border-orange-500 outline-none">
+                      <select value={newTourney.status} onChange={e => setNewTourney({...newTourney, status: e.target.value})} className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-sm focus:border-orange-500 outline-none text-white">
                         <option value="OPEN">OPEN</option>
                         <option value="FULL">FULL</option>
                         <option value="COMPLETED">COMPLETED</option>
@@ -290,25 +289,25 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Type</label>
-                    <select value={newTourney.type} onChange={e => setNewTourney({...newTourney, type: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none"><option>SOLO</option><option>DUO</option><option>SQUAD</option></select>
+                    <select value={newTourney.type} onChange={e => setNewTourney({...newTourney, type: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none text-white"><option>SOLO</option><option>DUO</option><option>SQUAD</option></select>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Perspective</label>
-                    <select value={newTourney.perspective} onChange={e => setNewTourney({...newTourney, perspective: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none"><option>TPP</option><option>FPP</option></select>
+                    <select value={newTourney.perspective} onChange={e => setNewTourney({...newTourney, perspective: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none text-white"><option>TPP</option><option>FPP</option></select>
                   </div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Entry Fee (₹)</label>
-                  <input required type="number" value={newTourney.fee} onChange={e => setNewTourney({...newTourney, fee: Number(e.target.value)})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none" />
+                  <input required type="number" value={newTourney.fee} onChange={e => setNewTourney({...newTourney, fee: Number(e.target.value)})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none text-white" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">1st Prize (₹)</label>
-                    <input required type="number" value={newTourney.first_prize} onChange={e => setNewTourney({...newTourney, first_prize: Number(e.target.value)})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none" />
+                    <input required type="number" value={newTourney.first_prize} onChange={e => setNewTourney({...newTourney, first_prize: Number(e.target.value)})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none text-white" />
                   </div>
                   <div>
                     <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">2nd Prize (₹)</label>
-                    <input required type="number" value={newTourney.second_prize} onChange={e => setNewTourney({...newTourney, second_prize: Number(e.target.value)})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none" />
+                    <input required type="number" value={newTourney.second_prize} onChange={e => setNewTourney({...newTourney, second_prize: Number(e.target.value)})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none text-white" />
                   </div>
                 </div>
                 <button type="submit" disabled={uploading} className={`w-full font-black uppercase tracking-widest py-3 rounded mt-4 transition-colors disabled:opacity-50 flex justify-center items-center gap-2 ${editingId ? 'bg-blue-500 hover:bg-blue-400 text-black' : 'bg-orange-500 hover:bg-orange-400 text-black'}`}>
@@ -333,7 +332,8 @@ export default function AdminDashboard() {
                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : t.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>{t.status}</span>
                         </div>
                         <div className="flex gap-2 text-xs font-bold text-zinc-400 mt-1">
-                          <span className="text-orange-500">{t.match_time || 'No Time Set'}</span> • <span>{t.type}</span> • <span>Slots: {t.total_slots}</span>
+                          {/* Format the raw datetime string nicely for display */}
+                          <span className="text-orange-500">{t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'No Time Set'}</span> • <span>{t.type}</span> • <span>Slots: {t.total_slots}</span>
                         </div>
                       </div>
                     </div>
@@ -348,10 +348,79 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* --- LEADERBOARD & RULES TABS REMAIN UNCHANGED --- */}
-        {/* Leaderboard Tab Content Snipped for Space - Kept completely identical to the previous version */}
-        {/* Rules Tab Content Snipped for Space - Kept completely identical to the previous version */}
-        {/* ... (Keep your existing Leaderboard and Rules code exactly as it was) ... */}
+        {/* ... (Leaderboard and Rules tabs remain completely untouched) ... */}
+        {/* LEADERBOARD TAB */}
+        {activeTab === 'leaderboard' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="bg-zinc-900 border border-zinc-800 p-6 rounded h-fit">
+              <h2 className="text-xl font-black italic uppercase tracking-widest mb-6 border-b border-zinc-800 pb-4">Post Winners</h2>
+              <form onSubmit={handleCreateLeaderboard} className="space-y-4 text-sm font-bold">
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Match Date</label>
+                  <input required type="date" value={newLeaderboard.match_date} onChange={e => setNewLeaderboard({...newLeaderboard, match_date: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded text-zinc-300 focus:border-orange-500 outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Time Slot</label>
+                  <input required type="text" placeholder="e.g. 9:00 PM" value={newLeaderboard.slot_time} onChange={e => setNewLeaderboard({...newLeaderboard, slot_time: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded focus:border-orange-500 outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">1st Place Squad</label>
+                  <input required type="text" placeholder="Team Alpha" value={newLeaderboard.winner_1_team} onChange={e => setNewLeaderboard({...newLeaderboard, winner_1_team: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded border-l-4 border-l-orange-500 focus:border-orange-500 outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">2nd Place Squad</label>
+                  <input required type="text" placeholder="Team Beta" value={newLeaderboard.winner_2_team} onChange={e => setNewLeaderboard({...newLeaderboard, winner_2_team: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded border-l-4 border-l-zinc-500 focus:border-orange-500 outline-none" />
+                </div>
+                <button type="submit" className="w-full bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-3 rounded transition-colors mt-4">Publish to Leaderboard</button>
+              </form>
+            </div>
+            <div className="lg:col-span-2 space-y-4">
+              <h2 className="text-xl font-black italic uppercase tracking-widest mb-6">Published Results</h2>
+              {leaderboards.map((l) => (
+                <div key={l.id} className="bg-zinc-900 border border-zinc-800 p-5 rounded flex justify-between items-center">
+                  <div>
+                    <span className="text-xs text-zinc-400 font-bold bg-black px-2 py-1 rounded border border-zinc-800">{l.match_date} • {l.slot_time}</span>
+                    <p className="mt-3 font-black text-xl text-orange-500">🥇 {l.winner_1_team}</p>
+                    <p className="font-bold text-zinc-300">🥈 {l.winner_2_team}</p>
+                  </div>
+                  <button onClick={() => handleDeleteLeaderboard(l.id)} className="p-2 hover:bg-red-500/10 rounded transition-colors"><Trash2 className="w-5 h-5 text-red-500" /></button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* RULES TAB */}
+        {activeTab === 'rules' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="bg-zinc-900 border border-zinc-800 p-6 rounded h-fit">
+              <h2 className="text-xl font-black italic uppercase tracking-widest mb-6 border-b border-zinc-800 pb-4">Add Rule</h2>
+              <form onSubmit={handleCreateRule} className="space-y-4 text-sm font-bold">
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Rule Title</label>
+                  <input required type="text" placeholder="e.g. EMULATORS" value={newRule.title} onChange={e => setNewRule({...newRule, title: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded uppercase focus:border-orange-500 outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Description</label>
+                  <textarea required placeholder="Detailed description..." value={newRule.description} onChange={e => setNewRule({...newRule, description: e.target.value})} rows={4} className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded resize-none focus:border-orange-500 outline-none" />
+                </div>
+                <button type="submit" className="w-full bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-3 rounded transition-colors mt-4">Save Rule</button>
+              </form>
+            </div>
+            <div className="lg:col-span-2">
+              <h2 className="text-xl font-black italic uppercase tracking-widest mb-6">Active Rules</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {rules.map((r) => (
+                  <div key={r.id} className="bg-zinc-900 border border-zinc-800 p-5 rounded relative group">
+                    <h3 className="font-black tracking-wide mb-2 text-orange-500 uppercase">{r.title}</h3>
+                    <p className="text-zinc-400 text-sm leading-relaxed">{r.description}</p>
+                    <button onClick={() => handleDeleteRule(r.id)} className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-500/10 rounded"><Trash2 className="w-4 h-4 text-red-500" /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </main>
