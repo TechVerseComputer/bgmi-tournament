@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Gamepad, Trophy, Users, ShieldAlert, Crosshair, ChevronRight } from 'lucide-react';
+import { Users, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
@@ -22,24 +22,7 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-white font-sans selection:bg-orange-500 selection:text-white">
-      {/* Navigation */}
-      <nav className="w-full z-50 p-4 lg:px-12 flex justify-between items-center absolute top-0">
-        <div className="flex items-center gap-2">
-          <Gamepad className="text-orange-500 w-8 h-8" />
-          <div className="font-black text-2xl tracking-tighter">
-            BGMI <span className="text-orange-500">ARENA</span>
-          </div>
-        </div>
-        <div className="hidden md:flex gap-8 text-sm font-bold tracking-wide">
-          <Link href="/" className="text-orange-500 border-b-2 border-orange-500 pb-1">HOME</Link>
-          <Link href="/tournaments" className="hover:text-orange-400 transition-colors">TOURNAMENTS</Link>
-          <Link href="/leaderboard" className="hover:text-orange-400 transition-colors">LEADERBOARD</Link>
-          <Link href="/rules" className="hover:text-orange-400 transition-colors">RULES</Link>
-          <Link href="/dashboard" className="bg-zinc-800 hover:bg-zinc-700 px-4 py-1.5 rounded transition-colors border border-zinc-700 text-emerald-500">WALLET</Link>
-        </div>
-      </nav>
-
+    <main className="bg-[#0a0a0a] text-white font-sans selection:bg-orange-500 selection:text-white">
       {/* Hero Section */}
       <section className="relative h-screen flex flex-col items-center justify-center text-center px-4 overflow-hidden">
         <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-20" />
@@ -54,7 +37,6 @@ export default function Home() {
             Join elite BGMI tournaments, showcase your squad's skills, and win massive prize pools every single day.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            {/* FIXED: Now routes to /tournaments */}
             <Link href="/tournaments" className="w-full sm:w-auto bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black font-black uppercase tracking-widest px-8 py-4 rounded transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(249,115,22,0.4)]">
               <Users className="w-5 h-5" /> View Matches
             </Link>
@@ -93,7 +75,6 @@ export default function Home() {
                     <p className="text-3xl font-black text-orange-500">{t.fee === 0 ? 'FREE' : `₹${t.fee}`}</p>
                   </div>
                 </div>
-                {/* FIXED: Now routes to /tournaments */}
                 <Link href="/tournaments" className="block text-center w-full bg-zinc-800 hover:bg-orange-500 text-white hover:text-black font-black uppercase tracking-widest py-3 rounded transition-colors mt-4">
                   Join Match
                 </Link>
@@ -108,17 +89,6 @@ export default function Home() {
           </Link>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="bg-[#050505] py-8 border-t border-zinc-900">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Gamepad className="text-orange-500 w-6 h-6" />
-            <span className="font-black tracking-tighter">BGMI <span className="text-orange-500">ARENA</span></span>
-          </div>
-          <p className="text-zinc-600 text-sm font-medium">© 2026 BGMI Arena. All Rights Reserved.</p>
-        </div>
-      </footer>
     </main>
   );
 }
