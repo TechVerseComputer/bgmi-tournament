@@ -5,8 +5,16 @@ import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, He
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
+const heroImages = [
+  'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=2070&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?q=80&w=2070&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=2070&auto=format&fit=crop'
+];
+
 export default function Home() {
   const [latestTournaments, setLatestTournaments] = useState<any[]>([]);
+  const [currentSlide, setCurrentSlide] = useState(0);
   const supabase = createClient();
 
   useEffect(() => {
@@ -19,14 +27,29 @@ export default function Home() {
       if (data) setLatestTournaments(data);
     };
     fetchLatest();
+
+    // Auto-slide timer (Changes slide every 4 seconds)
+    const slideInterval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % heroImages.length);
+    }, 4000);
+
+    return () => clearInterval(slideInterval);
   }, []);
 
   return (
     <main className="bg-[#0a0a0a] text-white font-sans selection:bg-orange-500 selection:text-white">
       
-      {/* Hero Section */}
+      {/* Hero Section with 4-Image Auto-Slider */}
       <section className="relative h-screen flex flex-col items-center justify-center text-center px-4 overflow-hidden">
-        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-20" />
+        {heroImages.map((img, index) => (
+          <div
+            key={index}
+            className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out ${
+              index === currentSlide ? 'opacity-30 scale-105' : 'opacity-0 scale-100'
+            }`}
+            style={{ backgroundImage: `url(${img})`, transition: 'opacity 1s ease-in-out, transform 6s ease-in-out' }}
+          />
+        ))}
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#0a0a0a]/80 to-[#0a0a0a]" />
         
         <div className="relative z-10 max-w-4xl mx-auto mt-16">
@@ -44,6 +67,17 @@ export default function Home() {
             <Link href="/dashboard" className="w-full sm:w-auto bg-zinc-900 hover:bg-zinc-800 text-white font-bold uppercase tracking-widest px-8 py-4 rounded transition-all border border-zinc-800 flex items-center justify-center gap-2">
               Player Portal
             </Link>
+          </div>
+
+          {/* Slider Indicators */}
+          <div className="flex justify-center gap-2 mt-8">
+            {heroImages.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => setCurrentSlide(idx)}
+                className={`h-1.5 rounded-full transition-all ${idx === currentSlide ? 'w-8 bg-orange-500' : 'w-2 bg-zinc-700'}`}
+              />
+            ))}
           </div>
         </div>
       </section>
@@ -76,9 +110,14 @@ export default function Home() {
                     <p className="text-3xl font-black text-orange-500">{t.fee === 0 ? 'FREE' : `₹${t.fee}`}</p>
                   </div>
                 </div>
-                <Link href="/tournaments" className="block text-center w-full bg-zinc-800 hover:bg-orange-500 text-white hover:text-black font-black uppercase tracking-widest py-3 rounded transition-colors mt-4">
-                  Join Match
-                </Link>
+                <div className="grid grid-cols-2 gap-2 mt-4">
+                  <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-2.5 rounded text-xs transition-colors border border-zinc-700 flex items-center justify-center">
+                    View More
+                  </Link>
+                  <Link href="/tournaments" className="text-center bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-wider py-2.5 rounded text-xs transition-colors flex items-center justify-center">
+                    Join Match
+                  </Link>
+                </div>
               </div>
             </div>
           ))}
