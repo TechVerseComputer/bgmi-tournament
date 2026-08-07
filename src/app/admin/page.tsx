@@ -24,7 +24,6 @@ export default function AdminDashboard() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   
-  // Upgraded Tournament State with Dynamic Winners (Up to 6)
   const defaultTourney = { 
     name: '', 
     type: 'SQUAD', 
@@ -35,7 +34,7 @@ export default function AdminDashboard() {
     match_time: '', 
     map_img: '',
     total_winners: 3,
-    prizes: [1500, 800, 400, 0, 0, 0] // Supports up to 6 positions
+    prizes: [1500, 800, 400, 0, 0, 0]
   };
   const [newTourney, setNewTourney] = useState(defaultTourney);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -77,7 +76,6 @@ export default function AdminDashboard() {
     ]);
     if (regRes.data) setRegistrations(regRes.data);
     if (tourneyRes.data) {
-      // Map legacy or new prize structures smoothly
       const mappedTourneys = tourneyRes.data.map(t => ({
         ...t,
         total_winners: t.total_winners || 2,
@@ -109,10 +107,8 @@ export default function AdminDashboard() {
     setActionLoading(null);
   };
 
-  // --- AUTOMATIC PRIZE CALCULATOR ---
   const handleAutoCalculatePrizes = () => {
     const totalPool = Number(newTourney.fee) * Number(newTourney.total_slots);
-    // Keep 15% platform fee, distribute 85% to winners based on position weight
     const prizePool = Math.floor(totalPool * 0.85);
     const count = Number(newTourney.total_winners);
 
@@ -128,7 +124,7 @@ export default function AdminDashboard() {
       newPrizes[2] = prizePool - newPrizes[0] - newPrizes[1];
     } else if (count === 4) {
       newPrizes[0] = Math.floor(prizePool * 0.50);
-      newPrizes[1] = Math.floor(prizePool * 25);
+      newPrizes[1] = Math.floor(prizePool * 0.25);
       newPrizes[2] = Math.floor(prizePool * 0.15);
       newPrizes[3] = prizePool - newPrizes[0] - newPrizes[1] - newPrizes[2];
     } else if (count >= 5) {
@@ -149,6 +145,7 @@ export default function AdminDashboard() {
     setEditingId(tourney.id);
     setNewTourney({
       ...tourney,
+      match_time: tourney.match_time ? tourney.match_time.slice(0, 16) : '',
       total_winners: tourney.total_winners || 3,
       prizes: tourney.prizes || [tourney.first_prize, tourney.second_prize, 0, 0, 0, 0]
     });
@@ -190,7 +187,7 @@ export default function AdminDashboard() {
         second_prize: Number(newTourney.prizes[1] || 0),
         total_winners: Number(newTourney.total_winners),
         prize_breakdown: activePrizes,
-        match_time: String(newTourney.match_time),
+        match_time: newTourney.match_time ? new Date(newTourney.match_time).toISOString() : '',
         total_slots: Number(newTourney.total_slots || 25),
         status: String(newTourney.status || 'OPEN'),
         map_img: publicUrl
@@ -331,7 +328,7 @@ export default function AdminDashboard() {
                 
                 <div className="bg-zinc-950 p-4 rounded border border-zinc-800 space-y-4">
                   <div>
-                    <label className="text-xs font-bold text-orange-500 uppercase tracking-wider block mb-1">Match Date & Time</label>
+                    <label className="text-xs font-bold text-orange-500 uppercase tracking-wider block mb-1">Match Date & Time (IST)</label>
                     <input required type="datetime-local" value={newTourney.match_time} onChange={e => setNewTourney({...newTourney, match_time: e.target.value})} className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-sm focus:border-orange-500 outline-none text-white [color-scheme:dark]" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -433,7 +430,9 @@ export default function AdminDashboard() {
                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : t.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>{t.status}</span>
                         </div>
                         <div className="flex gap-2 text-xs font-bold text-zinc-400 mt-1">
-                          <span className="text-orange-500">{t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'No Time Set'}</span> • <span>{t.type}</span> • <span>Slots: {t.total_slots}</span> • <span className="text-emerald-400">{t.total_winners || 2} Winners</span>
+                          <span className="text-orange-500">
+                            {t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'No Time Set'}
+                          </span> • <span>{t.type}</span> • <span>Slots: {t.total_slots}</span> • <span className="text-emerald-400">{t.total_winners || 2} Winners</span>
                         </div>
                       </div>
                     </div>

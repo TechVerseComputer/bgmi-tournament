@@ -82,7 +82,7 @@ export default function TournamentDetailPage() {
       setShowModal(false);
       
       // Refresh registrations list
-      const { data: regData } = await supabase.from('registrations').select('*').eq('id', id);
+      const { data: regData } = await supabase.from('registrations').select('*').eq('tournament_id', id);
       if (regData) setRegistrations(regData);
 
     } catch (error: any) { alert("Error booking slot: " + error.message); } finally { setIsSubmitting(false); }
@@ -92,6 +92,7 @@ export default function TournamentDetailPage() {
   if (!tournament) return <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-bold">Match not found.</div>;
 
   const bookedSlotNumbers = registrations.map(r => r.slot_number).filter(s => s !== null);
+  const activePrizes = tournament.prize_breakdown?.length > 0 ? tournament.prize_breakdown : [tournament.first_prize || 0, tournament.second_prize || 0];
 
   return (
     <main className="bg-[#0a0a0a] text-white font-sans min-h-screen pb-24">
@@ -125,12 +126,15 @@ export default function TournamentDetailPage() {
               <p className="text-2xl font-black text-orange-500">{tournament.fee === 0 ? 'FREE' : `₹${tournament.fee}`}</p>
             </div>
             <div>
-              <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Match Time</p>
-              <p className="text-lg font-bold text-white flex items-center gap-1.5"><Clock className="w-4 h-4 text-orange-500"/> {tournament.match_time ? new Date(tournament.match_time).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}</p>
+              <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Match Time (IST)</p>
+              <p className="text-lg font-bold text-white flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-orange-500"/> 
+                {tournament.match_time ? new Date(tournament.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}
+              </p>
             </div>
             <div>
               <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Total Slots</p>
-              <p className="text-lg font-bold text-white flex items-center gap-1.5"><Users className="w-4 h-4 text-orange-500"/> {tournament.total_slots || 25} Squads</p>
+              <p className="text-lg font-bold text-white flex items-center gap-1.5"><Users className="w-4 h-4 text-orange-500"/> {tournament.total_slots || 25} Slots</p>
             </div>
           </div>
 
@@ -138,14 +142,14 @@ export default function TournamentDetailPage() {
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-4">
             <h2 className="text-lg font-black uppercase tracking-wider flex items-center gap-2 text-orange-500"><Trophy className="w-5 h-5"/> Prize Pool Distribution</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-lg flex justify-between items-center">
-                <span className="font-bold text-zinc-400">🥇 1st Place</span>
-                <span className="font-black text-xl text-orange-500">₹{tournament.first_prize}</span>
-              </div>
-              <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-lg flex justify-between items-center">
-                <span className="font-bold text-zinc-400">🥈 2nd Place</span>
-                <span className="font-black text-xl text-zinc-300">₹{tournament.second_prize}</span>
-              </div>
+              {activePrizes.map((prize: number, idx: number) => (
+                <div key={idx} className="bg-zinc-950 border border-zinc-800 p-4 rounded-lg flex justify-between items-center">
+                  <span className="font-bold text-zinc-400">
+                    {idx === 0 ? '🥇 1st Place' : idx === 1 ? '🥈 2nd Place' : idx === 2 ? '🥉 3rd Place' : `# ${idx + 1} Place`}
+                  </span>
+                  <span className="font-black text-xl text-orange-500">₹{prize}</span>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -184,8 +188,7 @@ export default function TournamentDetailPage() {
             <h3 className="font-black uppercase tracking-wider text-sm border-b border-zinc-800 pb-4">Match Control</h3>
             
             <div className="space-y-3 text-sm font-bold">
-              <div className="flex justify-between text-zinc-400"><p>Entry Fee</p><p className="text-white">₹{tournament.fee}</p>
-</div>
+              <div className="flex justify-between text-zinc-400"><p>Entry Fee</p><p className="text-white">₹{tournament.fee}</p></div>
               <div className="flex justify-between text-zinc-400"><p>Wallet Balance</p><p className="text-emerald-500">₹{walletBalance}</p></div>
             </div>
 
@@ -207,7 +210,7 @@ export default function TournamentDetailPage() {
             </div>
             <form onSubmit={handleConfirmBooking} className="p-6 space-y-6">
               <div className="space-y-4">
-                {[1, 2, 3, 4].map((num) => (
+                {Array.from({ length: tournament.type === 'SOLO' ? 1 : tournament.type === 'DUO' ? 2 : 4 }, (_, i) => i + 1).map((num) => (
                   <div key={num} className="bg-zinc-900/50 p-4 rounded-lg border border-zinc-800/50">
                     <p className="text-xs font-bold text-orange-500 mb-3 uppercase tracking-wider">Player {num} {num === 1 && '(Captain)'}</p>
                     <div className="grid grid-cols-2 gap-4">
