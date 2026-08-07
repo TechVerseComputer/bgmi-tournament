@@ -222,7 +222,7 @@ export default function PlayerDashboard() {
                 <h3 className="text-black font-black uppercase tracking-widest mb-6 flex items-center gap-2"><QrCode className="w-5 h-5"/> Scan & Pay</h3>
                 <div className="bg-white p-2 rounded-xl shadow-lg mb-6 border border-zinc-200">
                   {/* Dynamic UPI QR Code Generation */}
-                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=mail.bgmighost@ybl&pn=BGMI+Arena&am=${depositAmount}`} alt="UPI QR" className="w-48 h-48" />
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=digitallibrary@slc&pn=BGMI+Arena&am=${depositAmount}`} alt="UPI QR" className="w-48 h-48" />
                 </div>
                 <p className="text-zinc-500 text-xs font-bold uppercase">GPay • PhonePe • Paytm</p>
               </div>
