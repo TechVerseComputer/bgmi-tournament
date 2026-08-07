@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import { Trophy, Users, Clock, ShieldAlert, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
+import { Trophy, Users, Clock, ShieldAlert, ArrowLeft, CheckCircle, AlertCircle, Key, Lock } from 'lucide-react';
 
 export default function TournamentDetailPage() {
   const { id } = useParams();
@@ -29,7 +29,7 @@ export default function TournamentDetailPage() {
       const { data: tourneyData } = await supabase.from('tournaments').select('*').eq('id', id).single();
       if (tourneyData) setTournament(tourneyData);
 
-      // 2. Fetch existing registrations for this match to populate the slot grid
+      // 2. Fetch existing registrations for this match
       const { data: regData } = await supabase.from('registrations').select('*').eq('tournament_id', id);
       if (regData) setRegistrations(regData);
 
@@ -84,7 +84,6 @@ export default function TournamentDetailPage() {
       setWalletBalance(newBalance);
       setShowModal(false);
       
-      // Refresh registrations list
       const { data: regData } = await supabase.from('registrations').select('*').eq('tournament_id', id);
       if (regData) setRegistrations(regData);
 
@@ -95,8 +94,9 @@ export default function TournamentDetailPage() {
   if (!tournament) return <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-bold">Match not found.</div>;
 
   const bookedSlotNumbers = registrations.map(r => r.slot_number).filter(s => s !== null);
+  const userRegistration = user ? registrations.find(r => r.user_id === user.id) : null;
 
-  // Dynamic Live Prize Pool Calculation based on active slot registrations
+  // Dynamic Live Prize Pool Calculation
   const bookedCount = registrations.length;
   const totalLivePool = bookedCount > 0 ? Math.floor(bookedCount * Number(tournament.fee || 0) * 0.85) : 0;
   
@@ -168,7 +168,7 @@ export default function TournamentDetailPage() {
             </div>
           </div>
 
-          {/* Visual Slot Matrix (Shows Who Booked What) */}
+          {/* Visual Slot Matrix */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-6">
             <div>
               <h2 className="text-lg font-black uppercase tracking-wider mb-1">Drop Slot Availability & Roster</h2>
@@ -197,7 +197,7 @@ export default function TournamentDetailPage() {
 
         </div>
 
-        {/* Right Col: Action Sidebar */}
+        {/* Right Col: Action Sidebar & Secure Room Credentials Box */}
         <div className="space-y-6">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 sticky top-24 space-y-6">
             <h3 className="font-black uppercase tracking-wider text-sm border-b border-zinc-800 pb-4">Match Control</h3>
@@ -207,9 +207,50 @@ export default function TournamentDetailPage() {
               <div className="flex justify-between text-zinc-400"><p>Wallet Balance</p><p className="text-emerald-500">₹{walletBalance}</p></div>
             </div>
 
-            <button onClick={handleOpenModal} className="w-full bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black font-black uppercase tracking-widest py-4 rounded-xl shadow-[0_0_20px_rgba(249,115,22,0.4)] transition-all">
-              Join Match Now
-            </button>
+            {userRegistration ? (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-xl space-y-3 text-center">
+                <div className="flex items-center justify-center gap-2 text-emerald-400 text-xs font-black uppercase tracking-wider">
+                  <CheckCircle className="w-4 h-4"/> Slot Successfully Booked (Slot {userRegistration.slot_number})
+                </div>
+                <div className="text-zinc-300 text-xs font-bold">{userRegistration.squad_name}</div>
+              </div>
+            ) : (
+              <button onClick={handleOpenModal} className="w-full bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black font-black uppercase tracking-widest py-4 rounded-xl shadow-[0_0_20px_rgba(249,115,22,0.4)] transition-all">
+                Join Match Now
+              </button>
+            )}
+
+            {/* --- SECURE ROOM CREDENTIALS DISPLAY BOX --- */}
+            <div className="border-t border-zinc-800 pt-6 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-orange-500">
+                <Key className="w-4 h-4"/> Custom Room Credentials
+              </div>
+
+              {userRegistration ? (
+                tournament.room_id ? (
+                  <div className="bg-zinc-950 border border-orange-500/40 p-4 rounded-xl space-y-3">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-zinc-400 font-bold">Room ID:</span>
+                      <strong className="text-white font-mono text-sm bg-zinc-900 px-2 py-1 rounded">{tournament.room_id}</strong>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-zinc-400 font-bold">Password:</span>
+                      <strong className="text-white font-mono text-sm bg-zinc-900 px-2 py-1 rounded">{tournament.room_password || 'None'}</strong>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl text-center text-xs text-zinc-400 font-medium">
+                    Room ID & Password will be published here 10-15 minutes before match time. Stay tuned!
+                  </div>
+                )
+              ) : (
+                <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl text-center space-y-2">
+                  <Lock className="w-5 h-5 text-zinc-600 mx-auto"/>
+                  <p className="text-[11px] text-zinc-400 font-medium">Join this match and book your slot to reveal the Room ID & Password.</p>
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
 
