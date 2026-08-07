@@ -101,40 +101,58 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {latestTournaments.map((t) => (
-            <div key={t.id} className="bg-zinc-900/80 border border-zinc-800 rounded-2xl overflow-hidden group hover:border-orange-500/80 transition-all duration-300 hover:shadow-[0_0_25px_rgba(249,115,22,0.15)] flex flex-col h-full backdrop-blur-sm">
-              <div className="h-48 overflow-hidden relative shrink-0">
-                <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent z-10" />
-                <img src={t.map_img} alt={t.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                <span className="absolute top-3 right-3 z-20 bg-black/60 backdrop-blur-md text-orange-400 border border-orange-500/30 px-3 py-1 rounded-full text-[10px] font-black uppercase">
-                  {t.status || 'OPEN'}
-                </span>
-                <h3 className="absolute bottom-3 left-4 z-20 font-black italic text-xl tracking-wider text-white drop-shadow-md">{t.name}</h3>
-              </div>
-              
-              <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
-                <div>
-                  <div className="flex gap-2 text-xs font-bold mb-4">
-                    <span className="border border-orange-500/30 bg-orange-500/10 text-orange-500 px-2.5 py-1 rounded-md flex items-center gap-1"><Users className="w-3 h-3" /> {t.type}</span>
-                    <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2.5 py-1 rounded-md">{t.perspective}</span>
-                  </div>
-                  <div>
-                    <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Entry Fee</p>
-                    <p className="text-3xl font-black text-orange-500">{t.fee === 0 ? 'FREE' : `₹${t.fee}`}</p>
-                  </div>
-                </div>
+          {latestTournaments.map((t) => {
+            const activePrizes = t.prize_breakdown?.length > 0 ? t.prize_breakdown : [t.first_prize || 0, t.second_prize || 0];
+            const totalPrizePool = activePrizes.reduce((a: number, b: number) => a + Number(b), 0);
 
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-zinc-800/80">
-                  <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded-xl text-xs transition-colors border border-zinc-700 flex items-center justify-center">
-                    View More
-                  </Link>
-                  <Link href="/tournaments" className="text-center bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-wider py-3 rounded-xl text-xs transition-colors shadow-[0_0_15px_rgba(249,115,22,0.3)] flex items-center justify-center">
-                    Join Match
-                  </Link>
+            return (
+              <div key={t.id} className="bg-zinc-900/80 border border-zinc-800 rounded-2xl overflow-hidden group hover:border-orange-500/80 transition-all duration-300 hover:shadow-[0_0_25px_rgba(249,115,22,0.15)] flex flex-col h-full backdrop-blur-sm">
+                <div className="h-48 overflow-hidden relative shrink-0">
+                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent z-10" />
+                  <img src={t.map_img} alt={t.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                  <span className="absolute top-3 right-3 z-20 bg-black/60 backdrop-blur-md text-orange-400 border border-orange-500/30 px-3 py-1 rounded-full text-[10px] font-black uppercase">
+                    {t.status || 'OPEN'}
+                  </span>
+                  <h3 className="absolute bottom-3 left-4 z-20 font-black italic text-xl tracking-wider text-white drop-shadow-md">{t.name}</h3>
+                </div>
+                
+                <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="flex gap-2 text-xs font-bold">
+                      <span className="border border-orange-500/30 bg-orange-500/10 text-orange-500 px-2.5 py-1 rounded-md flex items-center gap-1"><Users className="w-3 h-3" /> {t.type}</span>
+                      <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2.5 py-1 rounded-md">{t.perspective}</span>
+                    </div>
+
+                    {/* Highlights: Date & Prize Pool */}
+                    <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80 space-y-1.5 text-xs">
+                      <div className="flex items-center gap-1.5 text-zinc-300 font-bold">
+                        <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                        <span>{t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-1 border-t border-zinc-900">
+                        <span className="text-zinc-400">Total Pool: <strong className="text-emerald-400 font-black">₹{totalPrizePool}</strong></span>
+                        <span className="text-orange-400">1st: ₹{activePrizes[0] || 0}</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Entry Fee</p>
+                      <p className="text-3xl font-black text-orange-500">{t.fee === 0 ? 'FREE' : `₹${t.fee}`}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-zinc-800/80">
+                    <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded-xl text-xs transition-colors border border-zinc-700 flex items-center justify-center">
+                      View More
+                    </Link>
+                    <Link href="/tournaments" className="text-center bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-wider py-3 rounded-xl text-xs transition-colors shadow-[0_0_15px_rgba(249,115,22,0.3)] flex items-center justify-center">
+                      Join Match
+                    </Link>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         
         <div className="mt-16 text-center">
