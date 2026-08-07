@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import { Wallet, Trophy, Clock, Key, LogOut, ArrowRight, ShieldCheck, Gamepad2, PlusCircle } from 'lucide-react';
+import { Wallet, Trophy, Clock, Key, LogOut, ArrowRight, Gamepad2, QrCode } from 'lucide-react';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -20,8 +20,10 @@ export default function DashboardPage() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [submittingWithdraw, setSubmittingWithdraw] = useState(false);
 
-  // Add Funds state
+  // Secure QR Deposit States
+  const [showDepositModal, setShowDepositModal] = useState(false);
   const [depositAmount, setDepositAmount] = useState('');
+  const [utrNumber, setUtrNumber] = useState('');
   const [submittingDeposit, setSubmittingDeposit] = useState(false);
 
   useEffect(() => {
@@ -63,32 +65,34 @@ export default function DashboardPage() {
     router.push('/');
   };
 
-  const handleAddFunds = async (e: React.FormEvent) => {
+  // SECURE DEPOSIT REQUEST (Creates PENDING transaction only)
+  const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const amountNum = Number(depositAmount);
     if (!amountNum || amountNum <= 0) return alert("Please enter a valid deposit amount.");
+    if (!utrNumber || utrNumber.trim().length < 8) return alert("Please enter a valid UTR / Transaction Reference Number.");
 
     setSubmittingDeposit(true);
     try {
-      const currentBal = Number(wallet?.balance || 0);
-      const newBalance = currentBal + amountNum;
-
-      const { error: walletErr } = await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', user.id);
-      if (walletErr) throw walletErr;
-
       const { error: txErr } = await supabase.from('transactions').insert([{
-        user_id: user.id, type: 'DEPOSIT', amount: amountNum, status: 'SUCCESS', description: `Wallet Deposit via UPI`
+        user_id: user.id,
+        type: 'DEPOSIT',
+        amount: amountNum,
+        status: 'PENDING', // MUST BE PENDING FOR ADMIN REVIEW
+        description: `Deposit Request (UTR: ${utrNumber})`
       }]);
       if (txErr) throw txErr;
 
-      alert(`Successfully added ₹${amountNum} to your wallet!`);
-      setWallet({...wallet, balance: newBalance});
+      alert("Deposit request submitted! Admin will verify your UTR and credit your wallet shortly.");
+      setShowDepositModal(false);
       setDepositAmount('');
+      setUtrNumber('');
 
+      // Refresh Ledger
       const { data: txData } = await supabase.from('transactions').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
       if (txData) setTransactions(txData);
     } catch (err: any) {
-      alert("Error adding funds: " + err.message);
+      alert("Error submitting deposit: " + err.message);
     } finally {
       setSubmittingDeposit(false);
     }
@@ -125,6 +129,9 @@ export default function DashboardPage() {
 
   if (loading) return <div className="min-h-screen bg-[#0a0a0a] text-orange-500 font-bold flex items-center justify-center animate-pulse">Loading Player Portal...</div>;
 
+  // Dynamic QR generator based on typed amount
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(`upi://pay?pa=digitallibrary@slc&pn=BGMI%20Arena&am=${depositAmount || 0}&cu=INR`)}`;
+
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white font-sans p-4 md:p-8 pb-24">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -145,7 +152,7 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* Wallet & Add Funds / Withdraw Grid */}
+        {/* Wallet & Withdraw Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-gradient-to-br from-zinc-900 to-zinc-950 border border-zinc-800 p-6 rounded-2xl space-y-4">
             <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
@@ -153,25 +160,14 @@ export default function DashboardPage() {
             </p>
             <p className="text-4xl font-black text-emerald-400">₹{wallet?.balance || 0}</p>
             
-            {/* Add Funds Box inside Wallet Card */}
-            <form onSubmit={handleAddFunds} className="pt-2 border-t border-zinc-800 space-y-2">
-              <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Add Funds to Wallet</label>
-              <div className="flex gap-2">
-                <input 
-                  type="number" 
-                  placeholder="Amount ₹" 
-                  value={depositAmount} 
-                  onChange={e => setDepositAmount(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500"
-                />
-                <button type="submit" disabled={submittingDeposit} className="bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase text-xs px-4 rounded-xl transition-all flex items-center gap-1 shrink-0">
-                  <PlusCircle className="w-4 h-4"/> Add
-                </button>
-              </div>
-            </form>
+            <button 
+              onClick={() => setShowDepositModal(true)} 
+              className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase text-xs tracking-wider py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+            >
+              <QrCode className="w-4 h-4"/> Add Funds (QR Scan)
+            </button>
           </div>
 
-          {/* Withdrawal Box */}
           <div className="md:col-span-2 bg-zinc-900 border border-zinc-800 p-6 rounded-2xl space-y-4">
             <h3 className="text-sm font-black uppercase tracking-wider text-orange-500">Request Withdrawal</h3>
             <form onSubmit={handleWithdrawRequest} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -270,7 +266,11 @@ export default function DashboardPage() {
                         {tx.type.includes('CREDIT') || tx.type.includes('WIN') || tx.type.includes('DEPOSIT') ? '+' : '-'}₹{tx.amount}
                       </td>
                       <td className="p-4">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${tx.status === 'SUCCESS' || tx.status === 'Verified' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                          tx.status === 'SUCCESS' || tx.status === 'Verified' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 
+                          tx.status === 'PENDING' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                          'bg-red-500/10 text-red-400 border border-red-500/20'
+                        }`}>
                           {tx.status}
                         </span>
                       </td>
@@ -285,6 +285,63 @@ export default function DashboardPage() {
         </div>
 
       </div>
+
+      {/* Secure UPI QR Code Deposit Modal */}
+      {showDepositModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#111116] w-full max-w-md rounded-2xl border border-zinc-800 relative p-6 space-y-6 shadow-2xl">
+            <button onClick={() => setShowDepositModal(false)} className="absolute top-4 right-4 text-zinc-400 hover:text-white bg-zinc-900 p-2 rounded-full">
+              ✕
+            </button>
+            
+            <div className="text-center space-y-1">
+              <h2 className="text-xl font-black uppercase tracking-wide text-white">Scan & Pay via UPI</h2>
+              <p className="text-xs text-zinc-400 font-mono">UPI ID: digitallibrary@slc</p>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl w-48 h-48 mx-auto flex items-center justify-center border-4 border-emerald-500">
+              <img src={qrCodeUrl} alt="UPI QR Code" className="w-full h-full object-contain" />
+            </div>
+            
+            <div className="text-center text-xs font-bold text-amber-400 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+              Pay using any UPI App. Once paid, enter your UTR number below for admin verification.
+            </div>
+
+            <form onSubmit={handleDepositSubmit} className="space-y-4 border-t border-zinc-800 pt-4">
+              <div>
+                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">Deposit Amount (₹)</label>
+                <input 
+                  type="number" 
+                  required
+                  placeholder="e.g. 500" 
+                  value={depositAmount} 
+                  onChange={e => setDepositAmount(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm text-white outline-none focus:border-orange-500 font-bold text-center"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">12-Digit UTR / Ref Number</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="Enter 12-digit UTR number" 
+                  value={utrNumber} 
+                  onChange={e => setUtrNumber(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-sm text-white outline-none focus:border-orange-500 font-mono text-center"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button type="button" onClick={() => setShowDepositModal(false)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-3 rounded-xl text-xs hover:bg-zinc-800 transition-colors">Cancel</button>
+                <button type="submit" disabled={submittingDeposit} className="flex-[2] bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-wider py-3 rounded-xl text-xs transition-all">
+                  {submittingDeposit ? 'Submitting...' : 'I Have Paid (Verify)'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
