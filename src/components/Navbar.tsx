@@ -4,67 +4,71 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Gamepad2, User, LogOut, ShieldAlert } from 'lucide-react';
+import { Gamepad2, User, LogOut, ShieldAlert, Wallet } from 'lucide-react';
 
 export default function Navbar() {
   const router = useRouter();
   const supabase = createClient();
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
   useEffect(() => {
-    const checkUser = async () => {
+    const checkUserAndWallet = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
         
-        // Check if user is an admin
+        // Fetch wallet balance
+        const { data: walletData } = await supabase
+          .from('wallets')
+          .select('balance')
+          .eq('user_id', session.user.id)
+          .single();
+        if (walletData) setWalletBalance(walletData.balance);
+
+        // Check if admin
         const { data: adminData } = await supabase
           .from('admins')
           .select('*')
           .eq('email', session.user.email)
           .single();
-        
         if (adminData) setIsAdmin(true);
       }
     };
-    checkUser();
+    checkUserAndWallet();
 
-    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
         setUser(session.user);
-        const { data: adminData } = await supabase.from('admins').select('*').eq('email', session.user.email).single();
-        if (adminData) setIsAdmin(true);
+        const { data: walletData } = await supabase.from('wallets').select('balance').eq('user_id', session.user.id).single();
+        if (walletData) setWalletBalance(walletData.balance);
       } else {
         setUser(null);
         setIsAdmin(false);
+        setWalletBalance(null);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // FORCE GOOGLE ACCOUNT SELECTION LOGIN HANDLER
+  // Force Google account picker so you can test multiple Gmail accounts
   const handleGoogleLogin = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
+    await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/dashboard`,
-        queryParams: {
-          prompt: 'select_account' // <-- Forces Google account picker every single time
-        }
+        queryParams: { prompt: 'select_account' }
       }
     });
-    if (error) {
-      alert("Login error: " + error.message);
-    }
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
     setIsAdmin(false);
+    setWalletBalance(null);
     router.push('/');
   };
 
@@ -85,6 +89,7 @@ export default function Navbar() {
           <Link href="/" className="hover:text-orange-500 transition-colors">Home</Link>
           <Link href="/tournaments" className="hover:text-orange-500 transition-colors">Tournaments</Link>
           <Link href="/leaderboard" className="hover:text-orange-500 transition-colors">Leaderboard</Link>
+          <Link href="/tournaments" className="hover:text-orange-500 transition-colors">Rules</Link>
           {isAdmin && (
             <Link href="/admin" className="text-orange-400 hover:text-orange-300 flex items-center gap-1">
               <ShieldAlert className="w-4 h-4"/> Admin Hub
@@ -92,10 +97,15 @@ export default function Navbar() {
           )}
         </nav>
 
-        {/* Auth Actions / Profile / Login Button */}
+        {/* Auth Actions & Live Wallet Balance */}
         <div className="flex items-center gap-3">
           {user ? (
             <div className="flex items-center gap-3">
+              {/* Wallet Balance Badge */}
+              <Link href="/dashboard" className="bg-zinc-900 border border-zinc-800 hover:border-orange-500/50 px-4 py-2 rounded-xl flex items-center gap-2 transition-all">
+                <Wallet className="w-4 h-4 text-emerald-400"/>
+                <span className="text-xs font-black text-emerald-400">₹{walletBalance ?? 0}</span>
+              </Link>
               <Link href="/dashboard" className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all">
                 <User className="w-4 h-4 text-orange-500"/> Portal
               </Link>
