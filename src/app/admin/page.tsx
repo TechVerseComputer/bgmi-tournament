@@ -2,11 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Trophy, Users, ShieldAlert, Gamepad2, UploadCloud, Trash2 } from 'lucide-react';
+import { Trophy, Users, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut } from 'lucide-react';
 
 export default function AdminDashboard() {
   const supabase = createClient();
-  const [activeTab, setActiveTab] = useState('tournaments'); 
+  
+  // Auth States
+  const [user, setUser] = useState<any>(null);
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Dashboard States
+  const [activeTab, setActiveTab] = useState('registrations'); 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -23,7 +30,58 @@ export default function AdminDashboard() {
   const [newLeaderboard, setNewLeaderboard] = useState({ match_date: '', slot_time: '', winner_1_team: '', winner_2_team: '' });
   const [newRule, setNewRule] = useState({ title: '', description: '' });
 
-  // Fetch Everything
+  // --- GATEKEEPER LOGIC (GOOGLE AUTH) ---
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        setUser(session.user);
+        verifyAdmin(session.user.email);
+      } else {
+        setAuthLoading(false);
+      }
+
+      supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          setUser(session.user);
+          verifyAdmin(session.user.email);
+        } else {
+          setUser(null);
+          setIsAuthorized(false);
+          setAuthLoading(false);
+        }
+      });
+    };
+    
+    checkAuth();
+  }, []);
+
+  const verifyAdmin = async (email: string | undefined) => {
+    if (!email) return;
+    const { data } = await supabase.from('admins').select('*').eq('email', email).single();
+    if (data) {
+      setIsAuthorized(true);
+      fetchAllData(); // Only fetch database info if they are a verified admin!
+    } else {
+      setIsAuthorized(false);
+    }
+    setAuthLoading(false);
+  };
+
+  const handleLogin = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + '/admin' }
+    });
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+
+  // --- DASHBOARD DATA LOGIC ---
   const fetchAllData = async () => {
     setLoading(true);
     const [regRes, tourneyRes, leadRes, rulesRes] = await Promise.all([
@@ -40,11 +98,6 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
-  useEffect(() => {
-    fetchAllData();
-  }, []);
-
-  // --- UTR APPROVAL LOGIC ---
   const handleVerify = async (id: string) => {
     setActionLoading(id);
     const verifiedRegistrations = registrations.filter((r) => r.payment_status === 'Verified' && r.slot_number !== null);
@@ -64,7 +117,6 @@ export default function AdminDashboard() {
     setActionLoading(null);
   };
 
-  // --- TOURNAMENT LOGIC (WITH UPLOAD) ---
   const handleCreateTournament = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!imageFile) return alert("Please select a background image file.");
@@ -99,7 +151,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // --- LEADERBOARD LOGIC ---
   const handleCreateLeaderboard = async (e: React.FormEvent) => {
     e.preventDefault();
     const { error } = await supabase.from('leaderboard').insert([newLeaderboard]);
@@ -116,7 +167,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // --- RULES LOGIC ---
   const handleCreateRule = async (e: React.FormEvent) => {
     e.preventDefault();
     const { error } = await supabase.from('rules').insert([newRule]);
@@ -133,6 +183,43 @@ export default function AdminDashboard() {
     }
   };
 
+  // --- RENDER SCREENS ---
+
+  // 1. Loading Screen
+  if (authLoading) {
+    return <div className="min-h-screen bg-[#050505] text-orange-500 font-black tracking-widest uppercase flex items-center justify-center animate-pulse">Checking Clearance...</div>;
+  }
+
+  // 2. Login Screen (Not Logged In)
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-4">
+        <ShieldAlert className="w-16 h-16 text-orange-500 mb-6" />
+        <h1 className="text-4xl font-black italic tracking-widest text-white mb-2 uppercase">Restricted Area</h1>
+        <p className="text-zinc-400 mb-8 font-medium">Please verify your identity to access the Admin Hub.</p>
+        <button onClick={handleLogin} className="bg-white hover:bg-gray-200 text-black font-black uppercase tracking-wider px-8 py-4 rounded flex items-center gap-3 transition-colors shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+          <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-5 h-5" />
+          Sign in with Google
+        </button>
+      </div>
+    );
+  }
+
+  // 3. Access Denied Screen (Logged In, but not on Admin List)
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-4 text-center">
+        <ShieldAlert className="w-20 h-20 text-red-500 mb-6" />
+        <h1 className="text-4xl font-black italic text-white mb-2 uppercase">Access Denied</h1>
+        <p className="text-zinc-400 mb-8">The email <span className="text-red-400 font-bold">{user.email}</span> is not registered as an administrator.</p>
+        <button onClick={handleLogout} className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-8 py-3 rounded uppercase tracking-wider transition-colors border border-zinc-700">
+          Logout & Try Another Account
+        </button>
+      </div>
+    );
+  }
+
+  // 4. The Secure Admin Dashboard
   return (
     <main className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans">
       <div className="max-w-7xl mx-auto">
@@ -141,11 +228,19 @@ export default function AdminDashboard() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 border-b border-zinc-800 pb-6">
           <div>
             <h1 className="text-3xl font-black italic tracking-wider text-orange-500">SUPER ADMIN HUB</h1>
-            <p className="text-zinc-400 text-sm mt-1 font-medium">Manage registrations, matches, and rules</p>
+            <p className="text-emerald-500 text-sm mt-1 font-bold flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Authenticated as {user.email}
+            </p>
           </div>
-          <button onClick={fetchAllData} className="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-sm font-bold px-4 py-2 rounded border border-zinc-700 transition-all">
-            🔄 Refresh Database
-          </button>
+          <div className="flex gap-4 w-full md:w-auto">
+            <button onClick={fetchAllData} className="flex-1 md:flex-none bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-sm font-bold px-4 py-2.5 rounded border border-zinc-700 transition-all">
+              🔄 Refresh Data
+            </button>
+            <button onClick={handleLogout} className="flex-1 md:flex-none bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white text-sm font-bold px-4 py-2.5 rounded border border-red-500/20 transition-all flex items-center justify-center gap-2">
+              <LogOut className="w-4 h-4" /> Logout
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2 mb-8">
@@ -212,10 +307,10 @@ export default function AdminDashboard() {
            </div>
         )}
 
-        {/* --- TOURNAMENTS TAB (RESTORED DETAILED UI) --- */}
+        {/* --- TOURNAMENTS TAB --- */}
         {activeTab === 'tournaments' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 p-6 rounded">
+            <div className="lg:col-span-1 bg-zinc-900 border border-zinc-800 p-6 rounded h-fit">
               <h2 className="text-xl font-black italic uppercase tracking-widest mb-6 border-b border-zinc-800 pb-4">Create Match</h2>
               <form onSubmit={handleCreateTournament} className="space-y-4">
                 <div>
