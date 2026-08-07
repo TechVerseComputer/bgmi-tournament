@@ -1,27 +1,68 @@
 'use client';
 
-import { Gamepad } from 'lucide-react';
+import Link from 'next/link';
+import { Gamepad, Mail, Phone, MapPin } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
 export default function Footer() {
   const pathname = usePathname();
   
-  // Hide footer on Admin and Dashboard pages
   if (pathname === '/admin' || pathname === '/dashboard') return null;
 
   return (
-    <footer className="bg-[#050505] py-12 border-t border-zinc-900 mt-auto">
-      <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-6">
-        <div className="flex items-center gap-2">
-          <Gamepad className="text-orange-500 w-8 h-8" />
-          <span className="font-black text-xl tracking-tighter text-white">BGMI <span className="text-orange-500">ARENA</span></span>
+    <footer className="bg-[#050505] text-zinc-400 font-sans border-t border-zinc-900 pt-16 pb-8">
+      <div className="max-w-7xl mx-auto px-4 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-10 mb-12">
+        
+        {/* Col 1: Brand */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Gamepad className="text-orange-500 w-8 h-8" />
+            <span className="font-black text-xl tracking-tighter text-white">BGMI <span className="text-orange-500">ARENA</span></span>
+          </div>
+          <p className="text-sm leading-relaxed text-zinc-400">
+            India's most trusted platform for competitive BGMI tournaments. Join, play, and win cash prizes daily.
+          </p>
         </div>
-        <div className="flex gap-6 text-sm font-bold text-zinc-500">
-          <a href="#" className="hover:text-orange-500 transition-colors">Privacy Policy</a>
-          <a href="#" className="hover:text-orange-500 transition-colors">Terms of Service</a>
-          <a href="#" className="hover:text-orange-500 transition-colors">Contact Support</a>
+
+        {/* Col 2: Quick Links */}
+        <div>
+          <h4 className="text-white font-black uppercase tracking-wider text-sm mb-4">Quick Links</h4>
+          <ul className="space-y-2 text-sm font-medium">
+            <li><Link href="/" className="hover:text-orange-500 transition-colors">Home</Link></li>
+            <li><Link href="/tournaments" className="hover:text-orange-500 transition-colors">Tournaments</Link></li>
+            <li><Link href="/leaderboard" className="hover:text-orange-500 transition-colors">Leaderboard</Link></li>
+            <li><Link href="/rules" className="hover:text-orange-500 transition-colors">Rules</Link></li>
+            <li><Link href="/dashboard" className="hover:text-orange-500 transition-colors">Player Portal</Link></li>
+          </ul>
         </div>
-        <p className="text-zinc-600 text-sm font-medium">© {new Date().getFullYear()} BGMI Arena. All Rights Reserved.</p>
+
+        {/* Col 3: Support */}
+        <div>
+          <h4 className="text-white font-black uppercase tracking-wider text-sm mb-4">Support</h4>
+          <ul className="space-y-2 text-sm font-medium">
+            <li><Link href="/rules" className="hover:text-orange-500 transition-colors">Help Center</Link></li>
+            <li><Link href="/rules" className="hover:text-orange-500 transition-colors">How to Play</Link></li>
+            <li><Link href="/rules" className="hover:text-orange-500 transition-colors">Terms & Conditions</Link></li>
+            <li><Link href="/rules" className="hover:text-orange-500 transition-colors">Privacy Policy</Link></li>
+          </ul>
+        </div>
+
+        {/* Col 4: Contact Us */}
+        <div>
+          <h4 className="text-white font-black uppercase tracking-wider text-sm mb-4">Contact Us</h4>
+          <ul className="space-y-3 text-sm font-medium">
+            <li className="flex items-center gap-2"><Mail className="w-4 h-4 text-orange-500"/> support@bgmiarena.in</li>
+            <li className="flex items-center gap-2"><Phone className="w-4 h-4 text-orange-500"/> +91 98765 43210</li>
+            <li className="flex items-center gap-2"><MapPin className="w-4 h-4 text-orange-500"/> Navi Mumbai, India</li>
+          </ul>
+        </div>
+
+      </div>
+
+      {/* Bottom Bar */}
+      <div className="max-w-7xl mx-auto px-4 lg:px-8 border-t border-zinc-900 pt-6 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs font-bold text-zinc-500">
+        <p>© {new Date().getFullYear()} BGMI Arena. All Rights Reserved.</p>
+        <p className="flex items-center gap-1">Made with <span className="text-red-500">❤️</span> for BGMI Lovers</p>
       </div>
     </footer>
   );

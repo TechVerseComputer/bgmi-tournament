@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Users, ChevronRight } from 'lucide-react';
+import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
@@ -23,6 +23,7 @@ export default function Home() {
 
   return (
     <main className="bg-[#0a0a0a] text-white font-sans selection:bg-orange-500 selection:text-white">
+      
       {/* Hero Section */}
       <section className="relative h-screen flex flex-col items-center justify-center text-center px-4 overflow-hidden">
         <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-20" />
@@ -89,6 +90,93 @@ export default function Home() {
           </Link>
         </div>
       </section>
+
+      {/* --- TOURNAMENT RULES SECTION --- */}
+      <section className="py-20 px-4 max-w-7xl mx-auto border-t border-zinc-900">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl font-black italic uppercase tracking-wider">Tournament <span className="text-orange-500">Rules</span></h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+          {[
+            { title: 'Fair Play', desc: 'Use of hacks, cheats or any third-party tools is strictly prohibited.', icon: ShieldCheck },
+            { title: 'Team Composition', desc: 'Ensure your squad is complete before the tournament starts.', icon: Users },
+            { title: 'Match Schedule', desc: 'Be on time. Late entries may lead to disqualification.', icon: Clock },
+            { title: 'Disconnection', desc: 'No rematches will be granted for disconnections or network issues.', icon: AlertTriangle },
+            { title: 'Decisions', desc: "The tournament admin's decision will be final and binding.", icon: Zap },
+          ].map((rule, idx) => (
+            <div key={idx} className="bg-zinc-900/50 border border-zinc-800/80 p-6 rounded-xl text-center space-y-4 hover:border-orange-500/50 transition-colors">
+              <rule.icon className="w-10 h-10 text-orange-500 mx-auto" />
+              <h3 className="font-black uppercase tracking-wide text-sm">{rule.title}</h3>
+              <p className="text-zinc-400 text-xs leading-relaxed">{rule.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* --- WHY PLAY WITH US SECTION --- */}
+      <section className="py-20 px-4 max-w-7xl mx-auto border-t border-zinc-900">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl font-black italic uppercase tracking-wider">Why Play <span className="text-orange-500">With Us?</span></h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+          {[
+            { title: 'Instant Payouts', desc: 'Winnings directly in your account', icon: Zap },
+            { title: 'Fair & Secure', desc: '100% fair play with anti-cheat system', icon: ShieldCheck },
+            { title: 'Exciting Prizes', desc: 'Real cash prizes for top performers', icon: Trophy },
+            { title: 'Easy to Join', desc: 'Simple registration and quick match', icon: Users },
+            { title: '24/7 Support', desc: "We're here to help you anytime", icon: Headphones },
+          ].map((feature, idx) => (
+            <div key={idx} className="bg-zinc-900/50 border border-zinc-800/80 p-6 rounded-xl text-center space-y-4 hover:border-orange-500/50 transition-colors">
+              <feature.icon className="w-10 h-10 text-orange-500 mx-auto" />
+              <h3 className="font-black uppercase tracking-wide text-sm">{feature.title}</h3>
+              <p className="text-zinc-400 text-xs leading-relaxed">{feature.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* --- HOW IT WORKS SECTION --- */}
+      <section className="py-20 px-4 max-w-7xl mx-auto border-t border-zinc-900">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl font-black italic uppercase tracking-wider">How It <span className="text-orange-500">Works?</span></h2>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative">
+          {[
+            { step: '1', title: 'Register', desc: 'Sign up and create your squad' },
+            { step: '2', title: 'Join Tournament', desc: 'Choose any tournament and join' },
+            { step: '3', title: 'Play & Win', desc: 'Compete and be the last squad standing' },
+            { step: '4', title: 'Win Cash', desc: 'Get amazing rewards and cash prizes' },
+          ].map((item, idx) => (
+            <div key={idx} className="bg-zinc-900/40 border border-zinc-800/80 p-8 rounded-2xl text-center relative flex flex-col items-center">
+              <div className="w-12 h-12 bg-orange-500 text-black font-black text-xl rounded-full flex items-center justify-center mb-6 shadow-[0_0_15px_rgba(249,115,22,0.4)]">
+                {item.step}
+              </div>
+              <h3 className="font-black uppercase tracking-wider mb-2">{item.title}</h3>
+              <p className="text-zinc-400 text-xs leading-relaxed">{item.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* --- CTA BANNER SECTION --- */}
+      <section className="py-16 px-4 max-w-7xl mx-auto">
+        <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-zinc-900 via-orange-950/30 to-zinc-900 border border-orange-500/30 p-8 md:p-12 flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-10" />
+          <div className="relative z-10 text-center md:text-left">
+            <h2 className="text-3xl md:text-4xl font-black italic uppercase tracking-tighter mb-2">Ready to Dominate the <span className="text-orange-500">Battleground?</span></h2>
+            <p className="text-zinc-400 font-medium">Gather your squad and join the battle now!</p>
+          </div>
+          <div className="relative z-10 flex flex-wrap gap-4 justify-center">
+            <Link href="/tournaments" className="bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest px-8 py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(249,115,22,0.4)]">
+              Register Squad
+            </Link>
+            <Link href="/tournaments" className="bg-zinc-900 hover:bg-zinc-800 text-white font-bold uppercase tracking-widest px-8 py-4 rounded-xl transition-all border border-zinc-700">
+              Download App
+            </Link>
+          </div>
+        </div>
+      </section>
+
     </main>
   );
 }
