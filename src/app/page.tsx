@@ -5,12 +5,11 @@ import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, He
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
-// Your High-End Custom Gaming Wallpapers
 const heroImages = [
-  'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop', // Core Battleground
-  'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=2070&auto=format&fit=crop', // Arena Esports
-  'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?q=80&w=2070&auto=format&fit=crop', // Gaming Setup
-  'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=2070&auto=format&fit=crop'  // Cyber Combat
+  'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=2070&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?q=80&w=2070&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=2070&auto=format&fit=crop'
 ];
 
 export default function Home() {
@@ -21,7 +20,6 @@ export default function Home() {
 
   useEffect(() => {
     const fetchData = async () => {
-      // 1. Fetch Latest Tournaments
       const { data } = await supabase
         .from('tournaments')
         .select('*')
@@ -29,7 +27,6 @@ export default function Home() {
         .limit(4);
       if (data) setLatestTournaments(data);
 
-      // 2. Fetch Logged-in User's Active Registered Matches
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const { data: regData } = await supabase
@@ -43,7 +40,6 @@ export default function Home() {
     };
     fetchData();
 
-    // Auto-slide timer (Changes slide every 4.5 seconds)
     const slideInterval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroImages.length);
     }, 4500);
@@ -65,7 +61,6 @@ export default function Home() {
             style={{ backgroundImage: `url(${img})` }}
           />
         ))}
-        {/* Multi-layer Cinematic Gradient Overlays */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
         <div className="absolute inset-0 bg-radial-at-c from-transparent via-[#050505]/40 to-[#050505]" />
         
@@ -92,7 +87,6 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* Elegant Slider Indicators */}
           <div className="flex justify-center gap-2.5 pt-6">
             {heroImages.map((_, idx) => (
               <button
@@ -106,7 +100,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* --- CONDITIONAL UPCOMING REGISTERED MATCHES BANNER --- */}
+      {/* Active Registered Matches Banner */}
       {userMatches.length > 0 && (
         <section className="py-8 px-4 max-w-7xl mx-auto">
           <div className="bg-gradient-to-r from-orange-950/40 via-zinc-900 to-orange-950/40 border border-orange-500/40 p-6 md:p-8 rounded-3xl space-y-6 shadow-2xl backdrop-blur-md">
@@ -156,7 +150,7 @@ export default function Home() {
         </section>
       )}
 
-      {/* Latest Tournaments Section */}
+      {/* Latest Tournaments */}
       <section className="py-24 px-4 max-w-7xl mx-auto">
         <div className="flex flex-col items-center text-center mb-16">
           <span className="text-orange-500 text-xs font-black uppercase tracking-widest mb-2">Live Action</span>
@@ -187,7 +181,6 @@ export default function Home() {
                       <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2.5 py-1 rounded-md">{t.perspective}</span>
                     </div>
 
-                    {/* Highlights: Date & Prize Pool */}
                     <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80 space-y-1.5 text-xs">
                       <div className="flex items-center gap-1.5 text-zinc-300 font-bold">
                         <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />
@@ -201,7 +194,7 @@ export default function Home() {
 
                     <div>
                       <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Entry Fee</p>
-                      <p className="text-3xl font-black text-orange-500">{t.fee === 0 ? 'FREE' : `₹${t.fee}`}</p>
+                      <p className="text-3xl font-black text-orange-500">{t.fee === 0 ? 'FREE' : `₹{t.fee}`}</p>
                     </div>
                   </div>
 
@@ -226,7 +219,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* --- TOURNAMENT RULES SECTION --- */}
+      {/* Rules Section */}
       <section className="py-24 px-4 max-w-7xl mx-auto border-t border-zinc-900/80">
         <div className="text-center mb-16">
           <span className="text-orange-500 text-xs font-black uppercase tracking-widest mb-2">Fair Play Guaranteed</span>
@@ -252,7 +245,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* --- WHY PLAY WITH US SECTION --- */}
+      {/* Why Play With Us */}
       <section className="py-24 px-4 max-w-7xl mx-auto border-t border-zinc-900/80">
         <div className="text-center mb-16">
           <span className="text-orange-500 text-xs font-black uppercase tracking-widest mb-2">The Ultimate Advantage</span>
@@ -278,7 +271,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* --- HOW IT WORKS SECTION --- */}
+      {/* How It Works */}
       <section className="py-24 px-4 max-w-7xl mx-auto border-t border-zinc-900/80">
         <div className="text-center mb-16">
           <span className="text-orange-500 text-xs font-black uppercase tracking-widest mb-2">Simple 4-Step Process</span>
@@ -300,25 +293,6 @@ export default function Home() {
               <p className="text-zinc-400 text-xs leading-relaxed">{item.desc}</p>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* --- CTA BANNER SECTION --- */}
-      <section className="py-20 px-4 max-w-7xl mx-auto">
-        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-zinc-900 via-orange-950/40 to-zinc-900 border border-orange-500/30 p-10 md:p-16 flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl">
-          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-15" />
-          <div className="relative z-10 text-center md:text-left space-y-2">
-            <h2 className="text-3xl md:text-5xl font-black italic uppercase tracking-tight">Ready to Dominate the <span className="text-orange-500">Battleground?</span></h2>
-            <p className="text-zinc-300 font-medium">Gather your squad, lock in your drop slot, and start winning today.</p>
-          </div>
-          <div className="relative z-10 flex flex-wrap gap-4 justify-center shrink-0">
-            <Link href="/tournaments" className="bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest px-8 py-4 rounded-xl transition-all shadow-[0_0_25px_rgba(249,115,22,0.5)] hover:scale-105">
-              Register Squad
-            </Link>
-            <Link href="/dashboard" className="bg-zinc-900 hover:bg-zinc-800 text-white font-bold uppercase tracking-widest px-8 py-4 rounded-xl transition-all border border-zinc-700">
-              Player Portal
-            </Link>
-          </div>
         </div>
       </section>
 
