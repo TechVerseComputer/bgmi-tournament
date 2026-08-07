@@ -25,15 +25,12 @@ export default function TournamentDetailPage() {
   useEffect(() => {
     if (!id) return;
     const fetchDetails = async () => {
-      // 1. Fetch Tournament details
       const { data: tourneyData } = await supabase.from('tournaments').select('*').eq('id', id).single();
       if (tourneyData) setTournament(tourneyData);
 
-      // 2. Fetch existing registrations for this match
       const { data: regData } = await supabase.from('registrations').select('*').eq('tournament_id', id);
       if (regData) setRegistrations(regData);
 
-      // 3. Fetch User session & Wallet
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
@@ -46,17 +43,14 @@ export default function TournamentDetailPage() {
     fetchDetails();
   }, [id]);
 
-  // Replace your existing handleOpenModal function with this:
   const handleOpenModal = () => {
     if (!user) {
-      // Force Google account picker and redirect back to this exact match page
+      // Force Google Account Selection and return directly to this match page
       supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: window.location.href,
-          queryParams: {
-            prompt: 'select_account'
-          }
+          queryParams: { prompt: 'select_account' }
         }
       });
       return;
@@ -105,7 +99,6 @@ export default function TournamentDetailPage() {
   const bookedSlotNumbers = registrations.map(r => r.slot_number).filter(s => s !== null);
   const userRegistration = user ? registrations.find(r => r.user_id === user.id) : null;
 
-  // Dynamic Live Prize Pool Calculation
   const bookedCount = registrations.length;
   const totalLivePool = bookedCount > 0 ? Math.floor(bookedCount * Number(tournament.fee || 0) * 0.85) : 0;
   
@@ -117,7 +110,6 @@ export default function TournamentDetailPage() {
 
   return (
     <main className="bg-[#0a0a0a] text-white font-sans min-h-screen pb-24">
-      {/* Top Banner Header */}
       <div className="relative h-72 md:h-96 overflow-hidden border-b border-zinc-800">
         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/50 to-transparent z-10" />
         <img src={tournament.map_img} alt={tournament.name} className="w-full h-full object-cover filter brightness-75" />
@@ -136,11 +128,8 @@ export default function TournamentDetailPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 lg:px-8 mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left 2 Cols: Overview, Prize Pool, & Slot Grid */}
         <div className="lg:col-span-2 space-y-8">
           
-          {/* Match Info Card */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 grid grid-cols-2 md:grid-cols-3 gap-6">
             <div>
               <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Entry Fee</p>
@@ -159,7 +148,6 @@ export default function TournamentDetailPage() {
             </div>
           </div>
 
-          {/* Prize Pool Breakdown */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-black uppercase tracking-wider flex items-center gap-2 text-orange-500"><Trophy className="w-5 h-5"/> Prize Pool Distribution</h2>
@@ -177,7 +165,6 @@ export default function TournamentDetailPage() {
             </div>
           </div>
 
-          {/* Visual Slot Matrix */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-6">
             <div>
               <h2 className="text-lg font-black uppercase tracking-wider mb-1">Drop Slot Availability & Roster</h2>
@@ -206,7 +193,6 @@ export default function TournamentDetailPage() {
 
         </div>
 
-        {/* Right Col: Action Sidebar & Secure Room Credentials Box */}
         <div className="space-y-6">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 sticky top-24 space-y-6">
             <h3 className="font-black uppercase tracking-wider text-sm border-b border-zinc-800 pb-4">Match Control</h3>
@@ -229,7 +215,6 @@ export default function TournamentDetailPage() {
               </button>
             )}
 
-            {/* --- SECURE ROOM CREDENTIALS DISPLAY BOX --- */}
             <div className="border-t border-zinc-800 pt-6 space-y-3">
               <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-orange-500">
                 <Key className="w-4 h-4"/> Custom Room Credentials
@@ -265,11 +250,11 @@ export default function TournamentDetailPage() {
 
       </div>
 
-      {/* Booking Modal */}
+      {/* Booking Modal - Fixed Clipping with max-h-[90vh] overflow-y-auto */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-[#111116] w-full max-w-2xl rounded-xl border border-zinc-800 relative my-8">
-            <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-zinc-400 hover:text-white bg-zinc-900 p-2 rounded-full">✕</button>
+          <div className="bg-[#111116] w-full max-w-2xl rounded-xl border border-zinc-800 relative my-8 max-h-[90vh] overflow-y-auto shadow-2xl">
+            <button onClick={() => setShowModal(false)} className="sticky top-4 right-4 float-right z-20 text-zinc-400 hover:text-white bg-zinc-900 p-2 rounded-full mr-4 mt-4">✕</button>
             <div className="p-6 border-b border-zinc-800">
               <h2 className="text-xl font-black uppercase tracking-wide text-white">Book Slot - {tournament.name}</h2>
             </div>
