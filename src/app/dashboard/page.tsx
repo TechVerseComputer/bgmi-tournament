@@ -1,0 +1,323 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { createClient } from '@/utils/supabase/client';
+import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, Clock, ShieldCheck, X } from 'lucide-react';
+
+export default function PlayerDashboard() {
+  const supabase = createClient();
+  const [user, setUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  
+  const [activeTab, setActiveTab] = useState('overview');
+  const [wallet, setWallet] = useState({ balance: 0, total_deposited: 0, total_won: 0 });
+  const [transactions, setTransactions] = useState<any[]>([]);
+  
+  // Deposit States
+  const [depositAmount, setDepositAmount] = useState<number | ''>('');
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [utrNumber, setUtrNumber] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const quickAmounts = [50, 100, 200, 500, 1000, 2000];
+
+  // Withdraw States
+  const [withdrawAmount, setWithdrawAmount] = useState<number | ''>('');
+  const [upiId, setUpiId] = useState('');
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser(session.user);
+        fetchWalletData(session.user.id);
+      } else {
+        setAuthLoading(false);
+      }
+    };
+    checkAuth();
+  }, []);
+
+  const fetchWalletData = async (userId: string) => {
+    // Fetch or Create Wallet
+    let { data: walletData } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
+    
+    if (!walletData) {
+      const { data: newWallet } = await supabase.from('wallets').insert([{ user_id: userId }]).select().single();
+      walletData = newWallet;
+    }
+    
+    if (walletData) setWallet(walletData);
+
+    // Fetch Transactions
+    const { data: txData } = await supabase.from('transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+    if (txData) setTransactions(txData);
+    
+    setAuthLoading(false);
+  };
+
+  const handleLogin = async () => {
+    await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/dashboard' }});
+  };
+
+  const handleDepositSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!utrNumber || utrNumber.length < 12) return alert("Please enter a valid 12-digit UTR number.");
+    setIsSubmitting(true);
+    
+    const { error } = await supabase.from('transactions').insert([{
+      user_id: user.id,
+      type: 'DEPOSIT',
+      amount: depositAmount,
+      reference_id: utrNumber,
+      description: 'Wallet Deposit via UPI'
+    }]);
+
+    if (!error) {
+      alert("Deposit request submitted! Our team will verify the UTR shortly.");
+      setShowQRModal(false);
+      setDepositAmount('');
+      setUtrNumber('');
+      fetchWalletData(user.id);
+    }
+    setIsSubmitting(false);
+  };
+
+  const handleWithdrawSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (Number(withdrawAmount) > wallet.balance) return alert("Insufficient balance.");
+    if (Number(withdrawAmount) < 100) return alert("Minimum withdrawal is ₹100.");
+    
+    setIsSubmitting(true);
+    const { error } = await supabase.from('transactions').insert([{
+      user_id: user.id,
+      type: 'WITHDRAWAL',
+      amount: withdrawAmount,
+      upi_id: upiId,
+      description: 'Withdrawal to UPI'
+    }]);
+
+    if (!error) {
+      alert("Withdrawal request submitted! Funds will be transferred shortly.");
+      setWithdrawAmount('');
+      setUpiId('');
+      fetchWalletData(user.id);
+    }
+    setIsSubmitting(false);
+  };
+
+  if (authLoading) return <div className="min-h-screen bg-[#050505] text-emerald-500 flex items-center justify-center font-black animate-pulse">Loading Secure Portal...</div>;
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-4">
+        <Wallet className="w-16 h-16 text-emerald-500 mb-6" />
+        <h1 className="text-4xl font-black italic text-white mb-2 uppercase">Player Portal</h1>
+        <p className="text-zinc-400 mb-8 font-medium">Login to manage your wallet, deposits, and winnings.</p>
+        <button onClick={handleLogin} className="bg-white hover:bg-gray-200 text-black font-black uppercase tracking-wider px-8 py-4 rounded flex items-center gap-3">
+          <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
+          Sign in with Google
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans pb-24">
+      <div className="max-w-6xl mx-auto">
+        
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-8 border-b border-zinc-800 pb-6">
+          <Wallet className="w-8 h-8 text-emerald-500" />
+          <div>
+            <h1 className="text-2xl font-black italic tracking-wider">WALLET</h1>
+            <p className="text-zinc-400 text-xs font-medium">Manage your funds, deposits, and withdrawals</p>
+          </div>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex flex-wrap gap-2 mb-8 bg-zinc-900 p-1 rounded-lg border border-zinc-800 w-full md:w-fit">
+          {[
+            { id: 'overview', icon: Wallet, label: 'Overview' },
+            { id: 'deposit', icon: ArrowDownToLine, label: 'Deposit' },
+            { id: 'withdraw', icon: ArrowUpFromLine, label: 'Withdraw' },
+            { id: 'history', icon: History, label: 'History' }
+          ].map((tab) => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'}`}>
+              <tab.icon className="w-4 h-4" /> {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* --- OVERVIEW TAB --- */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col md:flex-row justify-between items-center gap-6">
+              <div>
+                <p className="text-zinc-400 font-bold text-sm uppercase tracking-wider flex items-center gap-2 mb-2"><Wallet className="w-4 h-4 text-emerald-500"/> Available Balance</p>
+                <p className="text-5xl font-black">₹{wallet.balance}</p>
+              </div>
+              <div className="flex gap-4 w-full md:w-auto">
+                <button onClick={() => setActiveTab('deposit')} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-wider px-6 py-3 rounded flex items-center justify-center gap-2 transition-colors"><ArrowDownToLine className="w-5 h-5"/> Add Money</button>
+                <button onClick={() => setActiveTab('withdraw')} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase tracking-wider px-6 py-3 rounded border border-zinc-700 flex items-center justify-center gap-2 transition-colors"><ArrowUpFromLine className="w-5 h-5"/> Withdraw</button>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-6">
+                <p className="text-emerald-500 font-black text-2xl mb-1">₹{wallet.total_deposited}</p>
+                <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Total Deposited</p>
+              </div>
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-6">
+                <p className="text-amber-500 font-black text-2xl mb-1">₹{wallet.total_won}</p>
+                <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Total Winnings</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- DEPOSIT TAB --- */}
+        {activeTab === 'deposit' && (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-3xl mx-auto">
+            <h2 className="text-lg font-black uppercase flex items-center gap-2 mb-6"><ArrowDownToLine className="w-5 h-5 text-emerald-500"/> Add Money to Wallet</h2>
+            
+            <div className="mb-6">
+              <p className="text-xs text-zinc-400 font-bold uppercase tracking-wider mb-3">Quick Select</p>
+              <div className="grid grid-cols-3 gap-3">
+                {quickAmounts.map(amt => (
+                  <button key={amt} type="button" onClick={() => setDepositAmount(amt)} className={`py-3 rounded font-black border transition-all ${depositAmount === amt ? 'bg-emerald-500 text-black border-emerald-500' : 'bg-zinc-950 border-zinc-800 text-zinc-300 hover:border-emerald-500/50'}`}>
+                    ₹{amt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-8">
+              <p className="text-xs text-zinc-400 font-bold uppercase tracking-wider mb-3">Or enter custom amount</p>
+              <input type="number" value={depositAmount} onChange={(e) => setDepositAmount(Number(e.target.value))} placeholder="Enter amount" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-bold text-lg focus:border-emerald-500 outline-none" />
+              <div className="flex justify-between text-[10px] text-zinc-500 font-bold uppercase mt-2">
+                <span>Min ₹10</span><span>Max ₹50,000</span>
+              </div>
+            </div>
+
+            <div className="border-t border-zinc-800 pt-6 mb-6 space-y-3 text-sm font-bold">
+              <div className="flex justify-between text-zinc-400"><p>Deposit Amount</p><p>₹{depositAmount || 0}</p></div>
+              <div className="flex justify-between text-zinc-400"><p>Processing Fee</p><p className="text-emerald-500">FREE</p></div>
+              <div className="flex justify-between text-lg text-white border-t border-zinc-800 pt-3"><p>Total to Pay</p><p>₹{depositAmount || 0}</p></div>
+            </div>
+
+            <button disabled={!depositAmount || depositAmount < 10} onClick={() => setShowQRModal(true)} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:hover:bg-emerald-500 text-black font-black uppercase tracking-widest py-4 rounded-lg flex items-center justify-center gap-2 transition-colors">
+              ⚡ Pay ₹{depositAmount || 0} via UPI
+            </button>
+          </div>
+        )}
+
+        {/* --- ZAPUPI QR MODAL --- */}
+        {showQRModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm">
+            <div className="bg-[#1c1c24] w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl border border-zinc-800 relative flex flex-col md:flex-row">
+              <button onClick={() => setShowQRModal(false)} className="absolute top-4 right-4 bg-zinc-800 p-2 rounded-full text-zinc-400 hover:text-white z-10"><X className="w-5 h-5"/></button>
+              
+              {/* Left Side: QR Code */}
+              <div className="bg-white p-8 flex flex-col items-center justify-center w-full md:w-1/2">
+                <h3 className="text-black font-black uppercase tracking-widest mb-6 flex items-center gap-2"><QrCode className="w-5 h-5"/> Scan & Pay</h3>
+                <div className="bg-white p-2 rounded-xl shadow-lg mb-6 border border-zinc-200">
+                  {/* Dynamic UPI QR Code Generation */}
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=mail.bgmighost@ybl&pn=BGMI+Arena&am=${depositAmount}`} alt="UPI QR" className="w-48 h-48" />
+                </div>
+                <p className="text-zinc-500 text-xs font-bold uppercase">GPay • PhonePe • Paytm</p>
+              </div>
+
+              {/* Right Side: Details & Input */}
+              <div className="p-8 w-full md:w-1/2 flex flex-col justify-center bg-[#1c1c24]">
+                <div className="text-center mb-8">
+                  <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider mb-2">Amount to Pay</p>
+                  <p className="text-5xl font-black text-[#8b8df8]">₹{depositAmount}.00</p>
+                </div>
+
+                <form onSubmit={handleDepositSubmit} className="space-y-4">
+                  <div className="bg-[#252530] p-4 rounded-xl border border-zinc-700">
+                    <label className="text-xs font-bold text-zinc-400 uppercase flex items-center gap-2 mb-2"><ShieldCheck className="w-4 h-4 text-[#8b8df8]"/> Already Paid? Enter UTR</label>
+                    <input required type="text" placeholder="12-digit UTR Number" value={utrNumber} onChange={(e) => setUtrNumber(e.target.value)} className="w-full bg-[#1c1c24] border border-zinc-700 rounded-lg p-3 text-sm font-mono focus:border-[#8b8df8] outline-none text-white" />
+                  </div>
+                  <button type="submit" disabled={isSubmitting} className="w-full bg-[#8b8df8] hover:bg-[#7a7ce0] text-white font-black uppercase tracking-widest py-3 rounded-xl transition-colors disabled:opacity-50">
+                    {isSubmitting ? 'Verifying...' : 'Submit to Verify'}
+                  </button>
+                </form>
+                <div className="mt-8 flex items-center justify-center gap-2 text-zinc-600 text-[10px] font-bold uppercase">
+                  <ShieldCheck className="w-4 h-4" /> Secure Gateway
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- WITHDRAW TAB --- */}
+        {activeTab === 'withdraw' && (
+           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-3xl mx-auto">
+             <h2 className="text-lg font-black uppercase flex items-center gap-2 mb-6"><ArrowUpFromLine className="w-5 h-5 text-zinc-400"/> Withdraw Winnings</h2>
+             
+             <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-lg mb-6 flex justify-between items-center">
+               <div>
+                 <p className="text-emerald-500 font-bold text-xs uppercase mb-1">Available to Withdraw</p>
+                 <p className="text-2xl font-black">₹{wallet.balance}</p>
+               </div>
+               <Wallet className="w-8 h-8 text-emerald-500/50" />
+             </div>
+
+             <form onSubmit={handleWithdrawSubmit} className="space-y-6">
+               <div>
+                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-2">Amount to Withdraw</label>
+                 <input required type="number" min="100" max={wallet.balance} value={withdrawAmount} onChange={(e) => setWithdrawAmount(Number(e.target.value))} placeholder="Min ₹100" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-bold focus:border-emerald-500 outline-none" />
+               </div>
+               <div>
+                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-2">Your UPI ID</label>
+                 <input required type="text" placeholder="e.g. 9876543210@ybl" value={upiId} onChange={(e) => setUpiId(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-bold focus:border-emerald-500 outline-none" />
+               </div>
+               <button type="submit" disabled={isSubmitting || wallet.balance < 100} className="w-full bg-white hover:bg-zinc-200 text-black font-black uppercase tracking-widest py-4 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50">
+                 {isSubmitting ? 'Processing...' : 'Request Withdrawal'}
+               </button>
+             </form>
+           </div>
+        )}
+
+        {/* --- HISTORY TAB --- */}
+        {activeTab === 'history' && (
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <h2 className="text-lg font-black uppercase flex items-center gap-2 mb-6"><History className="w-5 h-5 text-zinc-400"/> Transaction Ledger</h2>
+            
+            {transactions.length === 0 ? (
+              <div className="text-center py-12 bg-zinc-950 rounded-lg border border-zinc-800">
+                <p className="text-zinc-500 font-bold uppercase tracking-widest">No transactions yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {transactions.map(tx => (
+                  <div key={tx.id} className="bg-zinc-950 border border-zinc-800 p-4 rounded-lg flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3 rounded-full ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_MONEY' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                        {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_MONEY' ? <ArrowDownToLine className="w-5 h-5"/> : <ArrowUpFromLine className="w-5 h-5"/>}
+                      </div>
+                      <div>
+                        <p className="font-bold">{tx.description}</p>
+                        <p className="text-xs text-zinc-500 mt-1 font-mono">{new Date(tx.created_at).toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-black text-lg ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_MONEY' ? 'text-emerald-500' : 'text-white'}`}>
+                        {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_MONEY' ? '+' : '-'}₹{tx.amount}
+                      </p>
+                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${tx.status === 'PENDING' ? 'bg-amber-500/20 text-amber-500' : tx.status === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-red-500'}`}>
+                        {tx.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+      </div>
+    </main>
+  );
+}
