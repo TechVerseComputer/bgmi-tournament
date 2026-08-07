@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones, Flame } from 'lucide-react';
+import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones, Flame, Key } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
@@ -15,19 +15,33 @@ const heroImages = [
 
 export default function Home() {
   const [latestTournaments, setLatestTournaments] = useState<any[]>([]);
+  const [userMatches, setUserMatches] = useState<any[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const supabase = createClient();
 
   useEffect(() => {
-    const fetchLatest = async () => {
+    const fetchData = async () => {
+      // 1. Fetch Latest Tournaments
       const { data } = await supabase
         .from('tournaments')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(4);
       if (data) setLatestTournaments(data);
+
+      // 2. Fetch Logged-in User's Active Registered Matches
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data: regData } = await supabase
+          .from('registrations')
+          .select('*, tournaments (*)')
+          .eq('user_id', session.user.id);
+        if (regData) {
+          setUserMatches(regData.map(r => ({ ...r.tournaments, slot: r.slot_number, squadName: r.squad_name })));
+        }
+      }
     };
-    fetchLatest();
+    fetchData();
 
     // Auto-slide timer (Changes slide every 4.5 seconds)
     const slideInterval = setInterval(() => {
@@ -91,6 +105,56 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* --- CONDITIONAL UPCOMING REGISTERED MATCHES BANNER --- */}
+      {userMatches.length > 0 && (
+        <section className="py-8 px-4 max-w-7xl mx-auto">
+          <div className="bg-gradient-to-r from-orange-950/40 via-zinc-900 to-orange-950/40 border border-orange-500/40 p-6 md:p-8 rounded-3xl space-y-6 shadow-2xl backdrop-blur-md">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <span className="text-orange-500 text-xs font-black uppercase tracking-widest">Active Player Status</span>
+                <h3 className="text-2xl font-black italic uppercase tracking-wider flex items-center gap-2 text-white mt-1">
+                  <Trophy className="w-6 h-6 text-orange-500"/> Your Registered Matches ({userMatches.length})
+                </h3>
+              </div>
+              <Link href="/dashboard" className="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-xs font-black uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all">
+                Manage in Dashboard &rarr;
+              </Link>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {userMatches.map((m) => (
+                <div key={m.id} className="bg-zinc-950 border border-zinc-800 p-5 rounded-2xl flex flex-col justify-between space-y-4 hover:border-orange-500/40 transition-all">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black uppercase bg-orange-500/10 text-orange-400 border border-orange-500/30 px-2.5 py-1 rounded-full">Slot S{m.slot}</span>
+                      <span className="text-xs text-zinc-400 font-bold">{m.squadName}</span>
+                    </div>
+                    <h4 className="font-black text-lg text-white uppercase italic">{m.name}</h4>
+                    <div className="text-xs text-zinc-300 flex items-center gap-1.5 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0"/>
+                      <span>{m.match_time ? new Date(m.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-zinc-900 flex items-center justify-between">
+                    {m.room_id ? (
+                      <div className="text-emerald-400 font-mono text-xs font-bold flex items-center gap-1.5">
+                        <Key className="w-3.5 h-3.5"/> ID: {m.room_id} | Pass: {m.room_password}
+                      </div>
+                    ) : (
+                      <span className="text-[11px] text-orange-400 font-bold">Room ID unlocks soon</span>
+                    )}
+                    <Link href={`/tournaments/${m.id}`} className="bg-orange-500 hover:bg-orange-400 text-black font-black text-xs px-4 py-2 rounded-xl uppercase transition-all">
+                      Lobby
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Latest Tournaments Section */}
       <section className="py-24 px-4 max-w-7xl mx-auto">
