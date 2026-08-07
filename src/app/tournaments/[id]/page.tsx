@@ -46,10 +46,19 @@ export default function TournamentDetailPage() {
     fetchDetails();
   }, [id]);
 
+  // Replace your existing handleOpenModal function with this:
   const handleOpenModal = () => {
     if (!user) {
-      alert("You must be logged in to join a match.");
-      router.push('/dashboard');
+      // Force Google account picker and redirect back to this exact match page
+      supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.href,
+          queryParams: {
+            prompt: 'select_account'
+          }
+        }
+      });
       return;
     }
     setShowModal(true);
