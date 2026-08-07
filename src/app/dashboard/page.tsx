@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import { Wallet, Trophy, Clock, Key, LogOut, ArrowRight, ShieldCheck, Gamepad2 } from 'lucide-react';
+import { Wallet, Trophy, Clock, Key, LogOut, ArrowRight, ShieldCheck, Gamepad2, PlusCircle } from 'lucide-react';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -15,10 +15,14 @@ export default function DashboardPage() {
   const [joinedTournaments, setJoinedTournaments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Withdrawal form state (Pre-filled with business UPI ID setup)
+  // Withdrawal state
   const [upiId, setUpiId] = useState('digitallibrary@slc');
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [submittingWithdraw, setSubmittingWithdraw] = useState(false);
+
+  // Add Funds state
+  const [depositAmount, setDepositAmount] = useState('');
+  const [submittingDeposit, setSubmittingDeposit] = useState(false);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -29,21 +33,15 @@ export default function DashboardPage() {
       }
       setUser(session.user);
 
-      // 1. Fetch Wallet Balance
       const { data: walletData } = await supabase.from('wallets').select('*').eq('user_id', session.user.id).single();
       if (walletData) setWallet(walletData);
 
-      // 2. Fetch User Transactions
       const { data: txData } = await supabase.from('transactions').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false });
       if (txData) setTransactions(txData);
 
-      // 3. Fetch User's Joined Tournaments
       const { data: regData } = await supabase
         .from('registrations')
-        .select(`
-          *,
-          tournaments (*)
-        `)
+        .select('*, tournaments (*)')
         .eq('user_id', session.user.id);
       
       if (regData) {
@@ -63,6 +61,37 @@ export default function DashboardPage() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push('/');
+  };
+
+  const handleAddFunds = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amountNum = Number(depositAmount);
+    if (!amountNum || amountNum <= 0) return alert("Please enter a valid deposit amount.");
+
+    setSubmittingDeposit(true);
+    try {
+      const currentBal = Number(wallet?.balance || 0);
+      const newBalance = currentBal + amountNum;
+
+      const { error: walletErr } = await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', user.id);
+      if (walletErr) throw walletErr;
+
+      const { error: txErr } = await supabase.from('transactions').insert([{
+        user_id: user.id, type: 'DEPOSIT', amount: amountNum, status: 'SUCCESS', description: `Wallet Deposit via UPI`
+      }]);
+      if (txErr) throw txErr;
+
+      alert(`Successfully added ₹${amountNum} to your wallet!`);
+      setWallet({...wallet, balance: newBalance});
+      setDepositAmount('');
+
+      const { data: txData } = await supabase.from('transactions').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
+      if (txData) setTransactions(txData);
+    } catch (err: any) {
+      alert("Error adding funds: " + err.message);
+    } finally {
+      setSubmittingDeposit(false);
+    }
   };
 
   const handleWithdrawRequest = async (e: React.FormEvent) => {
@@ -116,14 +145,30 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* Wallet & Quick Stats */}
+        {/* Wallet & Add Funds / Withdraw Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-gradient-to-br from-zinc-900 to-zinc-950 border border-zinc-800 p-6 rounded-2xl space-y-3">
+          <div className="bg-gradient-to-br from-zinc-900 to-zinc-950 border border-zinc-800 p-6 rounded-2xl space-y-4">
             <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
               <Wallet className="w-4 h-4 text-orange-500"/> Available Wallet Balance
             </p>
             <p className="text-4xl font-black text-emerald-400">₹{wallet?.balance || 0}</p>
-            <p className="text-[11px] text-zinc-500">Use balance to join matches or withdraw winnings.</p>
+            
+            {/* Add Funds Box inside Wallet Card */}
+            <form onSubmit={handleAddFunds} className="pt-2 border-t border-zinc-800 space-y-2">
+              <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">Add Funds to Wallet</label>
+              <div className="flex gap-2">
+                <input 
+                  type="number" 
+                  placeholder="Amount ₹" 
+                  value={depositAmount} 
+                  onChange={e => setDepositAmount(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500"
+                />
+                <button type="submit" disabled={submittingDeposit} className="bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase text-xs px-4 rounded-xl transition-all flex items-center gap-1 shrink-0">
+                  <PlusCircle className="w-4 h-4"/> Add
+                </button>
+              </div>
+            </form>
           </div>
 
           {/* Withdrawal Box */}
@@ -151,7 +196,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Conditional Upcoming Tournaments Section */}
+        {/* Joined Tournaments */}
         {joinedTournaments.length > 0 && (
           <div className="space-y-4">
             <h2 className="text-xl font-black uppercase tracking-wider flex items-center gap-2 text-orange-500">
@@ -198,7 +243,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Transaction History */}
+        {/* Transaction Ledger */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
           <div className="p-6 border-b border-zinc-800">
             <h3 className="text-lg font-black uppercase tracking-wider">Transaction Ledger</h3>
@@ -221,8 +266,8 @@ export default function DashboardPage() {
                   {transactions.map((tx) => (
                     <tr key={tx.id} className="hover:bg-zinc-800/30">
                       <td className="p-4 font-black text-orange-500">{tx.type}</td>
-                      <td className={`p-4 font-black ${tx.type.includes('CREDIT') || tx.type.includes('WIN') ? 'text-emerald-400' : 'text-white'}`}>
-                        {tx.type.includes('CREDIT') || tx.type.includes('WIN') ? '+' : '-'}₹{tx.amount}
+                      <td className={`p-4 font-black ${tx.type.includes('CREDIT') || tx.type.includes('WIN') || tx.type.includes('DEPOSIT') ? 'text-emerald-400' : 'text-white'}`}>
+                        {tx.type.includes('CREDIT') || tx.type.includes('WIN') || tx.type.includes('DEPOSIT') ? '+' : '-'}₹{tx.amount}
                       </td>
                       <td className="p-4">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${tx.status === 'SUCCESS' || tx.status === 'Verified' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
