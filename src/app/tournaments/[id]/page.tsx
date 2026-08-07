@@ -69,10 +69,13 @@ export default function TournamentDetailPage() {
         user_id: user.id, type: 'TOURNAMENT_FEE', amount: tournament.fee, status: 'SUCCESS', description: `Entry fee for ${tournament.name} (Slot ${selectedSlot})`
       }]);
 
+      const playerCount = tournament.type === 'SOLO' ? 1 : tournament.type === 'DUO' ? 2 : 4;
       const { error: regError } = await supabase.from('registrations').insert([{
         tournament_id: tournament.id, user_id: user.id, squad_name: team.p1_ign + "'s Squad", igl_email: user.email,
-        player_1_id: team.p1_id, player_1_ign: team.p1_ign, player_2_id: team.p2_id, player_2_ign: team.p2_ign,
-        player_3_id: team.p3_id, player_3_ign: team.p3_ign, player_4_id: team.p4_id, player_4_ign: team.p4_ign,
+        player_1_id: team.p1_id, player_1_ign: team.p1_ign, 
+        player_2_id: playerCount >= 2 ? team.p2_id : null, player_2_ign: playerCount >= 2 ? team.p2_ign : null,
+        player_3_id: playerCount >= 4 ? team.p3_id : null, player_3_ign: playerCount >= 4 ? team.p3_ign : null,
+        player_4_id: playerCount >= 4 ? team.p4_id : null, player_4_ign: playerCount >= 4 ? team.p4_ign : null,
         utr_number: 'PAID_VIA_WALLET', payment_status: 'Verified', slot_number: selectedSlot
       }]);
 
@@ -92,7 +95,16 @@ export default function TournamentDetailPage() {
   if (!tournament) return <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-bold">Match not found.</div>;
 
   const bookedSlotNumbers = registrations.map(r => r.slot_number).filter(s => s !== null);
-  const activePrizes = tournament.prize_breakdown?.length > 0 ? tournament.prize_breakdown : [tournament.first_prize || 0, tournament.second_prize || 0];
+
+  // Dynamic Live Prize Pool Calculation based on active slot registrations
+  const bookedCount = registrations.length;
+  const totalLivePool = bookedCount > 0 ? Math.floor(bookedCount * Number(tournament.fee || 0) * 0.85) : 0;
+  
+  const activePrizes = tournament.fee > 0 && totalLivePool > 0 ? [
+    Math.floor(totalLivePool * 0.55),
+    Math.floor(totalLivePool * 0.30),
+    totalLivePool - Math.floor(totalLivePool * 0.55) - Math.floor(totalLivePool * 0.30)
+  ].filter(p => p > 0) : (tournament.prize_breakdown?.length > 0 ? tournament.prize_breakdown : [tournament.first_prize || 0, tournament.second_prize || 0]);
 
   return (
     <main className="bg-[#0a0a0a] text-white font-sans min-h-screen pb-24">
@@ -140,7 +152,10 @@ export default function TournamentDetailPage() {
 
           {/* Prize Pool Breakdown */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-4">
-            <h2 className="text-lg font-black uppercase tracking-wider flex items-center gap-2 text-orange-500"><Trophy className="w-5 h-5"/> Prize Pool Distribution</h2>
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-black uppercase tracking-wider flex items-center gap-2 text-orange-500"><Trophy className="w-5 h-5"/> Prize Pool Distribution</h2>
+              {tournament.fee > 0 && <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded">Live Scaling Active ({bookedCount} Booked)</span>}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {activePrizes.map((prize: number, idx: number) => (
                 <div key={idx} className="bg-zinc-950 border border-zinc-800 p-4 rounded-lg flex justify-between items-center">
