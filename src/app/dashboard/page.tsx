@@ -1,328 +1,243 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, Clock, ShieldCheck, X } from 'lucide-react';
+import { Wallet, Trophy, Clock, Key, LogOut, ArrowRight, ShieldCheck, Gamepad2 } from 'lucide-react';
 
-export default function PlayerDashboard() {
+export default function DashboardPage() {
+  const router = useRouter();
   const supabase = createClient();
-  const [user, setUser] = useState<any>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  
-  const [activeTab, setActiveTab] = useState('overview');
-  const [wallet, setWallet] = useState({ balance: 0, total_deposited: 0, total_won: 0 });
-  const [transactions, setTransactions] = useState<any[]>([]);
-  
-  // Deposit States
-  const [depositAmount, setDepositAmount] = useState<number | ''>('');
-  const [showQRModal, setShowQRModal] = useState(false);
-  const [utrNumber, setUtrNumber] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const quickAmounts = [50, 100, 200, 500, 1000, 2000];
 
-  // Withdraw States
-  const [withdrawAmount, setWithdrawAmount] = useState<number | ''>('');
-  const [upiId, setUpiId] = useState('');
+  const [user, setUser] = useState<any>(null);
+  const [wallet, setWallet] = useState<any>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [joinedTournaments, setJoinedTournaments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Withdrawal form state (Pre-filled with business UPI ID setup)
+  const [upiId, setUpiId] = useState('digitallibrary@slc');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [submittingWithdraw, setSubmittingWithdraw] = useState(false);
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const fetchUserData = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser(session.user);
-        fetchWalletData(session.user.id);
-      } else {
-        setAuthLoading(false);
+      if (!session?.user) {
+        router.push('/tournaments');
+        return;
       }
+      setUser(session.user);
+
+      // 1. Fetch Wallet Balance
+      const { data: walletData } = await supabase.from('wallets').select('*').eq('user_id', session.user.id).single();
+      if (walletData) setWallet(walletData);
+
+      // 2. Fetch User Transactions
+      const { data: txData } = await supabase.from('transactions').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false });
+      if (txData) setTransactions(txData);
+
+      // 3. Fetch User's Joined Tournaments
+      const { data: regData } = await supabase
+        .from('registrations')
+        .select(`
+          *,
+          tournaments (*)
+        `)
+        .eq('user_id', session.user.id);
+      
+      if (regData) {
+        const matches = regData.map(r => ({
+          ...r.tournaments,
+          bookedSlot: r.slot_number,
+          squadName: r.squad_name
+        }));
+        setJoinedTournaments(matches);
+      }
+
+      setLoading(false);
     };
-    checkAuth();
+    fetchUserData();
   }, []);
 
-  const fetchWalletData = async (userId: string) => {
-    // Fetch or Create Wallet
-    let { data: walletData } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
-    
-    if (!walletData) {
-      const { data: newWallet } = await supabase.from('wallets').insert([{ user_id: userId }]).select().single();
-      walletData = newWallet;
-    }
-    
-    if (walletData) setWallet(walletData);
-
-    // Fetch Transactions
-    const { data: txData } = await supabase.from('transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false });
-    if (txData) setTransactions(txData);
-    
-    setAuthLoading(false);
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/');
   };
 
-  const handleLogin = async () => {
-    await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/dashboard' }});
-  };
-
-  // --- UPDATED DEPOSIT SUBMIT WITH ERROR ALERTS ---
-  const handleDepositSubmit = async (e: React.FormEvent) => {
+  const handleWithdrawRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!utrNumber || utrNumber.length < 12) return alert("Please enter a valid 12-digit UTR number.");
-    setIsSubmitting(true);
-    
-    const { error } = await supabase.from('transactions').insert([{
-      user_id: user.id,
-      type: 'DEPOSIT',
-      amount: depositAmount,
-      reference_id: utrNumber,
-      description: 'Wallet Deposit via UPI'
-    }]);
+    const amountNum = Number(withdrawAmount);
+    if (!upiId || !amountNum || amountNum <= 0) return alert("Please enter a valid UPI ID and amount.");
+    if (amountNum > wallet.balance) return alert("Insufficient wallet balance.");
 
-    if (error) {
-      // NEW: This will pop up on the screen if the database rejects it!
-      alert("Database Error: " + error.message);
-    } else {
-      alert("Deposit request submitted! Our team will verify the UTR shortly.");
-      setShowQRModal(false);
-      setDepositAmount('');
-      setUtrNumber('');
-      fetchWalletData(user.id);
-    }
-    
-    setIsSubmitting(false);
-  };
+    setSubmittingWithdraw(true);
+    try {
+      const newBalance = wallet.balance - amountNum;
+      await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', user.id);
 
-  const handleWithdrawSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (Number(withdrawAmount) > wallet.balance) return alert("Insufficient balance.");
-    if (Number(withdrawAmount) < 100) return alert("Minimum withdrawal is ₹100.");
-    
-    setIsSubmitting(true);
-    const { error } = await supabase.from('transactions').insert([{
-      user_id: user.id,
-      type: 'WITHDRAWAL',
-      amount: withdrawAmount,
-      upi_id: upiId,
-      description: 'Withdrawal to UPI'
-    }]);
+      await supabase.from('transactions').insert([{
+        user_id: user.id, type: 'WITHDRAWAL', amount: amountNum, status: 'PENDING', description: `Withdrawal request to UPI: ${upiId}`
+      }]);
 
-    if (error) {
-       alert("Database Error: " + error.message);
-    } else {
-      alert("Withdrawal request submitted! Funds will be transferred shortly.");
+      alert("Withdrawal request submitted successfully!");
+      setWallet({...wallet, balance: newBalance});
       setWithdrawAmount('');
-      setUpiId('');
-      fetchWalletData(user.id);
+      
+      const { data: txData } = await supabase.from('transactions').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
+      if (txData) setTransactions(txData);
+
+    } catch (err: any) {
+      alert("Error processing withdrawal: " + err.message);
+    } finally {
+      setSubmittingWithdraw(false);
     }
-    setIsSubmitting(false);
   };
 
-  if (authLoading) return <div className="min-h-screen bg-[#050505] text-emerald-500 flex items-center justify-center font-black animate-pulse tracking-widest uppercase">Loading Secure Portal...</div>;
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-4 text-center">
-        <Wallet className="w-16 h-16 text-emerald-500 mb-6" />
-        <h1 className="text-4xl font-black italic text-white mb-2 uppercase tracking-widest">Player Portal</h1>
-        <p className="text-zinc-400 mb-8 font-medium">Login to manage your wallet, deposits, and winnings.</p>
-        <button onClick={handleLogin} className="bg-white hover:bg-gray-200 text-black font-black uppercase tracking-wider px-8 py-4 rounded flex items-center gap-3 transition-colors shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-          <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
-          Sign in with Google
-        </button>
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen bg-[#0a0a0a] text-orange-500 font-bold flex items-center justify-center animate-pulse">Loading Player Portal...</div>;
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans pb-24">
-      <div className="max-w-6xl mx-auto">
+    <main className="min-h-screen bg-[#0a0a0a] text-white font-sans p-4 md:p-8 pb-24">
+      <div className="max-w-7xl mx-auto space-y-8">
         
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-8 border-b border-zinc-800 pb-6">
-          <Wallet className="w-8 h-8 text-emerald-500" />
-          <div>
-            <h1 className="text-2xl font-black italic tracking-wider">WALLET</h1>
-            <p className="text-zinc-400 text-xs font-medium">Manage your funds, deposits, and withdrawals</p>
+        {/* Header Bar */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-orange-500/10 border border-orange-500/30 rounded-2xl flex items-center justify-center text-orange-500">
+              <Gamepad2 className="w-8 h-8"/>
+            </div>
+            <div>
+              <h1 className="text-2xl font-black uppercase tracking-wider">Player Portal</h1>
+              <p className="text-xs text-zinc-400 font-mono">{user?.email}</p>
+            </div>
+          </div>
+          <button onClick={handleLogout} className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/30 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2">
+            <LogOut className="w-4 h-4"/> Logout
+          </button>
+        </div>
+
+        {/* Wallet & Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-gradient-to-br from-zinc-900 to-zinc-950 border border-zinc-800 p-6 rounded-2xl space-y-3">
+            <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-orange-500"/> Available Wallet Balance
+            </p>
+            <p className="text-4xl font-black text-emerald-400">₹{wallet?.balance || 0}</p>
+            <p className="text-[11px] text-zinc-500">Use balance to join matches or withdraw winnings.</p>
+          </div>
+
+          {/* Withdrawal Box */}
+          <div className="md:col-span-2 bg-zinc-900 border border-zinc-800 p-6 rounded-2xl space-y-4">
+            <h3 className="text-sm font-black uppercase tracking-wider text-orange-500">Request Withdrawal</h3>
+            <form onSubmit={handleWithdrawRequest} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <input 
+                type="text" 
+                placeholder="Enter UPI ID" 
+                value={upiId} 
+                onChange={e => setUpiId(e.target.value)}
+                className="bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-xs text-white outline-none focus:border-orange-500 font-mono"
+              />
+              <input 
+                type="number" 
+                placeholder="Amount (₹)" 
+                value={withdrawAmount} 
+                onChange={e => setWithdrawAmount(e.target.value)}
+                className="bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-xs text-white outline-none focus:border-orange-500"
+              />
+              <button type="submit" disabled={submittingWithdraw} className="bg-orange-500 hover:bg-orange-400 text-black font-black uppercase text-xs tracking-wider py-3 rounded-xl transition-all">
+                {submittingWithdraw ? 'Processing...' : 'Withdraw Funds'}
+              </button>
+            </form>
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex flex-wrap gap-2 mb-8 bg-zinc-900 p-1 rounded-lg border border-zinc-800 w-full md:w-fit">
-          {[
-            { id: 'overview', icon: Wallet, label: 'Overview' },
-            { id: 'deposit', icon: ArrowDownToLine, label: 'Deposit' },
-            { id: 'withdraw', icon: ArrowUpFromLine, label: 'Withdraw' },
-            { id: 'history', icon: History, label: 'History' }
-          ].map((tab) => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded text-sm font-bold transition-all ${activeTab === tab.id ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'}`}>
-              <tab.icon className="w-4 h-4" /> {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* --- OVERVIEW TAB --- */}
-        {activeTab === 'overview' && (
-          <div className="space-y-6">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col md:flex-row justify-between items-center gap-6">
-              <div>
-                <p className="text-zinc-400 font-bold text-sm uppercase tracking-wider flex items-center gap-2 mb-2"><Wallet className="w-4 h-4 text-emerald-500"/> Available Balance</p>
-                <p className="text-5xl font-black text-white">₹{wallet.balance}</p>
-              </div>
-              <div className="flex gap-4 w-full md:w-auto">
-                <button onClick={() => setActiveTab('deposit')} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-wider px-6 py-3 rounded flex items-center justify-center gap-2 transition-colors"><ArrowDownToLine className="w-5 h-5"/> Add Money</button>
-                <button onClick={() => setActiveTab('withdraw')} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase tracking-wider px-6 py-3 rounded border border-zinc-700 flex items-center justify-center gap-2 transition-colors"><ArrowUpFromLine className="w-5 h-5"/> Withdraw</button>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-6">
-                <p className="text-emerald-500 font-black text-2xl mb-1">₹{wallet.total_deposited}</p>
-                <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Total Deposited</p>
-              </div>
-              <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-6">
-                <p className="text-amber-500 font-black text-2xl mb-1">₹{wallet.total_won}</p>
-                <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Total Winnings</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* --- DEPOSIT TAB --- */}
-        {activeTab === 'deposit' && (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-3xl mx-auto">
-            <h2 className="text-lg font-black uppercase flex items-center gap-2 mb-6"><ArrowDownToLine className="w-5 h-5 text-emerald-500"/> Add Money to Wallet</h2>
-            
-            <div className="mb-6">
-              <p className="text-xs text-zinc-400 font-bold uppercase tracking-wider mb-3">Quick Select</p>
-              <div className="grid grid-cols-3 gap-3">
-                {quickAmounts.map(amt => (
-                  <button key={amt} type="button" onClick={() => setDepositAmount(amt)} className={`py-3 rounded font-black border transition-all ${depositAmount === amt ? 'bg-emerald-500 text-black border-emerald-500' : 'bg-zinc-950 border-zinc-800 text-zinc-300 hover:border-emerald-500/50'}`}>
-                    ₹{amt}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mb-8">
-              <p className="text-xs text-zinc-400 font-bold uppercase tracking-wider mb-3">Or enter custom amount</p>
-              <input type="number" value={depositAmount} onChange={(e) => setDepositAmount(Number(e.target.value))} placeholder="Enter amount" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-bold text-lg focus:border-emerald-500 outline-none text-white" />
-              <div className="flex justify-between text-[10px] text-zinc-500 font-bold uppercase mt-2">
-                <span>Min ₹10</span><span>Max ₹50,000</span>
-              </div>
-            </div>
-
-            <div className="border-t border-zinc-800 pt-6 mb-6 space-y-3 text-sm font-bold">
-              <div className="flex justify-between text-zinc-400"><p>Deposit Amount</p><p>₹{depositAmount || 0}</p></div>
-              <div className="flex justify-between text-zinc-400"><p>Processing Fee</p><p className="text-emerald-500">FREE</p></div>
-              <div className="flex justify-between text-lg text-white border-t border-zinc-800 pt-3"><p>Total to Pay</p><p>₹{depositAmount || 0}</p></div>
-            </div>
-
-            <button disabled={!depositAmount || depositAmount < 10} onClick={() => setShowQRModal(true)} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:hover:bg-emerald-500 text-black font-black uppercase tracking-widest py-4 rounded-lg flex items-center justify-center gap-2 transition-colors">
-              ⚡ Pay ₹{depositAmount || 0} via UPI
-            </button>
-          </div>
-        )}
-
-        {/* --- ZAPUPI QR MODAL --- */}
-        {showQRModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm">
-            <div className="bg-[#1c1c24] w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl border border-zinc-800 relative flex flex-col md:flex-row">
-              <button onClick={() => setShowQRModal(false)} className="absolute top-4 right-4 bg-zinc-800 p-2 rounded-full text-zinc-400 hover:text-white z-10"><X className="w-5 h-5"/></button>
-              
-              {/* Left Side: QR Code */}
-              <div className="bg-white p-8 flex flex-col items-center justify-center w-full md:w-1/2">
-                <h3 className="text-black font-black uppercase tracking-widest mb-6 flex items-center gap-2"><QrCode className="w-5 h-5"/> Scan & Pay</h3>
-                <div className="bg-white p-2 rounded-xl shadow-lg mb-6 border border-zinc-200">
-                  {/* UPDATE THIS WITH YOUR ACTUAL UPI ID */}
-                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=digitallibrary@slc&pn=BGMI+Arena&am=${depositAmount}`} alt="UPI QR" className="w-48 h-48" />
-                </div>
-                <p className="text-zinc-500 text-xs font-bold uppercase">GPay • PhonePe • Paytm</p>
-              </div>
-
-              {/* Right Side: Details & Input */}
-              <div className="p-8 w-full md:w-1/2 flex flex-col justify-center bg-[#1c1c24]">
-                <div className="text-center mb-8">
-                  <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider mb-2">Amount to Pay</p>
-                  <p className="text-5xl font-black text-[#8b8df8]">₹{depositAmount}.00</p>
-                </div>
-
-                <form onSubmit={handleDepositSubmit} className="space-y-4">
-                  <div className="bg-[#252530] p-4 rounded-xl border border-zinc-700">
-                    <label className="text-xs font-bold text-zinc-400 uppercase flex items-center gap-2 mb-2"><ShieldCheck className="w-4 h-4 text-[#8b8df8]"/> Already Paid? Enter UTR</label>
-                    <input required type="text" placeholder="12-digit UTR Number" value={utrNumber} onChange={(e) => setUtrNumber(e.target.value)} className="w-full bg-[#1c1c24] border border-zinc-700 rounded-lg p-3 text-sm font-mono focus:border-[#8b8df8] outline-none text-white" />
-                  </div>
-                  <button type="submit" disabled={isSubmitting} className="w-full bg-[#8b8df8] hover:bg-[#7a7ce0] text-white font-black uppercase tracking-widest py-3 rounded-xl transition-colors disabled:opacity-50">
-                    {isSubmitting ? 'Verifying...' : 'Submit to Verify'}
-                  </button>
-                </form>
-                <div className="mt-8 flex items-center justify-center gap-2 text-zinc-600 text-[10px] font-bold uppercase">
-                  <ShieldCheck className="w-4 h-4" /> Secure Gateway
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* --- WITHDRAW TAB --- */}
-        {activeTab === 'withdraw' && (
-           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-3xl mx-auto">
-             <h2 className="text-lg font-black uppercase flex items-center gap-2 mb-6"><ArrowUpFromLine className="w-5 h-5 text-zinc-400"/> Withdraw Winnings</h2>
-             
-             <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-lg mb-6 flex justify-between items-center">
-               <div>
-                 <p className="text-emerald-500 font-bold text-xs uppercase mb-1">Available to Withdraw</p>
-                 <p className="text-2xl font-black text-white">₹{wallet.balance}</p>
-               </div>
-               <Wallet className="w-8 h-8 text-emerald-500/50" />
-             </div>
-
-             <form onSubmit={handleWithdrawSubmit} className="space-y-6">
-               <div>
-                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-2">Amount to Withdraw</label>
-                 <input required type="number" min="100" max={wallet.balance} value={withdrawAmount} onChange={(e) => setWithdrawAmount(Number(e.target.value))} placeholder="Min ₹100" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-bold focus:border-emerald-500 outline-none text-white" />
-               </div>
-               <div>
-                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-2">Your UPI ID</label>
-                 <input required type="text" placeholder="e.g. 9876543210@ybl" value={upiId} onChange={(e) => setUpiId(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-bold focus:border-emerald-500 outline-none text-white" />
-               </div>
-               <button type="submit" disabled={isSubmitting || wallet.balance < 100} className="w-full bg-white hover:bg-zinc-200 text-black font-black uppercase tracking-widest py-4 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 transition-colors">
-                 {isSubmitting ? 'Processing...' : 'Request Withdrawal'}
-               </button>
-             </form>
-           </div>
-        )}
-
-        {/* --- HISTORY TAB --- */}
-        {activeTab === 'history' && (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-            <h2 className="text-lg font-black uppercase flex items-center gap-2 mb-6"><History className="w-5 h-5 text-zinc-400"/> Transaction Ledger</h2>
-            
-            {transactions.length === 0 ? (
-              <div className="text-center py-12 bg-zinc-950 rounded-lg border border-zinc-800">
-                <p className="text-zinc-500 font-bold uppercase tracking-widest">No transactions yet</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {transactions.map(tx => (
-                  <div key={tx.id} className="bg-zinc-950 border border-zinc-800 p-4 rounded-lg flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-full ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_MONEY' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
-                        {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_MONEY' ? <ArrowDownToLine className="w-5 h-5"/> : <ArrowUpFromLine className="w-5 h-5"/>}
-                      </div>
-                      <div>
-                        <p className="font-bold text-white">{tx.description}</p>
-                        <p className="text-xs text-zinc-500 mt-1 font-mono">{new Date(tx.created_at).toLocaleString()}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={`font-black text-lg ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_MONEY' ? 'text-emerald-500' : 'text-white'}`}>
-                        {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_MONEY' ? '+' : '-'}₹{tx.amount}
-                      </p>
-                      <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${tx.status === 'PENDING' ? 'bg-amber-500/20 text-amber-500' : tx.status === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-red-500'}`}>
-                        {tx.status}
+        {/* Conditional Upcoming Tournaments Section */}
+        {joinedTournaments.length > 0 && (
+          <div className="space-y-4">
+            <h2 className="text-xl font-black uppercase tracking-wider flex items-center gap-2 text-orange-500">
+              <Trophy className="w-5 h-5"/> My Upcoming Joined Matches ({joinedTournaments.length})
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {joinedTournaments.map((match) => (
+                <div key={match.id} className="bg-zinc-900 border border-orange-500/40 rounded-2xl overflow-hidden shadow-lg flex flex-col justify-between">
+                  <div>
+                    <div className="h-36 relative">
+                      <img src={match.map_img} alt={match.name} className="w-full h-full object-cover"/>
+                      <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent"/>
+                      <span className="absolute top-3 right-3 bg-black/70 backdrop-blur-md text-orange-400 border border-orange-500/30 px-3 py-1 rounded-full text-[10px] font-black uppercase">
+                        Slot S{match.bookedSlot}
                       </span>
+                      <h3 className="absolute bottom-3 left-4 font-black italic text-lg tracking-wider text-white">{match.name}</h3>
+                    </div>
+                    <div className="p-4 space-y-3 text-xs">
+                      <div className="flex items-center gap-2 text-zinc-300 font-bold">
+                        <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0"/>
+                        <span>{match.match_time ? new Date(match.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}</span>
+                      </div>
+                      <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 space-y-1.5">
+                        <div className="text-zinc-400 font-semibold">Squad: <span className="text-white font-bold">{match.squadName}</span></div>
+                        {match.room_id ? (
+                          <div className="pt-2 border-t border-zinc-900 flex justify-between items-center text-emerald-400 font-mono">
+                            <span>Room ID: {match.room_id}</span>
+                            <span>Pass: {match.room_password}</span>
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-orange-400 font-bold pt-1">Room credentials unlock before match time.</div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                  <div className="p-4 pt-0">
+                    <button onClick={() => router.push(`/tournaments/${match.id}`)} className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase py-2.5 rounded-xl text-xs transition-colors border border-zinc-700 flex items-center justify-center gap-1.5">
+                      View Match Lobby <ArrowRight className="w-3.5 h-3.5"/>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
+
+        {/* Transaction History */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+          <div className="p-6 border-b border-zinc-800">
+            <h3 className="text-lg font-black uppercase tracking-wider">Transaction Ledger</h3>
+          </div>
+          {transactions.length === 0 ? (
+            <div className="p-8 text-center text-zinc-500 text-xs font-bold uppercase">No transactions recorded yet.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-zinc-300">
+                <thead className="bg-zinc-950 text-zinc-400 uppercase font-black border-b border-zinc-800">
+                  <tr>
+                    <th className="p-4">Type</th>
+                    <th className="p-4">Amount</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4">Description</th>
+                    <th className="p-4 text-right">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800">
+                  {transactions.map((tx) => (
+                    <tr key={tx.id} className="hover:bg-zinc-800/30">
+                      <td className="p-4 font-black text-orange-500">{tx.type}</td>
+                      <td className={`p-4 font-black ${tx.type.includes('CREDIT') || tx.type.includes('WIN') ? 'text-emerald-400' : 'text-white'}`}>
+                        {tx.type.includes('CREDIT') || tx.type.includes('WIN') ? '+' : '-'}₹{tx.amount}
+                      </td>
+                      <td className="p-4">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${tx.status === 'SUCCESS' || tx.status === 'Verified' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
+                          {tx.status}
+                        </span>
+                      </td>
+                      <td className="p-4 text-zinc-400">{tx.description}</td>
+                      <td className="p-4 text-right text-zinc-500 font-mono">{new Date(tx.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
 
       </div>
     </main>
