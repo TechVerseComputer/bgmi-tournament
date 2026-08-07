@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import { Trophy, Users, Clock, ShieldAlert, ArrowLeft, CheckCircle, AlertCircle, Key, Lock } from 'lucide-react';
+import { Trophy, Users, Clock, ShieldAlert, ArrowLeft, CheckCircle, AlertCircle, Key, Lock, Wallet, Plus } from 'lucide-react';
 
 export default function TournamentDetailPage() {
   const { id } = useParams();
@@ -45,7 +45,6 @@ export default function TournamentDetailPage() {
 
   const handleOpenModal = () => {
     if (!user) {
-      // Force Google Account Selection and return directly to this match page
       supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -107,6 +106,8 @@ export default function TournamentDetailPage() {
     Math.floor(totalLivePool * 0.30),
     totalLivePool - Math.floor(totalLivePool * 0.55) - Math.floor(totalLivePool * 0.30)
   ].filter(p => p > 0) : (tournament.prize_breakdown?.length > 0 ? tournament.prize_breakdown : [tournament.first_prize || 0, tournament.second_prize || 0]);
+
+  const hasLowBalance = walletBalance < tournament.fee;
 
   return (
     <main className="bg-[#0a0a0a] text-white font-sans min-h-screen pb-24">
@@ -250,14 +251,35 @@ export default function TournamentDetailPage() {
 
       </div>
 
-      {/* Booking Modal - Fixed Clipping with max-h-[90vh] overflow-y-auto */}
+      {/* Booking Modal with Current Balance & Low Balance Warning */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-[#111116] w-full max-w-2xl rounded-xl border border-zinc-800 relative my-8 max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className="bg-[#111116] w-full max-w-2xl rounded-xl border border-zinc-800 relative my-8 max-h-[85vh] overflow-y-auto shadow-2xl">
             <button onClick={() => setShowModal(false)} className="sticky top-4 right-4 float-right z-20 text-zinc-400 hover:text-white bg-zinc-900 p-2 rounded-full mr-4 mt-4">✕</button>
-            <div className="p-6 border-b border-zinc-800">
+            <div className="p-6 border-b border-zinc-800 space-y-3">
               <h2 className="text-xl font-black uppercase tracking-wide text-white">Book Slot - {tournament.name}</h2>
+              
+              {/* Wallet Status Banner */}
+              <div className="bg-zinc-950 border border-zinc-800 p-3 rounded-xl flex justify-between items-center text-xs">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-orange-500"/>
+                  <span className="text-zinc-400 font-bold">Wallet Balance: <strong className="text-emerald-400">₹{walletBalance}</strong></span>
+                </div>
+                <div className="text-zinc-400 font-bold">
+                  Entry Fee: <strong className="text-orange-400">₹{tournament.fee}</strong>
+                </div>
+              </div>
+
+              {hasLowBalance && (
+                <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-xl flex items-center justify-between text-xs text-red-400">
+                  <span className="font-bold flex items-center gap-1.5"><AlertCircle className="w-4 h-4"/> Low Balance! Add funds to join this match.</span>
+                  <button onClick={() => router.push('/dashboard')} className="bg-red-500 hover:bg-red-400 text-black font-black uppercase px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all">
+                    <Plus className="w-3.5 h-3.5"/> Add Funds
+                  </button>
+                </div>
+              )}
             </div>
+
             <form onSubmit={handleConfirmBooking} className="p-6 space-y-6">
               <div className="space-y-4">
                 {Array.from({ length: tournament.type === 'SOLO' ? 1 : tournament.type === 'DUO' ? 2 : 4 }, (_, i) => i + 1).map((num) => (
@@ -286,8 +308,8 @@ export default function TournamentDetailPage() {
               </div>
               <div className="pt-4 border-t border-zinc-800 flex gap-4">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors">Cancel</button>
-                <button type="submit" disabled={isSubmitting || !selectedSlot} className="flex-[2] bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-4 rounded transition-colors disabled:opacity-50">
-                  {isSubmitting ? 'Processing...' : `Confirm & Pay ₹${tournament.fee}`}
+                <button type="submit" disabled={isSubmitting || !selectedSlot || hasLowBalance} className="flex-[2] bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-4 rounded transition-colors disabled:opacity-50">
+                  {isSubmitting ? 'Processing...' : hasLowBalance ? 'Insufficient Balance' : `Confirm & Pay ₹${tournament.fee}`}
                 </button>
               </div>
             </form>
