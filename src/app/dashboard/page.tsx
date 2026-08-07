@@ -59,6 +59,7 @@ export default function PlayerDashboard() {
     await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/dashboard' }});
   };
 
+  // --- UPDATED DEPOSIT SUBMIT WITH ERROR ALERTS ---
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!utrNumber || utrNumber.length < 12) return alert("Please enter a valid 12-digit UTR number.");
@@ -72,13 +73,17 @@ export default function PlayerDashboard() {
       description: 'Wallet Deposit via UPI'
     }]);
 
-    if (!error) {
+    if (error) {
+      // NEW: This will pop up on the screen if the database rejects it!
+      alert("Database Error: " + error.message);
+    } else {
       alert("Deposit request submitted! Our team will verify the UTR shortly.");
       setShowQRModal(false);
       setDepositAmount('');
       setUtrNumber('');
       fetchWalletData(user.id);
     }
+    
     setIsSubmitting(false);
   };
 
@@ -96,7 +101,9 @@ export default function PlayerDashboard() {
       description: 'Withdrawal to UPI'
     }]);
 
-    if (!error) {
+    if (error) {
+       alert("Database Error: " + error.message);
+    } else {
       alert("Withdrawal request submitted! Funds will be transferred shortly.");
       setWithdrawAmount('');
       setUpiId('');
@@ -105,15 +112,15 @@ export default function PlayerDashboard() {
     setIsSubmitting(false);
   };
 
-  if (authLoading) return <div className="min-h-screen bg-[#050505] text-emerald-500 flex items-center justify-center font-black animate-pulse">Loading Secure Portal...</div>;
+  if (authLoading) return <div className="min-h-screen bg-[#050505] text-emerald-500 flex items-center justify-center font-black animate-pulse tracking-widest uppercase">Loading Secure Portal...</div>;
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-4 text-center">
         <Wallet className="w-16 h-16 text-emerald-500 mb-6" />
-        <h1 className="text-4xl font-black italic text-white mb-2 uppercase">Player Portal</h1>
+        <h1 className="text-4xl font-black italic text-white mb-2 uppercase tracking-widest">Player Portal</h1>
         <p className="text-zinc-400 mb-8 font-medium">Login to manage your wallet, deposits, and winnings.</p>
-        <button onClick={handleLogin} className="bg-white hover:bg-gray-200 text-black font-black uppercase tracking-wider px-8 py-4 rounded flex items-center gap-3">
+        <button onClick={handleLogin} className="bg-white hover:bg-gray-200 text-black font-black uppercase tracking-wider px-8 py-4 rounded flex items-center gap-3 transition-colors shadow-[0_0_15px_rgba(255,255,255,0.2)]">
           <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
           Sign in with Google
         </button>
@@ -154,7 +161,7 @@ export default function PlayerDashboard() {
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col md:flex-row justify-between items-center gap-6">
               <div>
                 <p className="text-zinc-400 font-bold text-sm uppercase tracking-wider flex items-center gap-2 mb-2"><Wallet className="w-4 h-4 text-emerald-500"/> Available Balance</p>
-                <p className="text-5xl font-black">₹{wallet.balance}</p>
+                <p className="text-5xl font-black text-white">₹{wallet.balance}</p>
               </div>
               <div className="flex gap-4 w-full md:w-auto">
                 <button onClick={() => setActiveTab('deposit')} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-wider px-6 py-3 rounded flex items-center justify-center gap-2 transition-colors"><ArrowDownToLine className="w-5 h-5"/> Add Money</button>
@@ -193,7 +200,7 @@ export default function PlayerDashboard() {
 
             <div className="mb-8">
               <p className="text-xs text-zinc-400 font-bold uppercase tracking-wider mb-3">Or enter custom amount</p>
-              <input type="number" value={depositAmount} onChange={(e) => setDepositAmount(Number(e.target.value))} placeholder="Enter amount" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-bold text-lg focus:border-emerald-500 outline-none" />
+              <input type="number" value={depositAmount} onChange={(e) => setDepositAmount(Number(e.target.value))} placeholder="Enter amount" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-bold text-lg focus:border-emerald-500 outline-none text-white" />
               <div className="flex justify-between text-[10px] text-zinc-500 font-bold uppercase mt-2">
                 <span>Min ₹10</span><span>Max ₹50,000</span>
               </div>
@@ -221,7 +228,7 @@ export default function PlayerDashboard() {
               <div className="bg-white p-8 flex flex-col items-center justify-center w-full md:w-1/2">
                 <h3 className="text-black font-black uppercase tracking-widest mb-6 flex items-center gap-2"><QrCode className="w-5 h-5"/> Scan & Pay</h3>
                 <div className="bg-white p-2 rounded-xl shadow-lg mb-6 border border-zinc-200">
-                  {/* Dynamic UPI QR Code Generation */}
+                  {/* UPDATE THIS WITH YOUR ACTUAL UPI ID */}
                   <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=digitallibrary@slc&pn=BGMI+Arena&am=${depositAmount}`} alt="UPI QR" className="w-48 h-48" />
                 </div>
                 <p className="text-zinc-500 text-xs font-bold uppercase">GPay • PhonePe • Paytm</p>
@@ -259,7 +266,7 @@ export default function PlayerDashboard() {
              <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-lg mb-6 flex justify-between items-center">
                <div>
                  <p className="text-emerald-500 font-bold text-xs uppercase mb-1">Available to Withdraw</p>
-                 <p className="text-2xl font-black">₹{wallet.balance}</p>
+                 <p className="text-2xl font-black text-white">₹{wallet.balance}</p>
                </div>
                <Wallet className="w-8 h-8 text-emerald-500/50" />
              </div>
@@ -267,13 +274,13 @@ export default function PlayerDashboard() {
              <form onSubmit={handleWithdrawSubmit} className="space-y-6">
                <div>
                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-2">Amount to Withdraw</label>
-                 <input required type="number" min="100" max={wallet.balance} value={withdrawAmount} onChange={(e) => setWithdrawAmount(Number(e.target.value))} placeholder="Min ₹100" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-bold focus:border-emerald-500 outline-none" />
+                 <input required type="number" min="100" max={wallet.balance} value={withdrawAmount} onChange={(e) => setWithdrawAmount(Number(e.target.value))} placeholder="Min ₹100" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-bold focus:border-emerald-500 outline-none text-white" />
                </div>
                <div>
                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-2">Your UPI ID</label>
-                 <input required type="text" placeholder="e.g. 9876543210@ybl" value={upiId} onChange={(e) => setUpiId(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-bold focus:border-emerald-500 outline-none" />
+                 <input required type="text" placeholder="e.g. 9876543210@ybl" value={upiId} onChange={(e) => setUpiId(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-bold focus:border-emerald-500 outline-none text-white" />
                </div>
-               <button type="submit" disabled={isSubmitting || wallet.balance < 100} className="w-full bg-white hover:bg-zinc-200 text-black font-black uppercase tracking-widest py-4 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50">
+               <button type="submit" disabled={isSubmitting || wallet.balance < 100} className="w-full bg-white hover:bg-zinc-200 text-black font-black uppercase tracking-widest py-4 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 transition-colors">
                  {isSubmitting ? 'Processing...' : 'Request Withdrawal'}
                </button>
              </form>
@@ -298,7 +305,7 @@ export default function PlayerDashboard() {
                         {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_MONEY' ? <ArrowDownToLine className="w-5 h-5"/> : <ArrowUpFromLine className="w-5 h-5"/>}
                       </div>
                       <div>
-                        <p className="font-bold">{tx.description}</p>
+                        <p className="font-bold text-white">{tx.description}</p>
                         <p className="text-xs text-zinc-500 mt-1 font-mono">{new Date(tx.created_at).toLocaleString()}</p>
                       </div>
                     </div>
@@ -306,7 +313,7 @@ export default function PlayerDashboard() {
                       <p className={`font-black text-lg ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_MONEY' ? 'text-emerald-500' : 'text-white'}`}>
                         {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_MONEY' ? '+' : '-'}₹{tx.amount}
                       </p>
-                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded ${tx.status === 'PENDING' ? 'bg-amber-500/20 text-amber-500' : tx.status === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-red-500'}`}>
+                      <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${tx.status === 'PENDING' ? 'bg-amber-500/20 text-amber-500' : tx.status === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-red-500'}`}>
                         {tx.status}
                       </span>
                     </div>
