@@ -338,7 +338,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="flex gap-2 w-full sm:w-auto">
                       {/* NEW: View More Button to check slot rosters */}
-                      <button onClick={() => router.push(`/tournaments/${t.id}`)} className="flex-1 sm:flex-none bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 px-4 py-2 rounded text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1">
+                      <button onClick={() => router.push(`/admin/tournament/${t.id}`)} className="flex-1 sm:flex-none bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 px-4 py-2 rounded text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1">
                         <Eye className="w-3.5 h-3.5"/> View More
                       </button>
                       <button onClick={() => handleEditClick(t)} className="flex-1 sm:flex-none bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white border border-blue-500/20 px-4 py-2 rounded text-xs font-black uppercase tracking-wider transition-all">Edit</button>
