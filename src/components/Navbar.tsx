@@ -19,7 +19,6 @@ export default function Navbar() {
       if (session?.user) {
         setUser(session.user);
         
-        // Fetch wallet balance
         const { data: walletData } = await supabase
           .from('wallets')
           .select('balance')
@@ -27,7 +26,6 @@ export default function Navbar() {
           .single();
         if (walletData) setWalletBalance(walletData.balance);
 
-        // Check if admin
         const { data: adminData } = await supabase
           .from('admins')
           .select('*')
@@ -53,7 +51,6 @@ export default function Navbar() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Force Google account picker so you can test multiple Gmail accounts
   const handleGoogleLogin = async () => {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -84,9 +81,9 @@ export default function Navbar() {
           BGMI <span className="text-orange-500">ARENA</span>
         </Link>
 
-        {/* Navigation Links */}
+        {/* Navigation Links - Fixed Home to route to /#hero */}
         <nav className="hidden md:flex items-center gap-8 text-xs font-black uppercase tracking-wider text-zinc-300">
-          <Link href="/" className="hover:text-orange-500 transition-colors">Home</Link>
+          <Link href="/#hero" className="hover:text-orange-500 transition-colors">Home</Link>
           <Link href="/tournaments" className="hover:text-orange-500 transition-colors">Tournaments</Link>
           <Link href="/leaderboard" className="hover:text-orange-500 transition-colors">Leaderboard</Link>
           <Link href="/tournaments" className="hover:text-orange-500 transition-colors">Rules</Link>
@@ -101,7 +98,6 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           {user ? (
             <div className="flex items-center gap-3">
-              {/* Wallet Balance Badge */}
               <Link href="/dashboard" className="bg-zinc-900 border border-zinc-800 hover:border-orange-500/50 px-4 py-2 rounded-xl flex items-center gap-2 transition-all">
                 <Wallet className="w-4 h-4 text-emerald-400"/>
                 <span className="text-xs font-black text-emerald-400">₹{walletBalance ?? 0}</span>
