@@ -51,7 +51,7 @@ export default function Home() {
     <main className="bg-[#050505] text-white font-sans selection:bg-orange-500 selection:text-white overflow-x-hidden">
       
       {/* Cinematic Hero Section with Auto-Slider */}
-      <section className="relative h-[90vh] flex flex-col items-center justify-center text-center px-4 overflow-hidden border-b border-zinc-900">
+      <section id="hero" className="relative h-[90vh] flex flex-col items-center justify-center text-center px-4 overflow-hidden border-b border-zinc-900">
         {heroImages.map((img, index) => (
           <div
             key={index}
@@ -194,7 +194,7 @@ export default function Home() {
 
                     <div>
                       <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider mb-0.5">Entry Fee</p>
-                      <p className="text-3xl font-black text-orange-500">{t.fee === 0 ? 'FREE' : `₹{t.fee}`}</p>
+                      <p className="text-3xl font-black text-orange-500">{t.fee === 0 ? 'FREE' : `₹${t.fee}`}</p>
                     </div>
                   </div>
 
@@ -202,7 +202,8 @@ export default function Home() {
                     <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded-xl text-xs transition-colors border border-zinc-700 flex items-center justify-center">
                       View More
                     </Link>
-                    <Link href="/tournaments" className="text-center bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-wider py-3 rounded-xl text-xs transition-colors shadow-[0_0_15px_rgba(249,115,22,0.3)] flex items-center justify-center">
+                    {/* Fixed: Directly links to specific match lobby page */}
+                    <Link href={`/tournaments/${t.id}`} className="text-center bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-wider py-3 rounded-xl text-xs transition-colors shadow-[0_0_15px_rgba(249,115,22,0.3)] flex items-center justify-center">
                       Join Match
                     </Link>
                   </div>
