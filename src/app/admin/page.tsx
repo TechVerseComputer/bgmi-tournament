@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Trophy, Users, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3, PlusCircle, Eye } from 'lucide-react';
+import { Trophy, Users, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3, PlusCircle, Eye, Calculator } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function AdminDashboard() {
@@ -24,7 +24,19 @@ export default function AdminDashboard() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   
-  const defaultTourney = { name: '', type: 'SQUAD', perspective: 'TPP', fee: 0, first_prize: 0, second_prize: 0, match_time: '', total_slots: 25, status: 'OPEN', map_img: '' };
+  // Upgraded Tournament State with Dynamic Winners (Up to 6)
+  const defaultTourney = { 
+    name: '', 
+    type: 'SQUAD', 
+    perspective: 'TPP', 
+    fee: 100, 
+    total_slots: 25, 
+    status: 'OPEN', 
+    match_time: '', 
+    map_img: '',
+    total_winners: 3,
+    prizes: [1500, 800, 400, 0, 0, 0] // Supports up to 6 positions
+  };
   const [newTourney, setNewTourney] = useState(defaultTourney);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -64,7 +76,15 @@ export default function AdminDashboard() {
       supabase.from('transactions').select('*').eq('status', 'PENDING').order('created_at', { ascending: true })
     ]);
     if (regRes.data) setRegistrations(regRes.data);
-    if (tourneyRes.data) setTournaments(tourneyRes.data);
+    if (tourneyRes.data) {
+      // Map legacy or new prize structures smoothly
+      const mappedTourneys = tourneyRes.data.map(t => ({
+        ...t,
+        total_winners: t.total_winners || 2,
+        prizes: t.prize_breakdown?.length > 0 ? t.prize_breakdown : [t.first_prize || 0, t.second_prize || 0, 0, 0, 0, 0]
+      }));
+      setTournaments(mappedTourneys);
+    }
     if (leadRes.data) setLeaderboards(leadRes.data);
     if (rulesRes.data) setRules(rulesRes.data);
     if (txRes.data) setPendingTransactions(txRes.data);
@@ -89,9 +109,49 @@ export default function AdminDashboard() {
     setActionLoading(null);
   };
 
+  // --- AUTOMATIC PRIZE CALCULATOR ---
+  const handleAutoCalculatePrizes = () => {
+    const totalPool = Number(newTourney.fee) * Number(newTourney.total_slots);
+    // Keep 15% platform fee, distribute 85% to winners based on position weight
+    const prizePool = Math.floor(totalPool * 0.85);
+    const count = Number(newTourney.total_winners);
+
+    let newPrizes = [0, 0, 0, 0, 0, 0];
+    if (count === 1) {
+      newPrizes[0] = prizePool;
+    } else if (count === 2) {
+      newPrizes[0] = Math.floor(prizePool * 0.70);
+      newPrizes[1] = prizePool - newPrizes[0];
+    } else if (count === 3) {
+      newPrizes[0] = Math.floor(prizePool * 0.55);
+      newPrizes[1] = Math.floor(prizePool * 0.30);
+      newPrizes[2] = prizePool - newPrizes[0] - newPrizes[1];
+    } else if (count === 4) {
+      newPrizes[0] = Math.floor(prizePool * 0.50);
+      newPrizes[1] = Math.floor(prizePool * 25);
+      newPrizes[2] = Math.floor(prizePool * 0.15);
+      newPrizes[3] = prizePool - newPrizes[0] - newPrizes[1] - newPrizes[2];
+    } else if (count >= 5) {
+      newPrizes[0] = Math.floor(prizePool * 0.45);
+      newPrizes[1] = Math.floor(prizePool * 0.25);
+      newPrizes[2] = Math.floor(prizePool * 0.15);
+      newPrizes[3] = Math.floor(prizePool * 0.10);
+      newPrizes[4] = prizePool - newPrizes[0] - newPrizes[1] - newPrizes[2] - newPrizes[3];
+      if (count === 6) {
+        newPrizes[4] = Math.floor(prizePool * 0.38);
+        newPrizes[5] = prizePool - newPrizes[0] - newPrizes[1] - newPrizes[2] - newPrizes[3] - newPrizes[4];
+      }
+    }
+    setNewTourney({ ...newTourney, prizes: newPrizes });
+  };
+
   const handleEditClick = (tourney: any) => {
     setEditingId(tourney.id);
-    setNewTourney(tourney);
+    setNewTourney({
+      ...tourney,
+      total_winners: tourney.total_winners || 3,
+      prizes: tourney.prizes || [tourney.first_prize, tourney.second_prize, 0, 0, 0, 0]
+    });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -119,16 +179,20 @@ export default function AdminDashboard() {
         throw new Error("Please select a background image.");
       }
 
+      const activePrizes = newTourney.prizes.slice(0, newTourney.total_winners);
+
       const payload = {
-        name: newTourney.name,
-        type: newTourney.type,
-        perspective: newTourney.perspective,
-        fee: newTourney.fee,
-        first_prize: newTourney.first_prize,
-        second_prize: newTourney.second_prize,
-        match_time: newTourney.match_time,
-        total_slots: newTourney.total_slots,
-        status: newTourney.status,
+        name: String(newTourney.name),
+        type: String(newTourney.type),
+        perspective: String(newTourney.perspective),
+        fee: Number(newTourney.fee),
+        first_prize: Number(newTourney.prizes[0] || 0),
+        second_prize: Number(newTourney.prizes[1] || 0),
+        total_winners: Number(newTourney.total_winners),
+        prize_breakdown: activePrizes,
+        match_time: String(newTourney.match_time),
+        total_slots: Number(newTourney.total_slots || 25),
+        status: String(newTourney.status || 'OPEN'),
         map_img: publicUrl
       };
 
@@ -296,27 +360,64 @@ export default function AdminDashboard() {
                     <select value={newTourney.perspective} onChange={e => setNewTourney({...newTourney, perspective: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none text-white"><option>TPP</option><option>FPP</option></select>
                   </div>
                 </div>
+
                 <div>
                   <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Entry Fee (₹)</label>
                   <input required type="number" value={newTourney.fee} onChange={e => setNewTourney({...newTourney, fee: Number(e.target.value)})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none text-white" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">1st Prize (₹)</label>
-                    <input required type="number" value={newTourney.first_prize} onChange={e => setNewTourney({...newTourney, first_prize: Number(e.target.value)})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none text-white" />
+
+                {/* --- DYNAMIC PRIZE POOL CALCULATOR SECTION --- */}
+                <div className="bg-zinc-950 p-4 rounded border border-zinc-800 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-orange-500 uppercase tracking-wider">Number of Winners</label>
+                    <select 
+                      value={newTourney.total_winners} 
+                      onChange={e => setNewTourney({...newTourney, total_winners: Number(e.target.value)})} 
+                      className="bg-zinc-900 border border-zinc-700 rounded px-3 py-1 text-xs font-black text-white outline-none"
+                    >
+                      <option value={1}>1 Winner</option>
+                      <option value={2}>2 Winners</option>
+                      <option value={3}>3 Winners</option>
+                      <option value={4}>4 Winners</option>
+                      <option value={5}>5 Winners</option>
+                      <option value={6}>6 Winners</option>
+                    </select>
                   </div>
-                  <div>
-                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">2nd Prize (₹)</label>
-                    <input required type="number" value={newTourney.second_prize} onChange={e => setNewTourney({...newTourney, second_prize: Number(e.target.value)})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none text-white" />
+
+                  <button 
+                    type="button" 
+                    onClick={handleAutoCalculatePrizes} 
+                    className="w-full bg-zinc-800 hover:bg-zinc-700 text-orange-400 border border-orange-500/30 text-xs font-black uppercase py-2 rounded flex items-center justify-center gap-2 transition-all"
+                  >
+                    <Calculator className="w-4 h-4" /> Auto-Calculate Prizes (85% Pool)
+                  </button>
+
+                  <div className="space-y-2 pt-2">
+                    {Array.from({ length: newTourney.total_winners }, (_, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-zinc-400 w-20"># {idx + 1} Prize:</span>
+                        <input 
+                          type="number" 
+                          value={newTourney.prizes[idx]} 
+                          onChange={e => {
+                            const updated = [...newTourney.prizes];
+                            updated[idx] = Number(e.target.value);
+                            setNewTourney({...newTourney, prizes: updated});
+                          }} 
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-sm focus:border-orange-500 outline-none text-white"
+                        />
+                      </div>
+                    ))}
                   </div>
                 </div>
+
                 <button type="submit" disabled={uploading} className={`w-full font-black uppercase tracking-widest py-3 rounded mt-4 transition-colors disabled:opacity-50 flex justify-center items-center gap-2 ${editingId ? 'bg-blue-500 hover:bg-blue-400 text-black' : 'bg-orange-500 hover:bg-orange-400 text-black'}`}>
                   {uploading ? <><UploadCloud className="w-5 h-5 animate-pulse" /> Saving...</> : editingId ? 'Update Tournament' : 'Create Tournament'}
                 </button>
               </form>
             </div>
             
-            {/* Active Matches List (Now includes [View More] Button) */}
+            {/* Active Matches List */}
             <div className="lg:col-span-2 space-y-4">
               <h2 className="text-xl font-black italic uppercase tracking-widest mb-6">Active Database Matches</h2>
               {tournaments.length === 0 ? (
@@ -332,12 +433,11 @@ export default function AdminDashboard() {
                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : t.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>{t.status}</span>
                         </div>
                         <div className="flex gap-2 text-xs font-bold text-zinc-400 mt-1">
-                          <span className="text-orange-500">{t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'No Time Set'}</span> • <span>{t.type}</span> • <span>Slots: {t.total_slots}</span>
+                          <span className="text-orange-500">{t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'No Time Set'}</span> • <span>{t.type}</span> • <span>Slots: {t.total_slots}</span> • <span className="text-emerald-400">{t.total_winners || 2} Winners</span>
                         </div>
                       </div>
                     </div>
                     <div className="flex gap-2 w-full sm:w-auto">
-                      {/* NEW: View More Button to check slot rosters */}
                       <button onClick={() => router.push(`/admin/tournament/${t.id}`)} className="flex-1 sm:flex-none bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 px-4 py-2 rounded text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1">
                         <Eye className="w-3.5 h-3.5"/> View More
                       </button>
@@ -414,7 +514,7 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {rules.map((r) => (
                   <div key={r.id} className="bg-zinc-900 border border-zinc-800 p-5 rounded relative group">
-                    <h3 className="font-black tracking-wide mb-2 text-orange-500 uppercase">{r.title}</h3>
+                    <h3 className="text-orange-500 font-black uppercase tracking-wide mb-2">{r.title}</h3>
                     <p className="text-zinc-400 text-sm leading-relaxed">{r.description}</p>
                     <button onClick={() => handleDeleteRule(r.id)} className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-500/10 rounded"><Trash2 className="w-4 h-4 text-red-500" /></button>
                   </div>
