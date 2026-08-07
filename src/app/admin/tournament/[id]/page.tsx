@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import { ShieldAlert, ArrowLeft, Users, Trophy, Mail, Copy, Check, Award } from 'lucide-react';
+import { ShieldAlert, ArrowLeft, Users, Trophy, Mail, Copy, Check, Key, Save } from 'lucide-react';
 
 export default function AdminTournamentControlCenter() {
   const { id } = useParams();
@@ -19,6 +19,10 @@ export default function AdminTournamentControlCenter() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [payoutLoading, setPayoutLoading] = useState<string | null>(null);
+
+  // Room Credentials State
+  const [roomCreds, setRoomCreds] = useState({ room_id: '', room_password: '' });
+  const [savingCreds, setSavingCreds] = useState(false);
 
   useEffect(() => {
     const checkAuthAndFetch = async () => {
@@ -43,7 +47,13 @@ export default function AdminTournamentControlCenter() {
       supabase.from('registrations').select('*').eq('tournament_id', id).order('slot_number', { ascending: true })
     ]);
 
-    if (tourneyRes.data) setTournament(tourneyRes.data);
+    if (tourneyRes.data) {
+      setTournament(tourneyRes.data);
+      setRoomCreds({
+        room_id: tourneyRes.data.room_id || '',
+        room_password: tourneyRes.data.room_password || ''
+      });
+    }
     if (regRes.data) setRegistrations(regRes.data);
     setLoading(false);
   };
@@ -55,23 +65,39 @@ export default function AdminTournamentControlCenter() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Save Room Credentials Handler
+  const handleSaveCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingCreds(true);
+    try {
+      const { error } = await supabase
+        .from('tournaments')
+        .update({ room_id: roomCreds.room_id, room_password: roomCreds.room_password })
+        .eq('id', id);
+
+      if (error) throw error;
+      alert("Room Credentials Updated Successfully!");
+    } catch (err: any) {
+      alert("Error saving credentials: " + err.message);
+    } finally {
+      setSavingCreds(false);
+    }
+  };
+
   // --- ONE-CLICK WINNER PAYOUT HANDLER ---
   const handlePayoutWinner = async (regId: string, targetUserId: string, squadName: string, prizeAmount: number, positionLabel: string) => {
     if (!confirm(`Are you sure you want to payout ₹${prizeAmount} (${positionLabel}) to ${squadName}?`)) return;
 
     setPayoutLoading(regId);
     try {
-      // 1. Fetch current wallet of winner
       const { data: wallet, error: walletErr } = await supabase.from('wallets').select('*').eq('user_id', targetUserId).single();
       if (walletErr || !wallet) throw new Error("Winner wallet not found.");
 
       const newBalance = Number(wallet.balance) + Number(prizeAmount);
 
-      // 2. Update wallet balance
       const { error: updateErr } = await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', targetUserId);
       if (updateErr) throw updateErr;
 
-      // 3. Log immutable transaction record
       const { error: txErr } = await supabase.from('transactions').insert([{
         user_id: targetUserId,
         type: 'PRIZE_WIN',
@@ -114,11 +140,47 @@ export default function AdminTournamentControlCenter() {
               <ArrowLeft className="w-4 h-4"/> Back to Admin Hub
             </button>
             <h1 className="text-3xl font-black italic tracking-wider text-orange-500 uppercase">{tournament?.name} — Control Center</h1>
-            <p className="text-zinc-400 text-sm mt-1 font-bold">Manage enrollments, inspect player IDs, and execute secure one-click prize payouts.</p>
+            <p className="text-zinc-400 text-sm mt-1 font-bold">Manage enrollments, publish room credentials, and execute prize payouts.</p>
           </div>
           <button onClick={handleCopyRoomDetails} className="bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 px-5 py-3 rounded text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all">
             {copied ? <Check className="w-4 h-4 text-emerald-500"/> : <Copy className="w-4 h-4 text-orange-500"/>} {copied ? 'Copied to Clipboard' : 'Copy All Squad Rosters'}
           </button>
+        </div>
+
+        {/* --- PUBLISH ROOM CREDENTIALS SECTION --- */}
+        <div className="bg-zinc-900 border border-orange-500/30 p-6 rounded-xl space-y-4 shadow-[0_0_20px_rgba(249,115,22,0.1)]">
+          <div className="flex items-center gap-2 text-orange-500 font-black uppercase tracking-wider text-lg">
+            <Key className="w-5 h-5"/> Publish Room Credentials (Custom Lobby)
+          </div>
+          <p className="text-xs text-zinc-400">Enter the Room ID and Password generated in BGMI. This will become visible only to registered players on their match page.</p>
+          
+          <form onSubmit={handleSaveCredentials} className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+            <div>
+              <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">Room ID</label>
+              <input 
+                type="text" 
+                placeholder="e.g. 8492819" 
+                value={roomCreds.room_id}
+                onChange={e => setRoomCreds({...roomCreds, room_id: e.target.value})}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded p-3 text-sm text-white focus:border-orange-500 outline-none font-mono"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">Room Password</label>
+              <input 
+                type="text" 
+                placeholder="e.g. bgmi123" 
+                value={roomCreds.room_password}
+                onChange={e => setRoomCreds({...roomCreds, room_password: e.target.value})}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded p-3 text-sm text-white focus:border-orange-500 outline-none font-mono"
+              />
+            </div>
+            <div className="flex items-end">
+              <button type="submit" disabled={savingCreds} className="w-full bg-orange-500 hover:bg-orange-400 text-black font-black uppercase text-xs tracking-wider py-3 px-6 rounded transition-all flex items-center justify-center gap-2">
+                <Save className="w-4 h-4"/> {savingCreds ? 'Saving...' : 'Save & Publish Credentials'}
+              </button>
+            </div>
+          </form>
         </div>
 
         {/* Quick Stats Grid */}
