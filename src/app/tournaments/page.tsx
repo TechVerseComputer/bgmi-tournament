@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Crosshair, Users, Trophy, X, AlertCircle } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 
@@ -117,9 +118,16 @@ export default function TournamentsPage() {
                       <p className="text-3xl font-black text-orange-500">{t.fee === 0 ? 'FREE' : `₹${t.fee}`}</p>
                     </div>
                   </div>
-                  <button onClick={() => handleJoinClick(t)} className="w-full bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black font-black uppercase tracking-widest py-3 rounded transition-all mt-4">
-                    Join Now
-                  </button>
+
+                  {/* Dual CTAs: View More & Join Match */}
+                  <div className="grid grid-cols-2 gap-3 mt-4">
+                    <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded text-xs transition-colors border border-zinc-700 flex items-center justify-center">
+                      View More
+                    </Link>
+                    <button onClick={() => handleJoinClick(t)} className="bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-wider py-3 rounded text-xs transition-colors shadow-[0_0_10px_rgba(249,115,22,0.3)] flex items-center justify-center">
+                      Join Match
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -127,6 +135,7 @@ export default function TournamentsPage() {
         )}
       </section>
 
+      {/* Quick Booking Modal */}
       {selectedMatch && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm overflow-y-auto">
           <div className="bg-[#111116] w-full max-w-2xl rounded-xl border border-zinc-800 relative my-8">
