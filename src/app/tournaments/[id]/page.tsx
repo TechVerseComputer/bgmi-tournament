@@ -25,15 +25,12 @@ export default function TournamentDetailPage() {
   useEffect(() => {
     if (!id) return;
     const fetchDetails = async () => {
-      // 1. Fetch Tournament details
       const { data: tourneyData } = await supabase.from('tournaments').select('*').eq('id', id).single();
       if (tourneyData) setTournament(tourneyData);
 
-      // 2. Fetch existing registrations for this match to populate the slot grid
       const { data: regData } = await supabase.from('registrations').select('*').eq('tournament_id', id);
       if (regData) setRegistrations(regData);
 
-      // 3. Fetch User session & Wallet
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
@@ -55,6 +52,7 @@ export default function TournamentDetailPage() {
     setShowModal(true);
   };
 
+  // --- FAIL-SAFE BOOKING LOGIC FOR DEEP-DIVE PAGE ---
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSlot) return alert("Please select a drop slot!");
@@ -62,33 +60,54 @@ export default function TournamentDetailPage() {
 
     setIsSubmitting(true);
     try {
+      const playerCount = tournament.type === 'SOLO' ? 1 : tournament.type === 'DUO' ? 2 : 4;
+
+      // 1. ATTEMPT REGISTRATION FIRST
+      const { error: regError } = await supabase.from('registrations').insert([{
+        tournament_id: tournament.id, 
+        user_id: user.id, 
+        squad_name: team.p1_ign + "'s Squad", 
+        igl_email: user.email,
+        player_1_id: team.p1_id, 
+        player_1_ign: team.p1_ign, 
+        player_2_id: playerCount >= 2 ? team.p2_id : null, 
+        player_2_ign: playerCount >= 2 ? team.p2_ign : null,
+        player_3_id: playerCount >= 4 ? team.p3_id : null, 
+        player_3_ign: playerCount >= 4 ? team.p3_ign : null,
+        player_4_id: playerCount >= 4 ? team.p4_id : null, 
+        player_4_ign: playerCount >= 4 ? team.p4_ign : null,
+        utr_number: 'PAID_VIA_WALLET', 
+        payment_status: 'Verified', 
+        slot_number: selectedSlot
+      }]);
+
+      if (regError) throw regError;
+
+      // 2. DEDUCT WALLET ONLY AFTER SUCCESSFUL REGISTRATION
       const newBalance = walletBalance - tournament.fee;
-      await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', user.id);
+      const { error: walletError } = await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', user.id);
+
+      if (walletError) {
+        await supabase.from('registrations').delete().eq('tournament_id', tournament.id).eq('slot_number', selectedSlot);
+        throw new Error("Wallet deduction failed. Registration cancelled.");
+      }
 
       await supabase.from('transactions').insert([{
         user_id: user.id, type: 'TOURNAMENT_FEE', amount: tournament.fee, status: 'SUCCESS', description: `Entry fee for ${tournament.name} (Slot ${selectedSlot})`
       }]);
 
-      const playerCount = tournament.type === 'SOLO' ? 1 : tournament.type === 'DUO' ? 2 : 4;
-      const { error: regError } = await supabase.from('registrations').insert([{
-        tournament_id: tournament.id, user_id: user.id, squad_name: team.p1_ign + "'s Squad", igl_email: user.email,
-        player_1_id: team.p1_id, player_1_ign: team.p1_ign, 
-        player_2_id: playerCount >= 2 ? team.p2_id : null, player_2_ign: playerCount >= 2 ? team.p2_ign : null,
-        player_3_id: playerCount >= 4 ? team.p3_id : null, player_3_ign: playerCount >= 4 ? team.p3_ign : null,
-        player_4_id: playerCount >= 4 ? team.p4_id : null, player_4_ign: playerCount >= 4 ? team.p4_ign : null,
-        utr_number: 'PAID_VIA_WALLET', payment_status: 'Verified', slot_number: selectedSlot
-      }]);
-
-      if (regError) throw regError;
       alert("Slot Booked Successfully!");
       setWalletBalance(newBalance);
       setShowModal(false);
       
-      // Refresh registrations list
       const { data: regData } = await supabase.from('registrations').select('*').eq('tournament_id', id);
       if (regData) setRegistrations(regData);
 
-    } catch (error: any) { alert("Error booking slot: " + error.message); } finally { setIsSubmitting(false); }
+    } catch (error: any) { 
+      alert("Error booking slot: " + error.message); 
+    } finally { 
+      setIsSubmitting(false); 
+    }
   };
 
   if (loading) return <div className="min-h-screen bg-[#0a0a0a] text-orange-500 font-bold flex items-center justify-center animate-pulse">Loading Match Details...</div>;
@@ -96,7 +115,6 @@ export default function TournamentDetailPage() {
 
   const bookedSlotNumbers = registrations.map(r => r.slot_number).filter(s => s !== null);
 
-  // Dynamic Live Prize Pool Calculation based on active slot registrations
   const bookedCount = registrations.length;
   const totalLivePool = bookedCount > 0 ? Math.floor(bookedCount * Number(tournament.fee || 0) * 0.85) : 0;
   
@@ -108,7 +126,6 @@ export default function TournamentDetailPage() {
 
   return (
     <main className="bg-[#0a0a0a] text-white font-sans min-h-screen pb-24">
-      {/* Top Banner Header */}
       <div className="relative h-72 md:h-96 overflow-hidden border-b border-zinc-800">
         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/50 to-transparent z-10" />
         <img src={tournament.map_img} alt={tournament.name} className="w-full h-full object-cover filter brightness-75" />
@@ -127,11 +144,7 @@ export default function TournamentDetailPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 lg:px-8 mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left 2 Cols: Overview, Prize Pool, & Slot Grid */}
         <div className="lg:col-span-2 space-y-8">
-          
-          {/* Match Info Card */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 grid grid-cols-2 md:grid-cols-3 gap-6">
             <div>
               <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Entry Fee</p>
@@ -150,7 +163,6 @@ export default function TournamentDetailPage() {
             </div>
           </div>
 
-          {/* Prize Pool Breakdown */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-black uppercase tracking-wider flex items-center gap-2 text-orange-500"><Trophy className="w-5 h-5"/> Prize Pool Distribution</h2>
@@ -168,7 +180,6 @@ export default function TournamentDetailPage() {
             </div>
           </div>
 
-          {/* Visual Slot Matrix (Shows Who Booked What) */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-6">
             <div>
               <h2 className="text-lg font-black uppercase tracking-wider mb-1">Drop Slot Availability & Roster</h2>
@@ -194,10 +205,8 @@ export default function TournamentDetailPage() {
               })}
             </div>
           </div>
-
         </div>
 
-        {/* Right Col: Action Sidebar */}
         <div className="space-y-6">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 sticky top-24 space-y-6">
             <h3 className="font-black uppercase tracking-wider text-sm border-b border-zinc-800 pb-4">Match Control</h3>
@@ -212,10 +221,8 @@ export default function TournamentDetailPage() {
             </button>
           </div>
         </div>
-
       </div>
 
-      {/* Booking Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm overflow-y-auto">
           <div className="bg-[#111116] w-full max-w-2xl rounded-xl border border-zinc-800 relative my-8">
