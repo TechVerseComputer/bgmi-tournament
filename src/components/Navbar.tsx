@@ -41,6 +41,11 @@ export default function Navbar() {
         <Link href="/leaderboard" className={`transition-colors ${pathname === '/leaderboard' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>LEADERBOARD</Link>
         <Link href="/rules" className={`transition-colors ${pathname === '/rules' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>RULES</Link>
         
+        {/* NEW: Dedicated Dashboard Link for Desktop */}
+        {user && (
+          <Link href="/dashboard" className={`transition-colors ${pathname === '/dashboard' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>DASHBOARD</Link>
+        )}
+        
         {user ? (
           <Link href="/dashboard" className="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded flex items-center gap-2 transition-colors border border-zinc-700 text-emerald-500">
             <Wallet className="w-4 h-4" /> ₹{balance}
@@ -71,6 +76,11 @@ export default function Navbar() {
           <Link href="/tournaments" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-2 ${pathname.includes('/tournaments') ? 'text-orange-500' : 'text-zinc-300'}`}>TOURNAMENTS</Link>
           <Link href="/leaderboard" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-2 ${pathname === '/leaderboard' ? 'text-orange-500' : 'text-zinc-300'}`}>LEADERBOARD</Link>
           <Link href="/rules" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-2 ${pathname === '/rules' ? 'text-orange-500' : 'text-zinc-300'}`}>RULES</Link>
+          
+          {/* NEW: Dedicated Dashboard Link for Mobile */}
+          {user && (
+            <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-2 ${pathname === '/dashboard' ? 'text-orange-500' : 'text-zinc-300'}`}>DASHBOARD</Link>
+          )}
           
           {!user && (
             <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="bg-orange-500 text-black py-3 rounded text-center font-black uppercase tracking-wider mt-2 flex items-center justify-center gap-2">
