@@ -61,6 +61,7 @@ export default function TournamentsPage() {
     if (regs) setBookedSlots(regs.map(r => r.slot_number).filter(s => s !== null));
   };
 
+  // --- BULLETPROOF BOOKING LOGIC (REGISTRATION FIRST, WALLET SECOND) ---
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSlot) return alert("Please select a drop slot!");
@@ -68,29 +69,57 @@ export default function TournamentsPage() {
     
     setIsSubmitting(true);
     try {
-      const newBalance = walletBalance - selectedMatch.fee;
-      await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', user.id);
-      
-      await supabase.from('transactions').insert([{
-        user_id: user.id, type: 'TOURNAMENT_FEE', amount: selectedMatch.fee, status: 'SUCCESS', description: `Entry fee for ${selectedMatch.name} (Slot ${selectedSlot})`
-      }]);
-
       const playerCount = selectedMatch.type === 'SOLO' ? 1 : selectedMatch.type === 'DUO' ? 2 : 4;
+
+      // 1. ATTEMPT REGISTRATION FIRST IN THE DATABASE
       const { error: regError } = await supabase.from('registrations').insert([{
-        tournament_id: selectedMatch.id, user_id: user.id, squad_name: team.p1_ign + "&apos;s Squad", igl_email: user.email,
-        player_1_id: team.p1_id, player_1_ign: team.p1_ign, 
-        player_2_id: playerCount >= 2 ? team.p2_id : null, player_2_ign: playerCount >= 2 ? team.p2_ign : null,
-        player_3_id: playerCount >= 4 ? team.p3_id : null, player_3_ign: playerCount >= 4 ? team.p3_ign : null,
-        player_4_id: playerCount >= 4 ? team.p4_id : null, player_4_ign: playerCount >= 4 ? team.p4_ign : null,
-        utr_number: 'PAID_VIA_WALLET', payment_status: 'Verified', slot_number: selectedSlot
+        tournament_id: selectedMatch.id, 
+        user_id: user.id, 
+        squad_name: team.p1_ign + "'s Squad", 
+        igl_email: user.email,
+        player_1_id: team.p1_id, 
+        player_1_ign: team.p1_ign, 
+        player_2_id: playerCount >= 2 ? team.p2_id : null, 
+        player_2_ign: playerCount >= 2 ? team.p2_ign : null,
+        player_3_id: playerCount >= 4 ? team.p3_id : null, 
+        player_3_ign: playerCount >= 4 ? team.p3_ign : null,
+        player_4_id: playerCount >= 4 ? team.p4_id : null, 
+        player_4_ign: playerCount >= 4 ? team.p4_ign : null,
+        utr_number: 'PAID_VIA_WALLET', 
+        payment_status: 'Verified', 
+        slot_number: selectedSlot
       }]);
 
       if (regError) throw regError;
+
+      // 2. ONLY AFTER SUCCESSFUL REGISTRATION, DEDUCT WALLET BALANCE
+      const newBalance = walletBalance - selectedMatch.fee;
+      const { error: walletError } = await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', user.id);
+      
+      if (walletError) {
+        // Safety rollback: remove registration if wallet update somehow fails
+        await supabase.from('registrations').delete().eq('tournament_id', selectedMatch.id).eq('slot_number', selectedSlot);
+        throw new Error("Wallet deduction failed. Registration cancelled.");
+      }
+
+      // 3. LOG TRANSACTION ENTRY
+      await supabase.from('transactions').insert([{
+        user_id: user.id, 
+        type: 'TOURNAMENT_FEE', 
+        amount: selectedMatch.fee, 
+        status: 'SUCCESS', 
+        description: `Entry fee for ${selectedMatch.name} (Slot ${selectedSlot})`
+      }]);
+
       alert("Slot Booked Successfully!");
       setWalletBalance(newBalance);
       setSelectedMatch(null);
       setTeam({ p1_ign: '', p1_id: '', p2_ign: '', p2_id: '', p3_ign: '', p3_id: '', p4_ign: '', p4_id: '' });
-    } catch (error: any) { alert("Error booking slot: " + error.message); } finally { setIsSubmitting(false); }
+    } catch (error: any) { 
+      alert("Error booking slot: " + error.message); 
+    } finally { 
+      setIsSubmitting(false); 
+    }
   };
 
   const handleResetFilters = () => {
@@ -108,12 +137,10 @@ export default function TournamentsPage() {
     const matchesType = filter === 'ALL' || t.type === filter;
     const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase());
     
-    // Fee Range Filter
     const fee = Number(t.fee || 0);
     const passesMinFee = minFee === '' || fee >= Number(minFee);
     const passesMaxFee = maxFee === '' || fee <= Number(maxFee);
 
-    // Date Filter (Matches specific selected date)
     let passesDate = true;
     if (selectedDate && t.match_time) {
       const matchDateStr = new Date(t.match_time).toISOString().split('T')[0];
@@ -122,10 +149,7 @@ export default function TournamentsPage() {
       passesDate = false;
     }
 
-    // Perspective Filter (TPP/FPP)
     const matchesPerspective = perspectiveFilter === 'ALL' || t.perspective === perspectiveFilter;
-
-    // Status Filter (OPEN/FULL/COMPLETED)
     const matchesStatus = statusFilter === 'ALL' || (t.status || 'OPEN') === statusFilter;
 
     return matchesType && matchesSearch && passesMinFee && passesMaxFee && passesDate && matchesPerspective && matchesStatus;
@@ -324,7 +348,7 @@ export default function TournamentsPage() {
               </div>
               <div className="pt-4 border-t border-zinc-800 flex gap-4">
                 <button type="button" onClick={() => setSelectedMatch(null)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors border border-zinc-800">Cancel</button>
-                <button type="submit" disabled={isSubmitting || walletBalance < selectedMatch.fee || !selectedSlot} className="flex-[2]` bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-4 rounded transition-colors disabled:opacity-50">
+                <button type="submit" disabled={isSubmitting || walletBalance < selectedMatch.fee || !selectedSlot} className="flex-[2] bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-4 rounded transition-colors disabled:opacity-50">
                   {isSubmitting ? 'Processing...' : `Join Match - ₹${selectedMatch.fee}`}
                 </button>
               </div>
