@@ -40,6 +40,7 @@ export default function Home() {
           .eq('user_id', session.user.id);
         
         if (regs) {
+          // Filter out matches that are already completed
           const activeMatches = regs.filter(r => r.tournaments && r.tournaments.status !== 'COMPLETED');
           setMyMatches(activeMatches);
         }
@@ -48,6 +49,7 @@ export default function Home() {
     
     initPage();
 
+    // Auto-slide timer (Changes slide every 4.5 seconds)
     const slideInterval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroImages.length);
     }, 4500);
@@ -69,6 +71,7 @@ export default function Home() {
             style={{ backgroundImage: `url(${img})` }}
           />
         ))}
+        {/* Multi-layer Cinematic Gradient Overlays */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
         <div className="absolute inset-0 bg-radial-at-c from-transparent via-[#050505]/40 to-[#050505]" />
         
@@ -95,6 +98,7 @@ export default function Home() {
             </Link>
           </div>
 
+          {/* Elegant Slider Indicators */}
           <div className="flex justify-center gap-2.5 pt-6">
             {heroImages.map((_, idx) => (
               <button
@@ -108,7 +112,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* --- MY UPCOMING TOURNAMENTS (Only visible if logged in and enrolled) --- */}
+      {/* --- NEW: MY UPCOMING TOURNAMENTS (Only visible if logged in and enrolled) --- */}
       {user && myMatches.length > 0 && (
         <section className="py-12 px-4 max-w-7xl mx-auto border-b border-zinc-900/80">
           <div className="flex flex-col items-center text-center mb-10">
@@ -169,6 +173,7 @@ export default function Home() {
                       <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2.5 py-1 rounded-md">{t.perspective}</span>
                     </div>
 
+                    {/* Highlights: Date & Prize Pool */}
                     <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80 space-y-1.5 text-xs">
                       <div className="flex items-center gap-1.5 text-zinc-300 font-bold">
                         <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />
