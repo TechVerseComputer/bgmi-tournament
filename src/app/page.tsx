@@ -53,6 +53,7 @@ export default function Home() {
     
     initPage();
 
+    // Auto-slide timer (Changes slide every 4.5 seconds)
     const slideInterval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroImages.length);
     }, 4500);
@@ -74,6 +75,7 @@ export default function Home() {
             style={{ backgroundImage: `url(${img})` }}
           />
         ))}
+        {/* Multi-layer Cinematic Gradient Overlays */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
         <div className="absolute inset-0 bg-radial-at-c from-transparent via-[#050505]/40 to-[#050505]" />
         
@@ -100,6 +102,7 @@ export default function Home() {
             </Link>
           </div>
 
+          {/* Elegant Slider Indicators */}
           <div className="flex justify-center gap-2.5 pt-6">
             {heroImages.map((_, idx) => (
               <button
@@ -114,36 +117,45 @@ export default function Home() {
       </section>
 
       {/* --- PHASE 2: MY UPCOMING TOURNAMENTS WIDGET --- */}
-      {user && myMatches.length > 0 && (
+      {user && (
         <section className="py-12 px-4 max-w-7xl mx-auto border-b border-zinc-900/80">
           <div className="flex flex-col items-center text-center mb-10">
             <span className="text-emerald-500 text-xs font-black uppercase tracking-widest mb-2">Welcome Back</span>
             <h2 className="text-3xl font-black italic uppercase tracking-wider">My Upcoming <span className="text-emerald-500">Drops</span></h2>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {myMatches.map((m: any, idx: number) => {
-              const tourney = Array.isArray(m.tournaments) ? m.tournaments[0] : m.tournaments;
-              if (!tourney) return null;
-              return (
-                <div key={idx} className="bg-emerald-950/20 border border-emerald-500/20 rounded-2xl p-6 flex flex-col justify-between hover:border-emerald-500/50 transition-colors relative overflow-hidden">
-                  <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-bl-lg z-10">
-                    Slot {m.slot_number} Locked
-                  </div>
-                  <div>
-                    <h3 className="font-black italic text-xl tracking-wider text-white mb-2">{tourney.name}</h3>
-                    <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold mb-4">
-                      <Clock className="w-4 h-4 text-emerald-500" />
-                      {tourney.match_time ? new Date(tourney.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}
+          {myMatches.length === 0 ? (
+            <div className="text-center py-12 bg-zinc-900/40 rounded-2xl border border-zinc-800/80 backdrop-blur-sm">
+              <p className="text-zinc-400 font-bold mb-6 text-sm md:text-base">You don&apos;t have any active upcoming match.</p>
+              <Link href="/tournaments" className="inline-block bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest px-8 py-3 rounded-xl transition-all shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:scale-105">
+                Check Tournaments
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {myMatches.map((m: any, idx: number) => {
+                const tourney = Array.isArray(m.tournaments) ? m.tournaments[0] : m.tournaments;
+                if (!tourney) return null;
+                return (
+                  <div key={idx} className="bg-emerald-950/20 border border-emerald-500/20 rounded-2xl p-6 flex flex-col justify-between hover:border-emerald-500/50 transition-colors relative overflow-hidden">
+                    <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-bl-lg z-10">
+                      Slot {m.slot_number} Locked
                     </div>
+                    <div>
+                      <h3 className="font-black italic text-xl tracking-wider text-white mb-2">{tourney.name}</h3>
+                      <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold mb-4">
+                        <Clock className="w-4 h-4 text-emerald-500" />
+                        {tourney.match_time ? new Date(tourney.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}
+                      </div>
+                    </div>
+                    <Link href={`/tournaments/${tourney.id}`} className="bg-zinc-900 hover:bg-zinc-800 text-white font-bold uppercase tracking-wider text-xs py-3 rounded-xl border border-zinc-700 text-center transition-colors">
+                      View Match Details
+                    </Link>
                   </div>
-                  <Link href={`/tournaments/${tourney.id}`} className="bg-zinc-900 hover:bg-zinc-800 text-white font-bold uppercase tracking-wider text-xs py-3 rounded-xl border border-zinc-700 text-center transition-colors">
-                    View Match Details
-                  </Link>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </section>
       )}
 
@@ -178,6 +190,7 @@ export default function Home() {
                       <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2.5 py-1 rounded-md">{t.perspective}</span>
                     </div>
 
+                    {/* Highlights: Date & Prize Pool */}
                     <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80 space-y-1.5 text-xs">
                       <div className="flex items-center gap-1.5 text-zinc-300 font-bold">
                         <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />
