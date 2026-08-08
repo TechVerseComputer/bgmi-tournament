@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, ShieldCheck, X, Home, LogOut, Gamepad2, Clock, Users } from 'lucide-react';
+import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, ShieldCheck, X, Home, LogOut, Gamepad2, Clock, Key, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -17,14 +17,12 @@ export default function PlayerDashboard() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [myMatches, setMyMatches] = useState<any[]>([]);
   
-  // Deposit States
   const [depositAmount, setDepositAmount] = useState<number | ''>('');
   const [showQRModal, setShowQRModal] = useState(false);
   const [utrNumber, setUtrNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const quickAmounts = [50, 100, 200, 500, 1000, 2000];
 
-  // Withdraw States
   const [withdrawAmount, setWithdrawAmount] = useState<number | ''>('');
   const [upiId, setUpiId] = useState('');
 
@@ -42,21 +40,17 @@ export default function PlayerDashboard() {
   }, []);
 
   const fetchWalletData = async (userId: string) => {
-    // 1. Fetch or Create Wallet
     let { data: walletData } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
     
     if (!walletData) {
       const { data: newWallet } = await supabase.from('wallets').insert([{ user_id: userId }]).select().single();
       walletData = newWallet;
     }
-    
     if (walletData) setWallet(walletData);
 
-    // 2. Fetch Transactions
     const { data: txData } = await supabase.from('transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false });
     if (txData) setTransactions(txData);
 
-    // 3. Fetch Enrolled Matches
     const { data: regs } = await supabase.from('registrations').select('*, tournaments(*)').eq('user_id', userId).order('created_at', { ascending: false });
     if (regs) setMyMatches(regs);
     
@@ -94,7 +88,6 @@ export default function PlayerDashboard() {
       setUtrNumber('');
       fetchWalletData(user.id);
     }
-    
     setIsSubmitting(false);
   };
 
@@ -204,18 +197,18 @@ export default function PlayerDashboard() {
           </div>
         )}
 
-        {/* --- MY MATCHES TAB --- */}
+        {/* --- MY MATCHES TAB (UPGRADED WITH ROOM ID LOGIC) --- */}
         {activeTab === 'matches' && (
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
             <h2 className="text-lg font-black uppercase flex items-center gap-2 mb-6"><Gamepad2 className="w-5 h-5 text-orange-500"/> My Upcoming Tournaments</h2>
             
             {myMatches.length === 0 ? (
               <div className="text-center py-12 bg-zinc-950 rounded-lg border border-zinc-800">
-                <p className="text-zinc-500 font-bold uppercase tracking-widest">You haven't joined any matches yet.</p>
+                <p className="text-zinc-500 font-bold uppercase tracking-widest">You haven&apos;t joined any matches yet.</p>
                 <button onClick={() => router.push('/tournaments')} className="mt-4 bg-orange-500 hover:bg-orange-400 text-black font-black px-6 py-2 rounded uppercase text-xs transition-colors">Browse Tournaments</button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {myMatches.map(m => (
                   <div key={m.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-5 flex flex-col justify-between">
                     <div>
@@ -242,9 +235,37 @@ export default function PlayerDashboard() {
                           <p className="text-sm font-bold text-white">{m.squad_name}</p>
                         </div>
                       </div>
+
+                      {/* NEW: SECURE ROOM ID REVEAL */}
+                      {m.tournaments?.room_id ? (
+                        <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-lg p-4 mb-4">
+                          <div className="flex items-center gap-2 mb-3 border-b border-emerald-500/20 pb-2">
+                            <Key className="w-4 h-4 text-emerald-500" />
+                            <h4 className="text-xs font-black uppercase tracking-widest text-emerald-500">Room Details Unlocked</h4>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Room ID</p>
+                              <p className="font-mono font-black text-white select-all">{m.tournaments.room_id}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Password</p>
+                              <p className="font-mono font-black text-white select-all">{m.tournaments.room_password}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-zinc-900/50 border border-zinc-800 border-dashed rounded-lg p-4 mb-4 flex items-start gap-3">
+                          <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-black text-amber-500 uppercase tracking-wider mb-1">Room Details Pending</p>
+                            <p className="text-[10px] text-zinc-400 font-bold leading-relaxed">The Room ID and Password will automatically appear here approx 15 minutes before the match starts.</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     
-                    <Link href={`/tournaments/${m.tournaments?.id}`} className="w-full text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded text-xs transition-colors border border-zinc-700">
+                    <Link href={`/tournaments/${m.tournaments?.id}`} className="w-full text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded text-xs transition-colors border border-zinc-700 mt-2">
                       View Match Details
                     </Link>
                   </div>
