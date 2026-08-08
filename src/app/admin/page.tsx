@@ -89,13 +89,39 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
+  // --- UPGRADED, BULLETPROOF WALLET APPROVAL LOGIC ---
   const handleApproveDeposit = async (txId: string, userId: string, amount: number) => {
     setActionLoading(txId);
-    await supabase.from('transactions').update({ status: 'SUCCESS' }).eq('id', txId);
-    const { data: wallet } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
-    if (wallet) {
-      await supabase.from('wallets').update({ balance: Number(wallet.balance) + Number(amount), total_deposited: Number(wallet.total_deposited) + Number(amount) }).eq('user_id', userId);
+    
+    // 1. Fetch wallet
+    let { data: wallet } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
+    
+    // 2. Fallback: If wallet doesn't exist, create it.
+    if (!wallet) {
+      const { data: newWallet } = await supabase.from('wallets').insert([{ user_id: userId, balance: 0, total_deposited: 0, total_won: 0 }]).select().single();
+      wallet = newWallet;
     }
+
+    if (wallet) {
+      const currentBalance = Number(wallet.balance) || 0;
+      const currentDeposited = Number(wallet.total_deposited) || 0;
+      const depositAmount = Number(amount) || 0;
+
+      const { error: walletError } = await supabase.from('wallets').update({ 
+        balance: currentBalance + depositAmount, 
+        total_deposited: currentDeposited + depositAmount 
+      }).eq('user_id', userId);
+
+      if (walletError) {
+        alert("Error updating wallet: " + walletError.message);
+        setActionLoading(null);
+        return;
+      }
+
+      // 3. Mark transaction as SUCCESS only if wallet successfully updated
+      await supabase.from('transactions').update({ status: 'SUCCESS' }).eq('id', txId);
+    }
+    
     fetchAllData();
     setActionLoading(null);
   };
