@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, Clock, ShieldCheck, X, Home, LogOut, Gamepad2 } from 'lucide-react';
+import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, ShieldCheck, X, Home, LogOut, Gamepad2, Clock, Key, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -204,7 +204,7 @@ export default function PlayerDashboard() {
           </div>
         )}
 
-        {/* --- MY MATCHES TAB (PHASE 2 LOGIC ONLY) --- */}
+        {/* --- PHASE 3: MY MATCHES TAB (WITH ROOM ID REVEAL) --- */}
         {activeTab === 'matches' && (
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
             <h2 className="text-lg font-black uppercase flex items-center gap-2 mb-6"><Gamepad2 className="w-5 h-5 text-orange-500"/> My Upcoming Tournaments</h2>
@@ -215,7 +215,7 @@ export default function PlayerDashboard() {
                 <button onClick={() => router.push('/tournaments')} className="mt-4 bg-orange-500 hover:bg-orange-400 text-black font-black px-6 py-2 rounded uppercase text-xs transition-colors">Browse Tournaments</button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {myMatches.map((m: any, idx: number) => {
                   const tourney = Array.isArray(m.tournaments) ? m.tournaments[0] : m.tournaments;
                   if (!tourney) return null;
@@ -245,6 +245,34 @@ export default function PlayerDashboard() {
                             <p className="text-sm font-bold text-white">{m.squad_name}</p>
                           </div>
                         </div>
+
+                        {/* --- THE ROOM CREDENTIALS WIDGET --- */}
+                        {tourney.room_id ? (
+                          <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-lg p-4 mb-4">
+                            <div className="flex items-center gap-2 mb-3 border-b border-emerald-500/20 pb-2">
+                              <Key className="w-4 h-4 text-emerald-500" />
+                              <h4 className="text-xs font-black uppercase tracking-widest text-emerald-500">Room Details Unlocked</h4>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div>
+                                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Room ID</p>
+                                <p className="font-mono font-black text-white select-all">{tourney.room_id}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Password</p>
+                                <p className="font-mono font-black text-white select-all">{tourney.room_password}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-zinc-900/50 border border-zinc-800 border-dashed rounded-lg p-4 mb-4 flex items-start gap-3">
+                            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-xs font-black text-amber-500 uppercase tracking-wider mb-1">Room Details Pending</p>
+                              <p className="text-[10px] text-zinc-400 font-bold leading-relaxed">The Room ID and Password will automatically appear here approx 15 minutes before the match starts.</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       
                       <Link href={`/tournaments/${tourney.id}`} className="w-full text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded text-xs transition-colors border border-zinc-700 mt-2">
