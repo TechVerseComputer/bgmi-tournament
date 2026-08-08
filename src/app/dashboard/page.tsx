@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, Clock, ShieldCheck, X } from 'lucide-react';
+import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, ShieldCheck, X, Home, LogOut } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function PlayerDashboard() {
   const supabase = createClient();
+  const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   
@@ -59,6 +61,11 @@ export default function PlayerDashboard() {
     await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/dashboard' }});
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/');
+  };
+
   // --- UPDATED DEPOSIT SUBMIT WITH ERROR ALERTS ---
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,7 +81,6 @@ export default function PlayerDashboard() {
     }]);
 
     if (error) {
-      // NEW: This will pop up on the screen if the database rejects it!
       alert("Database Error: " + error.message);
     } else {
       alert("Deposit request submitted! Our team will verify the UTR shortly.");
@@ -132,12 +138,22 @@ export default function PlayerDashboard() {
     <main className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans pb-24">
       <div className="max-w-6xl mx-auto">
         
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-8 border-b border-zinc-800 pb-6">
-          <Wallet className="w-8 h-8 text-emerald-500" />
-          <div>
-            <h1 className="text-2xl font-black italic tracking-wider">WALLET</h1>
-            <p className="text-zinc-400 text-xs font-medium">Manage your funds, deposits, and withdrawals</p>
+        {/* --- UPGRADED HEADER --- */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-zinc-800 pb-6">
+          <div className="flex items-center gap-3">
+            <Wallet className="w-8 h-8 text-emerald-500" />
+            <div>
+              <h1 className="text-2xl font-black italic tracking-wider">PLAYER DASHBOARD</h1>
+              <p className="text-zinc-400 text-xs font-medium">Logged in as <span className="text-emerald-500 font-bold">{user.email}</span></p>
+            </div>
+          </div>
+          <div className="flex gap-3 w-full md:w-auto">
+            <button onClick={() => router.push('/')} className="flex-1 md:flex-none bg-zinc-900 hover:bg-zinc-800 text-white px-4 py-2.5 rounded text-sm font-bold border border-zinc-700 transition-colors flex items-center justify-center gap-2">
+              <Home className="w-4 h-4"/> Home
+            </button>
+            <button onClick={handleLogout} className="flex-1 md:flex-none bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-4 py-2.5 rounded text-sm font-bold border border-red-500/20 transition-colors flex items-center justify-center gap-2">
+              <LogOut className="w-4 h-4"/> Logout
+            </button>
           </div>
         </div>
 
@@ -228,7 +244,6 @@ export default function PlayerDashboard() {
               <div className="bg-white p-8 flex flex-col items-center justify-center w-full md:w-1/2">
                 <h3 className="text-black font-black uppercase tracking-widest mb-6 flex items-center gap-2"><QrCode className="w-5 h-5"/> Scan & Pay</h3>
                 <div className="bg-white p-2 rounded-xl shadow-lg mb-6 border border-zinc-200">
-                  {/* UPDATE THIS WITH YOUR ACTUAL UPI ID */}
                   <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=digitallibrary@slc&pn=BGMI+Arena&am=${depositAmount}`} alt="UPI QR" className="w-48 h-48" />
                 </div>
                 <p className="text-zinc-500 text-xs font-bold uppercase">GPay • PhonePe • Paytm</p>
