@@ -1,33 +1,53 @@
 'use client';
 
 import Link from 'next/link';
-import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones, Flame } from 'lucide-react';
+import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones, Flame, Gamepad2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
 // Your High-End Custom Gaming Wallpapers
 const heroImages = [
-  'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop', // Core Battleground
-  'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=2070&auto=format&fit=crop', // Arena Esports
-  'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?q=80&w=2070&auto=format&fit=crop', // Gaming Setup
-  'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=2070&auto=format&fit=crop'  // Cyber Combat
+  'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop', 
+  'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=2070&auto=format&fit=crop', 
+  'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?q=80&w=2070&auto=format&fit=crop', 
+  'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=2070&auto=format&fit=crop'  
 ];
 
 export default function Home() {
   const [latestTournaments, setLatestTournaments] = useState<any[]>([]);
+  const [myMatches, setMyMatches] = useState<any[]>([]);
+  const [user, setUser] = useState<any>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const supabase = createClient();
 
   useEffect(() => {
-    const fetchLatest = async () => {
-      const { data } = await supabase
+    const initPage = async () => {
+      // 1. Fetch Latest Tournaments
+      const { data: tourneyData } = await supabase
         .from('tournaments')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(4);
-      if (data) setLatestTournaments(data);
+      if (tourneyData) setLatestTournaments(tourneyData);
+
+      // 2. Check Auth & Fetch User's Upcoming Matches
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser(session.user);
+        const { data: regs } = await supabase
+          .from('registrations')
+          .select('slot_number, tournaments(*)')
+          .eq('user_id', session.user.id);
+        
+        if (regs) {
+          // Filter out matches that are already completed
+          const activeMatches = regs.filter(r => r.tournaments && r.tournaments.status !== 'COMPLETED');
+          setMyMatches(activeMatches);
+        }
+      }
     };
-    fetchLatest();
+    
+    initPage();
 
     // Auto-slide timer (Changes slide every 4.5 seconds)
     const slideInterval = setInterval(() => {
@@ -91,6 +111,36 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* --- NEW: MY UPCOMING TOURNAMENTS (Only visible if logged in and enrolled) --- */}
+      {user && myMatches.length > 0 && (
+        <section className="py-12 px-4 max-w-7xl mx-auto border-b border-zinc-900/80">
+          <div className="flex flex-col items-center text-center mb-10">
+            <span className="text-emerald-500 text-xs font-black uppercase tracking-widest mb-2">Welcome Back</span>
+            <h2 className="text-3xl font-black italic uppercase tracking-wider">My Upcoming <span className="text-emerald-500">Drops</span></h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {myMatches.map((m, idx) => (
+              <div key={idx} className="bg-emerald-950/20 border border-emerald-500/20 rounded-2xl p-6 flex flex-col justify-between hover:border-emerald-500/50 transition-colors relative overflow-hidden">
+                <div className="absolute top-0 right-0 bg-emerald-500 text-black text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-bl-lg z-10">
+                  Slot {m.slot_number} Locked
+                </div>
+                <div>
+                  <h3 className="font-black italic text-xl tracking-wider text-white mb-2">{m.tournaments.name}</h3>
+                  <div className="flex items-center gap-2 text-zinc-400 text-xs font-bold mb-4">
+                    <Clock className="w-4 h-4 text-emerald-500" />
+                    {m.tournaments.match_time ? new Date(m.tournaments.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}
+                  </div>
+                </div>
+                <Link href={`/tournaments/${m.tournaments.id}`} className="bg-zinc-900 hover:bg-zinc-800 text-white font-bold uppercase tracking-wider text-xs py-3 rounded-xl border border-zinc-700 text-center transition-colors">
+                  View Match Details
+                </Link>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Latest Tournaments Section */}
       <section className="py-24 px-4 max-w-7xl mx-auto">
