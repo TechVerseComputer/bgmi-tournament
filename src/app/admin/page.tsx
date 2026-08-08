@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Trophy, Users, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3, PlusCircle, Eye, Calculator } from 'lucide-react';
+import { Trophy, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3, PlusCircle, Eye, Calculator, Key } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function AdminDashboard() {
@@ -24,6 +24,7 @@ export default function AdminDashboard() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   
+  // Phase 3: Added room credentials to default state
   const defaultTourney = { 
     name: '', 
     type: 'SQUAD', 
@@ -34,7 +35,9 @@ export default function AdminDashboard() {
     match_time: '', 
     map_img: '',
     total_winners: 3,
-    prizes: [1500, 800, 400, 0, 0, 0]
+    prizes: [1500, 800, 400, 0, 0, 0],
+    room_id: '',
+    room_password: ''
   };
   const [newTourney, setNewTourney] = useState(defaultTourney);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -89,39 +92,28 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
-  // --- UPGRADED, BULLETPROOF WALLET APPROVAL LOGIC ---
   const handleApproveDeposit = async (txId: string, userId: string, amount: number) => {
     setActionLoading(txId);
-    
-    // 1. Fetch wallet
     let { data: wallet } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
-    
-    // 2. Fallback: If wallet doesn't exist, create it.
     if (!wallet) {
       const { data: newWallet } = await supabase.from('wallets').insert([{ user_id: userId, balance: 0, total_deposited: 0, total_won: 0 }]).select().single();
       wallet = newWallet;
     }
-
     if (wallet) {
       const currentBalance = Number(wallet.balance) || 0;
       const currentDeposited = Number(wallet.total_deposited) || 0;
       const depositAmount = Number(amount) || 0;
-
       const { error: walletError } = await supabase.from('wallets').update({ 
         balance: currentBalance + depositAmount, 
         total_deposited: currentDeposited + depositAmount 
       }).eq('user_id', userId);
-
       if (walletError) {
         alert("Error updating wallet: " + walletError.message);
         setActionLoading(null);
         return;
       }
-
-      // 3. Mark transaction as SUCCESS only if wallet successfully updated
       await supabase.from('transactions').update({ status: 'SUCCESS' }).eq('id', txId);
     }
-    
     fetchAllData();
     setActionLoading(null);
   };
@@ -173,7 +165,9 @@ export default function AdminDashboard() {
       ...tourney,
       match_time: tourney.match_time ? tourney.match_time.slice(0, 16) : '',
       total_winners: tourney.total_winners || 3,
-      prizes: tourney.prizes || [tourney.first_prize, tourney.second_prize, 0, 0, 0, 0]
+      prizes: tourney.prizes || [tourney.first_prize, tourney.second_prize, 0, 0, 0, 0],
+      room_id: tourney.room_id || '', // Load Room ID
+      room_password: tourney.room_password || '' // Load Password
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -216,7 +210,9 @@ export default function AdminDashboard() {
         match_time: newTourney.match_time ? new Date(newTourney.match_time).toISOString() : '',
         total_slots: Number(newTourney.total_slots || 25),
         status: String(newTourney.status || 'OPEN'),
-        map_img: publicUrl
+        map_img: publicUrl,
+        room_id: newTourney.room_id || null, // Phase 3 Payload
+        room_password: newTourney.room_password || null // Phase 3 Payload
       };
 
       if (editingId) {
@@ -431,6 +427,25 @@ export default function AdminDashboard() {
                         />
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                {/* --- PHASE 3: SECURE ROOM ID & PASSWORD SECTION --- */}
+                <div className="bg-emerald-950/20 p-4 rounded border border-emerald-500/20 space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Key className="w-4 h-4 text-emerald-500" />
+                    <h3 className="text-xs font-black text-emerald-500 uppercase tracking-wider">Room Credentials (Optional)</h3>
+                  </div>
+                  <p className="text-[10px] text-zinc-400 font-bold uppercase">Fill this approx 15 mins before match starts.</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Room ID</label>
+                      <input type="text" placeholder="e.g. 1234567" value={newTourney.room_id} onChange={e => setNewTourney({...newTourney, room_id: e.target.value})} className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-sm focus:border-emerald-500 outline-none text-white font-mono" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Password</label>
+                      <input type="text" placeholder="e.g. bgmipro" value={newTourney.room_password} onChange={e => setNewTourney({...newTourney, room_password: e.target.value})} className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-sm focus:border-emerald-500 outline-none text-white font-mono" />
+                    </div>
                   </div>
                 </div>
 
