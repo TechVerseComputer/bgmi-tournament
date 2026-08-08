@@ -1,45 +1,35 @@
 'use client';
 
 import Link from 'next/link';
-import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones, Flame, Key } from 'lucide-react';
+import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones, Flame } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
+// Your High-End Custom Gaming Wallpapers
 const heroImages = [
-  'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=2070&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?q=80&w=2070&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=2070&auto=format&fit=crop'
+  'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop', // Core Battleground
+  'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=2070&auto=format&fit=crop', // Arena Esports
+  'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?q=80&w=2070&auto=format&fit=crop', // Gaming Setup
+  'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=2070&auto=format&fit=crop'  // Cyber Combat
 ];
 
 export default function Home() {
   const [latestTournaments, setLatestTournaments] = useState<any[]>([]);
-  const [userMatches, setUserMatches] = useState<any[]>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const supabase = createClient();
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchLatest = async () => {
       const { data } = await supabase
         .from('tournaments')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(4);
       if (data) setLatestTournaments(data);
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const { data: regData } = await supabase
-          .from('registrations')
-          .select('*, tournaments (*)')
-          .eq('user_id', session.user.id);
-        if (regData) {
-          setUserMatches(regData.map(r => ({ ...r.tournaments, slot: r.slot_number, squadName: r.squad_name })));
-        }
-      }
     };
-    fetchData();
+    fetchLatest();
 
+    // Auto-slide timer (Changes slide every 4.5 seconds)
     const slideInterval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroImages.length);
     }, 4500);
@@ -51,7 +41,7 @@ export default function Home() {
     <main className="bg-[#050505] text-white font-sans selection:bg-orange-500 selection:text-white overflow-x-hidden">
       
       {/* Cinematic Hero Section with Auto-Slider */}
-      <section id="hero" className="relative h-[90vh] flex flex-col items-center justify-center text-center px-4 overflow-hidden border-b border-zinc-900">
+      <section className="relative h-[90vh] flex flex-col items-center justify-center text-center px-4 overflow-hidden border-b border-zinc-900">
         {heroImages.map((img, index) => (
           <div
             key={index}
@@ -61,6 +51,7 @@ export default function Home() {
             style={{ backgroundImage: `url(${img})` }}
           />
         ))}
+        {/* Multi-layer Cinematic Gradient Overlays */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
         <div className="absolute inset-0 bg-radial-at-c from-transparent via-[#050505]/40 to-[#050505]" />
         
@@ -87,6 +78,7 @@ export default function Home() {
             </Link>
           </div>
 
+          {/* Elegant Slider Indicators */}
           <div className="flex justify-center gap-2.5 pt-6">
             {heroImages.map((_, idx) => (
               <button
@@ -100,57 +92,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Active Registered Matches Banner */}
-      {userMatches.length > 0 && (
-        <section className="py-8 px-4 max-w-7xl mx-auto">
-          <div className="bg-gradient-to-r from-orange-950/40 via-zinc-900 to-orange-950/40 border border-orange-500/40 p-6 md:p-8 rounded-3xl space-y-6 shadow-2xl backdrop-blur-md">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <span className="text-orange-500 text-xs font-black uppercase tracking-widest">Active Player Status</span>
-                <h3 className="text-2xl font-black italic uppercase tracking-wider flex items-center gap-2 text-white mt-1">
-                  <Trophy className="w-6 h-6 text-orange-500"/> Your Registered Matches ({userMatches.length})
-                </h3>
-              </div>
-              <Link href="/dashboard" className="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-xs font-black uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all">
-                Manage in Dashboard &rarr;
-              </Link>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {userMatches.map((m) => (
-                <div key={m.id} className="bg-zinc-950 border border-zinc-800 p-5 rounded-2xl flex flex-col justify-between space-y-4 hover:border-orange-500/40 transition-all">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-black uppercase bg-orange-500/10 text-orange-400 border border-orange-500/30 px-2.5 py-1 rounded-full">Slot S{m.slot}</span>
-                      <span className="text-xs text-zinc-400 font-bold">{m.squadName}</span>
-                    </div>
-                    <h4 className="font-black text-lg text-white uppercase italic">{m.name}</h4>
-                    <div className="text-xs text-zinc-300 flex items-center gap-1.5 font-medium">
-                      <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0"/>
-                      <span>{m.match_time ? new Date(m.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}</span>
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-zinc-900 flex items-center justify-between">
-                    {m.room_id ? (
-                      <div className="text-emerald-400 font-mono text-xs font-bold flex items-center gap-1.5">
-                        <Key className="w-3.5 h-3.5"/> ID: {m.room_id} | Pass: {m.room_password}
-                      </div>
-                    ) : (
-                      <span className="text-[11px] text-orange-400 font-bold">Room ID unlocks soon</span>
-                    )}
-                    <Link href={`/tournaments/${m.id}`} className="bg-orange-500 hover:bg-orange-400 text-black font-black text-xs px-4 py-2 rounded-xl uppercase transition-all">
-                      Lobby
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Latest Tournaments */}
+      {/* Latest Tournaments Section */}
       <section className="py-24 px-4 max-w-7xl mx-auto">
         <div className="flex flex-col items-center text-center mb-16">
           <span className="text-orange-500 text-xs font-black uppercase tracking-widest mb-2">Live Action</span>
@@ -181,6 +123,7 @@ export default function Home() {
                       <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2.5 py-1 rounded-md">{t.perspective}</span>
                     </div>
 
+                    {/* Highlights: Date & Prize Pool */}
                     <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80 space-y-1.5 text-xs">
                       <div className="flex items-center gap-1.5 text-zinc-300 font-bold">
                         <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />
@@ -202,8 +145,7 @@ export default function Home() {
                     <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded-xl text-xs transition-colors border border-zinc-700 flex items-center justify-center">
                       View More
                     </Link>
-                    {/* Fixed: Directly links to specific match lobby page */}
-                    <Link href={`/tournaments/${t.id}`} className="text-center bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-wider py-3 rounded-xl text-xs transition-colors shadow-[0_0_15px_rgba(249,115,22,0.3)] flex items-center justify-center">
+                    <Link href="/tournaments" className="text-center bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-wider py-3 rounded-xl text-xs transition-colors shadow-[0_0_15px_rgba(249,115,22,0.3)] flex items-center justify-center">
                       Join Match
                     </Link>
                   </div>
@@ -220,7 +162,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Rules Section */}
+      {/* --- TOURNAMENT RULES SECTION --- */}
       <section className="py-24 px-4 max-w-7xl mx-auto border-t border-zinc-900/80">
         <div className="text-center mb-16">
           <span className="text-orange-500 text-xs font-black uppercase tracking-widest mb-2">Fair Play Guaranteed</span>
@@ -246,7 +188,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Why Play With Us */}
+      {/* --- WHY PLAY WITH US SECTION --- */}
       <section className="py-24 px-4 max-w-7xl mx-auto border-t border-zinc-900/80">
         <div className="text-center mb-16">
           <span className="text-orange-500 text-xs font-black uppercase tracking-widest mb-2">The Ultimate Advantage</span>
@@ -272,7 +214,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* How It Works */}
+      {/* --- HOW IT WORKS SECTION --- */}
       <section className="py-24 px-4 max-w-7xl mx-auto border-t border-zinc-900/80">
         <div className="text-center mb-16">
           <span className="text-orange-500 text-xs font-black uppercase tracking-widest mb-2">Simple 4-Step Process</span>
@@ -294,6 +236,25 @@ export default function Home() {
               <p className="text-zinc-400 text-xs leading-relaxed">{item.desc}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* --- CTA BANNER SECTION --- */}
+      <section className="py-20 px-4 max-w-7xl mx-auto">
+        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-zinc-900 via-orange-950/40 to-zinc-900 border border-orange-500/30 p-10 md:p-16 flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl">
+          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-15" />
+          <div className="relative z-10 text-center md:text-left space-y-2">
+            <h2 className="text-3xl md:text-5xl font-black italic uppercase tracking-tight">Ready to Dominate the <span className="text-orange-500">Battleground?</span></h2>
+            <p className="text-zinc-300 font-medium">Gather your squad, lock in your drop slot, and start winning today.</p>
+          </div>
+          <div className="relative z-10 flex flex-wrap gap-4 justify-center shrink-0">
+            <Link href="/tournaments" className="bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest px-8 py-4 rounded-xl transition-all shadow-[0_0_25px_rgba(249,115,22,0.5)] hover:scale-105">
+              Register Squad
+            </Link>
+            <Link href="/dashboard" className="bg-zinc-900 hover:bg-zinc-800 text-white font-bold uppercase tracking-widest px-8 py-4 rounded-xl transition-all border border-zinc-700">
+              Player Portal
+            </Link>
+          </div>
         </div>
       </section>
 
