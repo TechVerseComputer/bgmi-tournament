@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Crosshair, Users, Trophy, X, AlertCircle, Search, Calendar, Clock } from 'lucide-react';
+import { Crosshair, Users, Trophy, X, AlertCircle, Search, Clock, SlidersHorizontal, RotateCcw } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 
 export default function TournamentsPage() {
@@ -14,6 +14,14 @@ export default function TournamentsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Advanced Filter States
+  const [showFilters, setShowFilters] = useState(false);
+  const [minFee, setMinFee] = useState('');
+  const [maxFee, setMaxFee] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
+  const [perspectiveFilter, setPerspectiveFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ALL');
   
   const [user, setUser] = useState<any>(null);
   const [walletBalance, setWalletBalance] = useState(0);
@@ -69,7 +77,7 @@ export default function TournamentsPage() {
 
       const playerCount = selectedMatch.type === 'SOLO' ? 1 : selectedMatch.type === 'DUO' ? 2 : 4;
       const { error: regError } = await supabase.from('registrations').insert([{
-        tournament_id: selectedMatch.id, user_id: user.id, squad_name: team.p1_ign + "'s Squad", igl_email: user.email,
+        tournament_id: selectedMatch.id, user_id: user.id, squad_name: team.p1_ign + "&apos;s Squad", igl_email: user.email,
         player_1_id: team.p1_id, player_1_ign: team.p1_ign, 
         player_2_id: playerCount >= 2 ? team.p2_id : null, player_2_ign: playerCount >= 2 ? team.p2_ign : null,
         player_3_id: playerCount >= 4 ? team.p3_id : null, player_3_ign: playerCount >= 4 ? team.p3_ign : null,
@@ -85,11 +93,42 @@ export default function TournamentsPage() {
     } catch (error: any) { alert("Error booking slot: " + error.message); } finally { setIsSubmitting(false); }
   };
 
-  // Filter & Search Logic
+  const handleResetFilters = () => {
+    setFilter('ALL');
+    setSearchQuery('');
+    setMinFee('');
+    setMaxFee('');
+    setSelectedDate('');
+    setPerspectiveFilter('ALL');
+    setStatusFilter('ALL');
+  };
+
+  // Advanced Filter & Search Logic
   const filteredTournaments = tournaments.filter(t => {
     const matchesType = filter === 'ALL' || t.type === filter;
     const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesType && matchesSearch;
+    
+    // Fee Range Filter
+    const fee = Number(t.fee || 0);
+    const passesMinFee = minFee === '' || fee >= Number(minFee);
+    const passesMaxFee = maxFee === '' || fee <= Number(maxFee);
+
+    // Date Filter (Matches specific selected date)
+    let passesDate = true;
+    if (selectedDate && t.match_time) {
+      const matchDateStr = new Date(t.match_time).toISOString().split('T')[0];
+      passesDate = matchDateStr === selectedDate;
+    } else if (selectedDate && !t.match_time) {
+      passesDate = false;
+    }
+
+    // Perspective Filter (TPP/FPP)
+    const matchesPerspective = perspectiveFilter === 'ALL' || t.perspective === perspectiveFilter;
+
+    // Status Filter (OPEN/FULL/COMPLETED)
+    const matchesStatus = statusFilter === 'ALL' || (t.status || 'OPEN') === statusFilter;
+
+    return matchesType && matchesSearch && passesMinFee && passesMaxFee && passesDate && matchesPerspective && matchesStatus;
   });
 
   return (
@@ -99,22 +138,71 @@ export default function TournamentsPage() {
         <h1 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter mb-4">Active <span className="text-orange-500">Battlegrounds</span></h1>
         
         {/* Advanced Search & Filter Bar */}
-        <div className="max-w-xl mx-auto mt-8 flex flex-col sm:flex-row gap-3 px-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-3.5 w-4 h-4 text-zinc-400" />
-            <input 
-              type="text" 
-              placeholder="Search tournament by name..." 
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-full pl-11 pr-4 py-3 text-sm text-white focus:border-orange-500 outline-none"
-            />
+        <div className="max-w-3xl mx-auto mt-8 flex flex-col gap-4 px-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-3.5 w-4 h-4 text-zinc-400" />
+              <input 
+                type="text" 
+                placeholder="Search tournament by name..." 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-full pl-11 pr-4 py-3 text-sm text-white focus:border-orange-500 outline-none"
+              />
+            </div>
+            <button 
+              onClick={() => setShowFilters(!showFilters)}
+              className="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 px-6 py-3 rounded-full text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+            >
+              <SlidersHorizontal className="w-4 h-4 text-orange-500" /> {showFilters ? 'Hide Filters' : 'Advanced Filters'}
+            </button>
           </div>
-          <div className="flex justify-center gap-2">
+
+          <div className="flex flex-wrap justify-center gap-2">
             {['ALL', 'SOLO', 'DUO', 'SQUAD'].map((f) => (
-              <button key={f} onClick={() => setFilter(f)} className={`px-4 py-3 rounded-full font-bold text-xs tracking-wider border transition-all ${filter === f ? 'bg-orange-500 border-orange-500 text-black' : 'bg-zinc-900 border-zinc-700 text-gray-400 hover:border-orange-500 hover:text-orange-500'}`}>{f}</button>
+              <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-full font-bold text-xs tracking-wider border transition-all ${filter === f ? 'bg-orange-500 border-orange-500 text-black' : 'bg-zinc-900 border-zinc-700 text-gray-400 hover:border-orange-500 hover:text-orange-500'}`}>{f}</button>
             ))}
           </div>
+
+          {/* Collapsible Advanced Filter Panel */}
+          {showFilters && (
+            <div className="bg-zinc-900/90 border border-zinc-800 p-6 rounded-2xl backdrop-blur-md grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-left animate-fadeIn">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1.5">Min Entry Fee (₹)</label>
+                <input type="number" placeholder="Min" value={minFee} onChange={e => setMinFee(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-orange-500" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1.5">Max Entry Fee (₹)</label>
+                <input type="number" placeholder="Max" value={maxFee} onChange={e => setMaxFee(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-orange-500" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1.5">Match Date</label>
+                <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-orange-500 [color-scheme:dark]" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1.5">Perspective</label>
+                <select value={perspectiveFilter} onChange={e => setPerspectiveFilter(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-orange-500">
+                  <option value="ALL">All Perspectives</option>
+                  <option value="TPP">TPP</option>
+                  <option value="FPP">FPP</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-zinc-400 block mb-1.5">Status</label>
+                <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-xs text-white outline-none focus:border-orange-500">
+                  <option value="ALL">All Statuses</option>
+                  <option value="OPEN">OPEN</option>
+                  <option value="FULL">FULL</option>
+                  <option value="COMPLETED">COMPLETED</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2 md:col-span-3 flex items-end">
+                <button onClick={handleResetFilters} className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold uppercase tracking-wider py-2.5 rounded-lg text-xs transition-colors border border-zinc-700 flex items-center justify-center gap-2">
+                  <RotateCcw className="w-3.5 h-3.5" /> Reset Filters
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -122,7 +210,7 @@ export default function TournamentsPage() {
         {loading ? (
            <div className="text-center text-orange-500 font-bold animate-pulse uppercase tracking-widest">Loading matches...</div>
         ) : filteredTournaments.length === 0 ? (
-          <div className="text-center text-zinc-500 font-bold uppercase tracking-widest py-12">No tournaments found matching your search.</div>
+          <div className="text-center text-zinc-500 font-bold uppercase tracking-widest py-12">No tournaments found matching your filters.</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredTournaments.map((t) => {
@@ -236,7 +324,7 @@ export default function TournamentsPage() {
               </div>
               <div className="pt-4 border-t border-zinc-800 flex gap-4">
                 <button type="button" onClick={() => setSelectedMatch(null)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors border border-zinc-800">Cancel</button>
-                <button type="submit" disabled={isSubmitting || walletBalance < selectedMatch.fee || !selectedSlot} className="flex-[2] bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-4 rounded transition-colors disabled:opacity-50">
+                <button type="submit" disabled={isSubmitting || walletBalance < selectedMatch.fee || !selectedSlot} className="flex-[2]` bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-4 rounded transition-colors disabled:opacity-50">
                   {isSubmitting ? 'Processing...' : `Join Match - ₹${selectedMatch.fee}`}
                 </button>
               </div>
