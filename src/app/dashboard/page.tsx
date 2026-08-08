@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, ShieldCheck, X, Home, LogOut, Gamepad2, Clock } from 'lucide-react';
+import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, Clock, ShieldCheck, X, Home, LogOut, Gamepad2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -17,12 +17,14 @@ export default function PlayerDashboard() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [myMatches, setMyMatches] = useState<any[]>([]);
   
+  // Deposit States
   const [depositAmount, setDepositAmount] = useState<number | ''>('');
   const [showQRModal, setShowQRModal] = useState(false);
   const [utrNumber, setUtrNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const quickAmounts = [50, 100, 200, 500, 1000, 2000];
 
+  // Withdraw States
   const [withdrawAmount, setWithdrawAmount] = useState<number | ''>('');
   const [upiId, setUpiId] = useState('');
 
@@ -54,7 +56,7 @@ export default function PlayerDashboard() {
     const { data: txData } = await supabase.from('transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false });
     if (txData) setTransactions(txData);
 
-    // 3. Fetch Phase 2 Enrolled Matches
+    // 3. Fetch Enrolled Matches
     const { data: regs } = await supabase.from('registrations').select('*, tournaments(*)').eq('user_id', userId).order('created_at', { ascending: false });
     if (regs) setMyMatches(regs);
     
@@ -214,39 +216,43 @@ export default function PlayerDashboard() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {myMatches.map(m => (
-                  <div key={m.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-5 flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="font-black italic text-lg tracking-wider text-white">{m.tournaments?.name || 'Tournament'}</h3>
-                          <div className="flex items-center gap-1.5 text-zinc-400 text-xs font-bold mt-1">
-                            <Clock className="w-3.5 h-3.5 text-orange-500" />
-                            {m.tournaments?.match_time ? new Date(m.tournaments.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}
+                {myMatches.map((m: any, idx: number) => {
+                  const tourney = Array.isArray(m.tournaments) ? m.tournaments[0] : m.tournaments;
+                  if (!tourney) return null;
+                  return (
+                    <div key={idx} className="bg-zinc-950 border border-zinc-800 rounded-lg p-5 flex flex-col justify-between">
+                      <div>
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="font-black italic text-lg tracking-wider text-white">{tourney.name || 'Tournament'}</h3>
+                            <div className="flex items-center gap-1.5 text-zinc-400 text-xs font-bold mt-1">
+                              <Clock className="w-3.5 h-3.5 text-orange-500" />
+                              {tourney.match_time ? new Date(tourney.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}
+                            </div>
+                          </div>
+                          <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded border ${tourney.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : tourney.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
+                            {tourney.status || 'OPEN'}
+                          </span>
+                        </div>
+                        
+                        <div className="bg-zinc-900 border border-zinc-800 rounded p-3 mb-4 flex justify-between items-center">
+                          <div>
+                            <p className="text-xs text-zinc-500 font-bold uppercase">Booked Slot</p>
+                            <p className="text-xl font-black text-orange-500">Slot {m.slot_number}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-zinc-500 font-bold uppercase">Squad Name</p>
+                            <p className="text-sm font-bold text-white">{m.squad_name}</p>
                           </div>
                         </div>
-                        <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded border ${m.tournaments?.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : m.tournaments?.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
-                          {m.tournaments?.status}
-                        </span>
                       </div>
                       
-                      <div className="bg-zinc-900 border border-zinc-800 rounded p-3 mb-4 flex justify-between items-center">
-                        <div>
-                          <p className="text-xs text-zinc-500 font-bold uppercase">Booked Slot</p>
-                          <p className="text-xl font-black text-orange-500">Slot {m.slot_number}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-zinc-500 font-bold uppercase">Squad Name</p>
-                          <p className="text-sm font-bold text-white">{m.squad_name}</p>
-                        </div>
-                      </div>
+                      <Link href={`/tournaments/${tourney.id}`} className="w-full text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded text-xs transition-colors border border-zinc-700 mt-2">
+                        View Match Details
+                      </Link>
                     </div>
-                    
-                    <Link href={`/tournaments/${m.tournaments?.id}`} className="w-full text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded text-xs transition-colors border border-zinc-700">
-                      View Match Details
-                    </Link>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -298,7 +304,6 @@ export default function PlayerDashboard() {
               <div className="bg-white p-8 flex flex-col items-center justify-center w-full md:w-1/2">
                 <h3 className="text-black font-black uppercase tracking-widest mb-6 flex items-center gap-2"><QrCode className="w-5 h-5"/> Scan & Pay</h3>
                 <div className="bg-white p-2 rounded-xl shadow-lg mb-6 border border-zinc-200">
-                  {/* UPDATE THIS WITH YOUR ACTUAL UPI ID */}
                   <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=digitallibrary@slc&pn=BGMI+Arena&am=${depositAmount}`} alt="UPI QR" className="w-48 h-48" />
                 </div>
                 <p className="text-zinc-500 text-xs font-bold uppercase">GPay • PhonePe • Paytm</p>
