@@ -1,125 +1,84 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { Gamepad, Wallet, LogIn, Menu, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Gamepad2, User, LogOut, ShieldAlert, Wallet } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 
 export default function Navbar() {
-  const router = useRouter();
   const supabase = createClient();
+  const pathname = usePathname();
   const [user, setUser] = useState<any>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [balance, setBalance] = useState(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    const checkUserAndWallet = async () => {
+    const fetchUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
-        
-        const { data: walletData } = await supabase
-          .from('wallets')
-          .select('balance')
-          .eq('user_id', session.user.id)
-          .single();
-        if (walletData) setWalletBalance(walletData.balance);
-
-        const { data: adminData } = await supabase
-          .from('admins')
-          .select('*')
-          .eq('email', session.user.email)
-          .single();
-        if (adminData) setIsAdmin(true);
+        const { data } = await supabase.from('wallets').select('balance').eq('user_id', session.user.id).single();
+        if (data) setBalance(data.balance);
       }
     };
-    checkUserAndWallet();
+    fetchUser();
+  }, [pathname]);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        setUser(session.user);
-        const { data: walletData } = await supabase.from('wallets').select('balance').eq('user_id', session.user.id).single();
-        if (walletData) setWalletBalance(walletData.balance);
-      } else {
-        setUser(null);
-        setIsAdmin(false);
-        setWalletBalance(null);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const handleGoogleLogin = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/dashboard`,
-        queryParams: { prompt: 'select_account' }
-      }
-    });
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setIsAdmin(false);
-    setWalletBalance(null);
-    router.push('/');
-  };
+  if (pathname === '/admin' || pathname === '/dashboard') return null;
 
   return (
-    <header className="sticky top-0 z-50 bg-[#050505]/90 border-b border-zinc-900 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
+    <nav className="w-full z-50 p-4 lg:px-12 flex justify-between items-center bg-zinc-950 border-b border-zinc-900 sticky top-0">
+      <Link href="/" className="flex items-center gap-2">
+        <Gamepad className="text-orange-500 w-8 h-8" />
+        <div className="font-black text-2xl tracking-tighter text-white">BGMI <span className="text-orange-500">ARENA</span></div>
+      </Link>
+      
+      {/* Desktop Navigation */}
+      <div className="hidden md:flex gap-8 text-sm font-bold tracking-wide items-center">
+        <Link href="/" className={`transition-colors ${pathname === '/' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>HOME</Link>
+        <Link href="/tournaments" className={`transition-colors ${pathname.includes('/tournaments') ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>TOURNAMENTS</Link>
+        <Link href="/leaderboard" className={`transition-colors ${pathname === '/leaderboard' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>LEADERBOARD</Link>
+        <Link href="/rules" className={`transition-colors ${pathname === '/rules' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>RULES</Link>
         
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 text-xl font-black italic uppercase tracking-wider text-white">
-          <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-black shadow-[0_0_15px_rgba(249,115,22,0.5)]">
-            <Gamepad2 className="w-6 h-6" />
-          </div>
-          BGMI <span className="text-orange-500">ARENA</span>
-        </Link>
+        {user ? (
+          <Link href="/dashboard" className="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded flex items-center gap-2 transition-colors border border-zinc-700 text-emerald-500">
+            <Wallet className="w-4 h-4" /> ₹{balance}
+          </Link>
+        ) : (
+          <Link href="/dashboard" className="bg-orange-500 hover:bg-orange-400 text-black px-5 py-2.5 rounded flex items-center gap-2 transition-colors font-black uppercase tracking-wider shadow-[0_0_15px_rgba(249,115,22,0.3)]">
+            <LogIn className="w-4 h-4" /> Player Login
+          </Link>
+        )}
+      </div>
 
-        {/* Navigation Links - Fixed Home to route to /#hero */}
-        <nav className="hidden md:flex items-center gap-8 text-xs font-black uppercase tracking-wider text-zinc-300">
-          <Link href="/#hero" className="hover:text-orange-500 transition-colors">Home</Link>
-          <Link href="/tournaments" className="hover:text-orange-500 transition-colors">Tournaments</Link>
-          <Link href="/leaderboard" className="hover:text-orange-500 transition-colors">Leaderboard</Link>
-          <Link href="/tournaments" className="hover:text-orange-500 transition-colors">Rules</Link>
-          {isAdmin && (
-            <Link href="/admin" className="text-orange-400 hover:text-orange-300 flex items-center gap-1">
-              <ShieldAlert className="w-4 h-4"/> Admin Hub
+      {/* Mobile Hamburger Button */}
+      <div className="flex md:hidden items-center gap-3">
+        {user && (
+          <Link href="/dashboard" className="bg-zinc-800 px-3 py-1.5 rounded flex items-center gap-1.5 text-xs text-emerald-500 border border-zinc-700 font-bold">
+            <Wallet className="w-3.5 h-3.5" /> ₹{balance}
+          </Link>
+        )}
+        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-zinc-300 hover:text-orange-500 p-2">
+          {mobileMenuOpen ? <X className="w-7 h-7" /> : <Menu className="w-7 h-7" />}
+        </button>
+      </div>
+
+      {/* Mobile Dropdown Drawer */}
+      {mobileMenuOpen && (
+        <div className="absolute top-full left-0 w-full bg-zinc-950 border-b border-zinc-900 p-6 flex flex-col gap-4 md:hidden shadow-2xl">
+          <Link href="/" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-2 ${pathname === '/' ? 'text-orange-500' : 'text-zinc-300'}`}>HOME</Link>
+          <Link href="/tournaments" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-2 ${pathname.includes('/tournaments') ? 'text-orange-500' : 'text-zinc-300'}`}>TOURNAMENTS</Link>
+          <Link href="/leaderboard" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-2 ${pathname === '/leaderboard' ? 'text-orange-500' : 'text-zinc-300'}`}>LEADERBOARD</Link>
+          <Link href="/rules" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-2 ${pathname === '/rules' ? 'text-orange-500' : 'text-zinc-300'}`}>RULES</Link>
+          
+          {!user && (
+            <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="bg-orange-500 text-black py-3 rounded text-center font-black uppercase tracking-wider mt-2 flex items-center justify-center gap-2">
+              <LogIn className="w-4 h-4" /> Player Login
             </Link>
           )}
-        </nav>
-
-        {/* Auth Actions & Live Wallet Balance */}
-        <div className="flex items-center gap-3">
-          {user ? (
-            <div className="flex items-center gap-3">
-              <Link href="/dashboard" className="bg-zinc-900 border border-zinc-800 hover:border-orange-500/50 px-4 py-2 rounded-xl flex items-center gap-2 transition-all">
-                <Wallet className="w-4 h-4 text-emerald-400"/>
-                <span className="text-xs font-black text-emerald-400">₹{walletBalance ?? 0}</span>
-              </Link>
-              <Link href="/dashboard" className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all">
-                <User className="w-4 h-4 text-orange-500"/> Portal
-              </Link>
-              <button onClick={handleLogout} aria-label="Logout" className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/30 p-2.5 rounded-xl transition-all">
-                <LogOut className="w-4 h-4"/>
-              </button>
-            </div>
-          ) : (
-            <button 
-              onClick={handleGoogleLogin} 
-              className="bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black font-black uppercase tracking-widest text-xs px-6 py-3 rounded-xl shadow-[0_0_20px_rgba(249,115,22,0.4)] transition-all hover:scale-105"
-            >
-              Player Login
-            </button>
-          )}
         </div>
-
-      </div>
-    </header>
+      )}
+    </nav>
   );
 }
