@@ -22,10 +22,12 @@ export default function Home() {
 
   useEffect(() => {
     const initPage = async () => {
-      // 1. Fetch Latest Tournaments
+      // 1. Fetch Latest Tournaments (EXCLUDING CANCELLED & COMPLETED)
       const { data: tourneyData } = await supabase
         .from('tournaments')
         .select('*')
+        .neq('status', 'CANCELLED')
+        .neq('status', 'COMPLETED')
         .order('created_at', { ascending: false })
         .limit(4);
       if (tourneyData) setLatestTournaments(tourneyData);
@@ -40,11 +42,10 @@ export default function Home() {
           .eq('user_id', session.user.id);
         
         if (regs) {
-          // Strictly type 'r' to prevent Vercel TS build errors
           const activeMatches = regs.filter((r: any) => {
-            // Safely extract the joined tournament object
             const t = Array.isArray(r.tournaments) ? r.tournaments[0] : r.tournaments;
-            return t && t.status !== 'COMPLETED';
+            // Hide if match is completed or cancelled
+            return t && t.status !== 'COMPLETED' && t.status !== 'CANCELLED';
           });
           setMyMatches(activeMatches);
         }
@@ -53,7 +54,7 @@ export default function Home() {
     
     initPage();
 
-    // Auto-slide timer (Changes slide every 4.5 seconds)
+    // Auto-slide timer
     const slideInterval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroImages.length);
     }, 4500);
@@ -102,7 +103,6 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* Elegant Slider Indicators */}
           <div className="flex justify-center gap-2.5 pt-6">
             {heroImages.map((_, idx) => (
               <button
@@ -190,7 +190,6 @@ export default function Home() {
                       <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2.5 py-1 rounded-md">{t.perspective}</span>
                     </div>
 
-                    {/* Highlights: Date & Prize Pool */}
                     <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80 space-y-1.5 text-xs">
                       <div className="flex items-center gap-1.5 text-zinc-300 font-bold">
                         <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />
