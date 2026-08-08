@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones, Flame, Gamepad2 } from 'lucide-react';
+import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones, Flame } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
@@ -40,7 +40,6 @@ export default function Home() {
           .eq('user_id', session.user.id);
         
         if (regs) {
-          // Filter out matches that are already completed
           const activeMatches = regs.filter(r => r.tournaments && r.tournaments.status !== 'COMPLETED');
           setMyMatches(activeMatches);
         }
@@ -49,7 +48,6 @@ export default function Home() {
     
     initPage();
 
-    // Auto-slide timer (Changes slide every 4.5 seconds)
     const slideInterval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroImages.length);
     }, 4500);
@@ -71,13 +69,12 @@ export default function Home() {
             style={{ backgroundImage: `url(${img})` }}
           />
         ))}
-        {/* Multi-layer Cinematic Gradient Overlays */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
         <div className="absolute inset-0 bg-radial-at-c from-transparent via-[#050505]/40 to-[#050505]" />
         
         <div className="relative z-10 max-w-5xl mx-auto mt-12 space-y-6">
           <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/30 px-4 py-1.5 rounded-full text-orange-500 text-xs font-black uppercase tracking-widest backdrop-blur-md animate-pulse">
-            <Flame className="w-4 h-4" /> India's Premier BGMI Esports Hub
+            <Flame className="w-4 h-4" /> India&apos;s Premier BGMI Esports Hub
           </div>
 
           <h1 className="text-5xl md:text-8xl font-black italic uppercase tracking-tighter leading-[0.9] drop-shadow-2xl">
@@ -98,7 +95,6 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* Elegant Slider Indicators */}
           <div className="flex justify-center gap-2.5 pt-6">
             {heroImages.map((_, idx) => (
               <button
@@ -112,7 +108,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* --- NEW: MY UPCOMING TOURNAMENTS (Only visible if logged in and enrolled) --- */}
+      {/* --- MY UPCOMING TOURNAMENTS (Only visible if logged in and enrolled) --- */}
       {user && myMatches.length > 0 && (
         <section className="py-12 px-4 max-w-7xl mx-auto border-b border-zinc-900/80">
           <div className="flex flex-col items-center text-center mb-10">
@@ -173,7 +169,6 @@ export default function Home() {
                       <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2.5 py-1 rounded-md">{t.perspective}</span>
                     </div>
 
-                    {/* Highlights: Date & Prize Pool */}
                     <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80 space-y-1.5 text-xs">
                       <div className="flex items-center gap-1.5 text-zinc-300 font-bold">
                         <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />
@@ -225,7 +220,7 @@ export default function Home() {
             { title: 'Team Composition', desc: 'Ensure your complete squad is ready before start time.', icon: Users },
             { title: 'Match Schedule', desc: 'Be on time. Late check-ins lead to disqualification.', icon: Clock },
             { title: 'Disconnection', desc: 'No rematches granted for individual disconnections.', icon: AlertTriangle },
-            { title: 'Decisions', desc: "Tournament admin's final decision is binding.", icon: Zap },
+            { title: 'Decisions', desc: "Tournament admin&apos;s final decision is binding.", icon: Zap },
           ].map((rule, idx) => (
             <div key={idx} className="bg-zinc-900/40 border border-zinc-800/80 p-8 rounded-2xl text-center space-y-4 hover:border-orange-500/50 transition-all duration-300 group hover:-translate-y-1">
               <div className="w-14 h-14 bg-orange-500/10 rounded-2xl flex items-center justify-center mx-auto border border-orange-500/20 group-hover:bg-orange-500 group-hover:text-black transition-colors">
