@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import { ShieldAlert, ArrowLeft, Users, Trophy, Mail, Copy, Check, Award } from 'lucide-react';
+import { ShieldAlert, ArrowLeft, Users, Trophy, Mail, Copy, Check, CheckSquare } from 'lucide-react';
 
 export default function AdminTournamentControlCenter() {
   const { id } = useParams();
@@ -19,6 +19,7 @@ export default function AdminTournamentControlCenter() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [payoutLoading, setPayoutLoading] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     const checkAuthAndFetch = async () => {
@@ -55,23 +56,19 @@ export default function AdminTournamentControlCenter() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // --- ONE-CLICK WINNER PAYOUT HANDLER ---
   const handlePayoutWinner = async (regId: string, targetUserId: string, squadName: string, prizeAmount: number, positionLabel: string) => {
     if (!confirm(`Are you sure you want to payout ₹${prizeAmount} (${positionLabel}) to ${squadName}?`)) return;
 
     setPayoutLoading(regId);
     try {
-      // 1. Fetch current wallet of winner
       const { data: wallet, error: walletErr } = await supabase.from('wallets').select('*').eq('user_id', targetUserId).single();
       if (walletErr || !wallet) throw new Error("Winner wallet not found.");
 
       const newBalance = Number(wallet.balance) + Number(prizeAmount);
 
-      // 2. Update wallet balance
       const { error: updateErr } = await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', targetUserId);
       if (updateErr) throw updateErr;
 
-      // 3. Log immutable transaction record
       const { error: txErr } = await supabase.from('transactions').insert([{
         user_id: targetUserId,
         type: 'PRIZE_WIN',
@@ -90,6 +87,20 @@ export default function AdminTournamentControlCenter() {
     }
   };
 
+  const handleMarkCompleted = async () => {
+    if (!confirm(`Mark "${tournament.name}" as COMPLETED? It will be moved to Old Match History and no further payouts can be made.`)) return;
+    setActionLoading(true);
+    try {
+      const { error } = await supabase.from('tournaments').update({ status: 'COMPLETED' }).eq('id', tournament.id);
+      if (error) throw error;
+      fetchMatchData();
+    } catch (err: any) {
+      alert("Error completing match: " + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (authLoading) return <div className="min-h-screen bg-[#050505] text-orange-500 font-black flex items-center justify-center animate-pulse">Checking Admin Clearance...</div>;
   if (!isAuthorized) return (
     <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-4 text-center text-white">
@@ -102,6 +113,7 @@ export default function AdminTournamentControlCenter() {
   if (loading) return <div className="min-h-screen bg-[#050505] text-orange-500 font-bold flex items-center justify-center animate-pulse">Loading Control Center Data...</div>;
 
   const activePrizes = tournament.prize_breakdown?.length > 0 ? tournament.prize_breakdown : [tournament.first_prize || 0, tournament.second_prize || 0];
+  const isArchived = tournament.status === 'CANCELLED' || tournament.status === 'COMPLETED';
 
   return (
     <main className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans pb-24">
@@ -113,12 +125,26 @@ export default function AdminTournamentControlCenter() {
             <button onClick={() => router.push('/admin')} className="inline-flex items-center gap-2 text-zinc-400 hover:text-orange-500 text-xs font-bold uppercase tracking-wider mb-3 transition-colors bg-zinc-900 px-4 py-2 rounded border border-zinc-800">
               <ArrowLeft className="w-4 h-4"/> Back to Admin Hub
             </button>
-            <h1 className="text-3xl font-black italic tracking-wider text-orange-500 uppercase">{tournament?.name} — Control Center</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-black italic tracking-wider text-orange-500 uppercase">{tournament?.name} — Control Center</h1>
+              {isArchived && (
+                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${tournament.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>
+                  {tournament.status}
+                </span>
+              )}
+            </div>
             <p className="text-zinc-400 text-sm mt-1 font-bold">Manage enrollments, inspect player IDs, and execute secure one-click prize payouts.</p>
           </div>
-          <button onClick={handleCopyRoomDetails} className="bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 px-5 py-3 rounded text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all">
-            {copied ? <Check className="w-4 h-4 text-emerald-500"/> : <Copy className="w-4 h-4 text-orange-500"/>} {copied ? 'Copied to Clipboard' : 'Copy All Squad Rosters'}
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+            {!isArchived && (
+              <button disabled={actionLoading} onClick={handleMarkCompleted} className="bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500 px-5 py-3 rounded text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all disabled:opacity-50">
+                <CheckSquare className="w-4 h-4"/> Mark Completed
+              </button>
+            )}
+            <button onClick={handleCopyRoomDetails} className="bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 px-5 py-3 rounded text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all">
+              {copied ? <Check className="w-4 h-4 text-emerald-500"/> : <Copy className="w-4 h-4 text-orange-500"/>} {copied ? 'Copied to Clipboard' : 'Copy All Squad Rosters'}
+            </button>
+          </div>
         </div>
 
         {/* Quick Stats Grid */}
@@ -141,7 +167,7 @@ export default function AdminTournamentControlCenter() {
           </div>
         </div>
 
-        {/* Detailed Enrolled Squads Table with One-Click Payouts */}
+        {/* Detailed Enrolled Squads Table */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
           <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
             <h2 className="text-xl font-black uppercase tracking-wider flex items-center gap-2">
@@ -165,7 +191,7 @@ export default function AdminTournamentControlCenter() {
                 </thead>
                 <tbody className="divide-y divide-zinc-800">
                   {registrations.map((reg) => (
-                    <tr key={reg.id} className="hover:bg-zinc-800/40 transition-colors">
+                    <tr key={reg.id} className={`hover:bg-zinc-800/40 transition-colors ${isArchived ? 'opacity-50' : ''}`}>
                       <td className="p-4 font-black text-orange-500">S{reg.slot_number}</td>
                       <td className="p-4 font-black text-white">{reg.squad_name}</td>
                       <td className="p-4">
@@ -179,22 +205,26 @@ export default function AdminTournamentControlCenter() {
                         {reg.player_4_id && <div>P4: {reg.player_4_id}</div>}
                       </td>
                       <td className="p-4 text-right space-x-2 whitespace-nowrap">
-                        {activePrizes.map((prize: number, pIdx: number) => {
-                          if (!prize || prize === 0) return null;
-                          const posLabels = ['1st Place', '2nd Place', '3rd Place', '4th Place', '5th Place', '6th Place'];
-                          const badgeColors = ['bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500 hover:text-black', 'bg-zinc-700/30 text-zinc-300 border-zinc-600 hover:bg-zinc-600 hover:text-white', 'bg-orange-900/20 text-orange-400 border-orange-700/30 hover:bg-orange-800 hover:text-white'];
-                          
-                          return (
-                            <button
-                              key={pIdx}
-                              disabled={payoutLoading === reg.id}
-                              onClick={() => handlePayoutWinner(reg.id, reg.user_id, reg.squad_name, prize, posLabels[pIdx])}
-                              className={`px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider border transition-all ${badgeColors[pIdx] || 'bg-zinc-800 text-zinc-300 border-zinc-700'}`}
-                            >
-                              Payout {posLabels[pIdx]} (₹{prize})
-                            </button>
-                          );
-                        })}
+                        {isArchived ? (
+                          <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Match Locked</span>
+                        ) : (
+                          activePrizes.map((prize: number, pIdx: number) => {
+                            if (!prize || prize === 0) return null;
+                            const posLabels = ['1st Place', '2nd Place', '3rd Place', '4th Place', '5th Place', '6th Place'];
+                            const badgeColors = ['bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500 hover:text-black', 'bg-zinc-700/30 text-zinc-300 border-zinc-600 hover:bg-zinc-600 hover:text-white', 'bg-orange-900/20 text-orange-400 border-orange-700/30 hover:bg-orange-800 hover:text-white'];
+                            
+                            return (
+                              <button
+                                key={pIdx}
+                                disabled={payoutLoading === reg.id}
+                                onClick={() => handlePayoutWinner(reg.id, reg.user_id, reg.squad_name, prize, posLabels[pIdx])}
+                                className={`px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider border transition-all ${badgeColors[pIdx] || 'bg-zinc-800 text-zinc-300 border-zinc-700'}`}
+                              >
+                                Payout {posLabels[pIdx]} (₹{prize})
+                              </button>
+                            );
+                          })
+                        )}
                       </td>
                     </tr>
                   ))}
