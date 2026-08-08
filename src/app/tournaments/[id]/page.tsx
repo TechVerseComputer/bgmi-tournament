@@ -61,6 +61,8 @@ export default function TournamentDetailPage() {
     setIsSubmitting(true);
     try {
       const playerCount = tournament.type === 'SOLO' ? 1 : tournament.type === 'DUO' ? 2 : 4;
+      
+      const uniqueWalletTxId = `WALLET_tx_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
       // 1. ATTEMPT REGISTRATION FIRST
       const { error: regError } = await supabase.from('registrations').insert([{
@@ -76,7 +78,7 @@ export default function TournamentDetailPage() {
         player_3_ign: playerCount >= 4 ? team.p3_ign : null,
         player_4_id: playerCount >= 4 ? team.p4_id : null, 
         player_4_ign: playerCount >= 4 ? team.p4_ign : null,
-        utr_number: 'PAID_VIA_WALLET', 
+        utr_number: uniqueWalletTxId, 
         payment_status: 'Verified', 
         slot_number: selectedSlot
       }]);
@@ -92,6 +94,7 @@ export default function TournamentDetailPage() {
         throw new Error("Wallet deduction failed. Registration cancelled.");
       }
 
+      // 3. LOG TRANSACTION ONLY IF EVERYTHING ELSE SUCCEEDED
       await supabase.from('transactions').insert([{
         user_id: user.id, type: 'TOURNAMENT_FEE', amount: tournament.fee, status: 'SUCCESS', description: `Entry fee for ${tournament.name} (Slot ${selectedSlot})`
       }]);
