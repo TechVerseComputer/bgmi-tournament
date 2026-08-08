@@ -61,7 +61,6 @@ export default function TournamentsPage() {
     if (regs) setBookedSlots(regs.map(r => r.slot_number).filter(s => s !== null));
   };
 
-  // --- BULLETPROOF BOOKING LOGIC ---
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSlot) return alert("Please select a drop slot!");
