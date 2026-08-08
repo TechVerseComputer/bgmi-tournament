@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import { Trophy, Users, Clock, ShieldAlert, ArrowLeft, CheckCircle, AlertCircle, Key, Lock, Wallet, Plus } from 'lucide-react';
+import { Trophy, Users, Clock, ShieldAlert, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function TournamentDetailPage() {
   const { id } = useParams();
@@ -25,12 +25,15 @@ export default function TournamentDetailPage() {
   useEffect(() => {
     if (!id) return;
     const fetchDetails = async () => {
+      // 1. Fetch Tournament details
       const { data: tourneyData } = await supabase.from('tournaments').select('*').eq('id', id).single();
       if (tourneyData) setTournament(tourneyData);
 
+      // 2. Fetch existing registrations for this match to populate the slot grid
       const { data: regData } = await supabase.from('registrations').select('*').eq('tournament_id', id);
       if (regData) setRegistrations(regData);
 
+      // 3. Fetch User session & Wallet
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUser(session.user);
@@ -45,13 +48,8 @@ export default function TournamentDetailPage() {
 
   const handleOpenModal = () => {
     if (!user) {
-      supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.href,
-          queryParams: { prompt: 'select_account' }
-        }
-      });
+      alert("You must be logged in to join a match.");
+      router.push('/dashboard');
       return;
     }
     setShowModal(true);
@@ -86,6 +84,7 @@ export default function TournamentDetailPage() {
       setWalletBalance(newBalance);
       setShowModal(false);
       
+      // Refresh registrations list
       const { data: regData } = await supabase.from('registrations').select('*').eq('tournament_id', id);
       if (regData) setRegistrations(regData);
 
@@ -96,8 +95,8 @@ export default function TournamentDetailPage() {
   if (!tournament) return <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-bold">Match not found.</div>;
 
   const bookedSlotNumbers = registrations.map(r => r.slot_number).filter(s => s !== null);
-  const userRegistration = user ? registrations.find(r => r.user_id === user.id) : null;
 
+  // Dynamic Live Prize Pool Calculation based on active slot registrations
   const bookedCount = registrations.length;
   const totalLivePool = bookedCount > 0 ? Math.floor(bookedCount * Number(tournament.fee || 0) * 0.85) : 0;
   
@@ -107,10 +106,9 @@ export default function TournamentDetailPage() {
     totalLivePool - Math.floor(totalLivePool * 0.55) - Math.floor(totalLivePool * 0.30)
   ].filter(p => p > 0) : (tournament.prize_breakdown?.length > 0 ? tournament.prize_breakdown : [tournament.first_prize || 0, tournament.second_prize || 0]);
 
-  const hasLowBalance = walletBalance < tournament.fee;
-
   return (
     <main className="bg-[#0a0a0a] text-white font-sans min-h-screen pb-24">
+      {/* Top Banner Header */}
       <div className="relative h-72 md:h-96 overflow-hidden border-b border-zinc-800">
         <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/50 to-transparent z-10" />
         <img src={tournament.map_img} alt={tournament.name} className="w-full h-full object-cover filter brightness-75" />
@@ -129,8 +127,11 @@ export default function TournamentDetailPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 lg:px-8 mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* Left 2 Cols: Overview, Prize Pool, & Slot Grid */}
         <div className="lg:col-span-2 space-y-8">
           
+          {/* Match Info Card */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 grid grid-cols-2 md:grid-cols-3 gap-6">
             <div>
               <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Entry Fee</p>
@@ -149,6 +150,7 @@ export default function TournamentDetailPage() {
             </div>
           </div>
 
+          {/* Prize Pool Breakdown */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-black uppercase tracking-wider flex items-center gap-2 text-orange-500"><Trophy className="w-5 h-5"/> Prize Pool Distribution</h2>
@@ -166,6 +168,7 @@ export default function TournamentDetailPage() {
             </div>
           </div>
 
+          {/* Visual Slot Matrix (Shows Who Booked What) */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-6">
             <div>
               <h2 className="text-lg font-black uppercase tracking-wider mb-1">Drop Slot Availability & Roster</h2>
@@ -194,6 +197,7 @@ export default function TournamentDetailPage() {
 
         </div>
 
+        {/* Right Col: Action Sidebar */}
         <div className="space-y-6">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 sticky top-24 space-y-6">
             <h3 className="font-black uppercase tracking-wider text-sm border-b border-zinc-800 pb-4">Match Control</h3>
@@ -203,83 +207,22 @@ export default function TournamentDetailPage() {
               <div className="flex justify-between text-zinc-400"><p>Wallet Balance</p><p className="text-emerald-500">₹{walletBalance}</p></div>
             </div>
 
-            {userRegistration ? (
-              <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-xl space-y-3 text-center">
-                <div className="flex items-center justify-center gap-2 text-emerald-400 text-xs font-black uppercase tracking-wider">
-                  <CheckCircle className="w-4 h-4"/> Slot Successfully Booked (Slot {userRegistration.slot_number})
-                </div>
-                <div className="text-zinc-300 text-xs font-bold">{userRegistration.squad_name}</div>
-              </div>
-            ) : (
-              <button onClick={handleOpenModal} className="w-full bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black font-black uppercase tracking-widest py-4 rounded-xl shadow-[0_0_20px_rgba(249,115,22,0.4)] transition-all">
-                Join Match Now
-              </button>
-            )}
-
-            <div className="border-t border-zinc-800 pt-6 space-y-3">
-              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-orange-500">
-                <Key className="w-4 h-4"/> Custom Room Credentials
-              </div>
-
-              {userRegistration ? (
-                tournament.room_id ? (
-                  <div className="bg-zinc-950 border border-orange-500/40 p-4 rounded-xl space-y-3">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-zinc-400 font-bold">Room ID:</span>
-                      <strong className="text-white font-mono text-sm bg-zinc-900 px-2 py-1 rounded">{tournament.room_id}</strong>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-zinc-400 font-bold">Password:</span>
-                      <strong className="text-white font-mono text-sm bg-zinc-900 px-2 py-1 rounded">{tournament.room_password || 'None'}</strong>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl text-center text-xs text-zinc-400 font-medium">
-                    Room ID & Password will be published here 10-15 minutes before match time. Stay tuned!
-                  </div>
-                )
-              ) : (
-                <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl text-center space-y-2">
-                  <Lock className="w-5 h-5 text-zinc-600 mx-auto"/>
-                  <p className="text-[11px] text-zinc-400 font-medium">Join this match and book your slot to reveal the Room ID & Password.</p>
-                </div>
-              )}
-            </div>
-
+            <button onClick={handleOpenModal} className="w-full bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black font-black uppercase tracking-widest py-4 rounded-xl shadow-[0_0_20px_rgba(249,115,22,0.4)] transition-all">
+              Join Match Now
+            </button>
           </div>
         </div>
 
       </div>
 
-      {/* Booking Modal with Current Balance & Low Balance Warning */}
+      {/* Booking Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-[#111116] w-full max-w-2xl rounded-xl border border-zinc-800 relative my-8 max-h-[85vh] overflow-y-auto shadow-2xl">
-            <button onClick={() => setShowModal(false)} className="sticky top-4 right-4 float-right z-20 text-zinc-400 hover:text-white bg-zinc-900 p-2 rounded-full mr-4 mt-4">✕</button>
-            <div className="p-6 border-b border-zinc-800 space-y-3">
+          <div className="bg-[#111116] w-full max-w-2xl rounded-xl border border-zinc-800 relative my-8">
+            <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-zinc-400 hover:text-white bg-zinc-900 p-2 rounded-full">✕</button>
+            <div className="p-6 border-b border-zinc-800">
               <h2 className="text-xl font-black uppercase tracking-wide text-white">Book Slot - {tournament.name}</h2>
-              
-              {/* Wallet Status Banner */}
-              <div className="bg-zinc-950 border border-zinc-800 p-3 rounded-xl flex justify-between items-center text-xs">
-                <div className="flex items-center gap-2">
-                  <Wallet className="w-4 h-4 text-orange-500"/>
-                  <span className="text-zinc-400 font-bold">Wallet Balance: <strong className="text-emerald-400">₹{walletBalance}</strong></span>
-                </div>
-                <div className="text-zinc-400 font-bold">
-                  Entry Fee: <strong className="text-orange-400">₹{tournament.fee}</strong>
-                </div>
-              </div>
-
-              {hasLowBalance && (
-                <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-xl flex items-center justify-between text-xs text-red-400">
-                  <span className="font-bold flex items-center gap-1.5"><AlertCircle className="w-4 h-4"/> Low Balance! Add funds to join this match.</span>
-                  <button onClick={() => router.push('/dashboard')} className="bg-red-500 hover:bg-red-400 text-black font-black uppercase px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all">
-                    <Plus className="w-3.5 h-3.5"/> Add Funds
-                  </button>
-                </div>
-              )}
             </div>
-
             <form onSubmit={handleConfirmBooking} className="p-6 space-y-6">
               <div className="space-y-4">
                 {Array.from({ length: tournament.type === 'SOLO' ? 1 : tournament.type === 'DUO' ? 2 : 4 }, (_, i) => i + 1).map((num) => (
@@ -308,8 +251,8 @@ export default function TournamentDetailPage() {
               </div>
               <div className="pt-4 border-t border-zinc-800 flex gap-4">
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors">Cancel</button>
-                <button type="submit" disabled={isSubmitting || !selectedSlot || hasLowBalance} className="flex-[2] bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-4 rounded transition-colors disabled:opacity-50">
-                  {isSubmitting ? 'Processing...' : hasLowBalance ? 'Insufficient Balance' : `Confirm & Pay ₹${tournament.fee}`}
+                <button type="submit" disabled={isSubmitting || !selectedSlot} className="flex-[2] bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-4 rounded transition-colors disabled:opacity-50">
+                  {isSubmitting ? 'Processing...' : `Confirm & Pay ₹${tournament.fee}`}
                 </button>
               </div>
             </form>
