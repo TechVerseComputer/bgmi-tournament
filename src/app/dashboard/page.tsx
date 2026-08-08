@@ -2,20 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, ShieldCheck, X, Home, LogOut, Gamepad2, Clock } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, Clock, ShieldCheck, X } from 'lucide-react';
 
 export default function PlayerDashboard() {
   const supabase = createClient();
-  const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   
   const [activeTab, setActiveTab] = useState('overview');
   const [wallet, setWallet] = useState({ balance: 0, total_deposited: 0, total_won: 0 });
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [myMatches, setMyMatches] = useState<any[]>([]);
   
   // Deposit States
   const [depositAmount, setDepositAmount] = useState<number | ''>('');
@@ -42,7 +38,7 @@ export default function PlayerDashboard() {
   }, []);
 
   const fetchWalletData = async (userId: string) => {
-    // 1. Fetch or Create Wallet
+    // Fetch or Create Wallet
     let { data: walletData } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
     
     if (!walletData) {
@@ -52,13 +48,9 @@ export default function PlayerDashboard() {
     
     if (walletData) setWallet(walletData);
 
-    // 2. Fetch Transactions
+    // Fetch Transactions
     const { data: txData } = await supabase.from('transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false });
     if (txData) setTransactions(txData);
-
-    // 3. Fetch Enrolled Matches
-    const { data: regs } = await supabase.from('registrations').select('*, tournaments(*)').eq('user_id', userId).order('created_at', { ascending: false });
-    if (regs) setMyMatches(regs);
     
     setAuthLoading(false);
   };
@@ -67,11 +59,7 @@ export default function PlayerDashboard() {
     await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/dashboard' }});
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/');
-  };
-
+  // --- UPDATED DEPOSIT SUBMIT WITH ERROR ALERTS ---
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!utrNumber || utrNumber.length < 12) return alert("Please enter a valid 12-digit UTR number.");
@@ -86,6 +74,7 @@ export default function PlayerDashboard() {
     }]);
 
     if (error) {
+      // NEW: This will pop up on the screen if the database rejects it!
       alert("Database Error: " + error.message);
     } else {
       alert("Deposit request submitted! Our team will verify the UTR shortly.");
@@ -144,21 +133,11 @@ export default function PlayerDashboard() {
       <div className="max-w-6xl mx-auto">
         
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-zinc-800 pb-6">
-          <div className="flex items-center gap-3">
-            <Wallet className="w-8 h-8 text-emerald-500" />
-            <div>
-              <h1 className="text-2xl font-black italic tracking-wider">PLAYER DASHBOARD</h1>
-              <p className="text-zinc-400 text-xs font-medium">Logged in as <span className="text-emerald-500 font-bold">{user.email}</span></p>
-            </div>
-          </div>
-          <div className="flex gap-3 w-full md:w-auto">
-            <button onClick={() => router.push('/')} className="flex-1 md:flex-none bg-zinc-900 hover:bg-zinc-800 text-white px-4 py-2.5 rounded text-sm font-bold border border-zinc-700 transition-colors flex items-center justify-center gap-2">
-              <Home className="w-4 h-4"/> Home
-            </button>
-            <button onClick={handleLogout} className="flex-1 md:flex-none bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-4 py-2.5 rounded text-sm font-bold border border-red-500/20 transition-colors flex items-center justify-center gap-2">
-              <LogOut className="w-4 h-4"/> Logout
-            </button>
+        <div className="flex items-center gap-3 mb-8 border-b border-zinc-800 pb-6">
+          <Wallet className="w-8 h-8 text-emerald-500" />
+          <div>
+            <h1 className="text-2xl font-black italic tracking-wider">WALLET</h1>
+            <p className="text-zinc-400 text-xs font-medium">Manage your funds, deposits, and withdrawals</p>
           </div>
         </div>
 
@@ -166,7 +145,6 @@ export default function PlayerDashboard() {
         <div className="flex flex-wrap gap-2 mb-8 bg-zinc-900 p-1 rounded-lg border border-zinc-800 w-full md:w-fit">
           {[
             { id: 'overview', icon: Wallet, label: 'Overview' },
-            { id: 'matches', icon: Gamepad2, label: 'My Matches' },
             { id: 'deposit', icon: ArrowDownToLine, label: 'Deposit' },
             { id: 'withdraw', icon: ArrowUpFromLine, label: 'Withdraw' },
             { id: 'history', icon: History, label: 'History' }
@@ -201,56 +179,6 @@ export default function PlayerDashboard() {
                 <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Total Winnings</p>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* --- MY MATCHES TAB --- */}
-        {activeTab === 'matches' && (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-            <h2 className="text-lg font-black uppercase flex items-center gap-2 mb-6"><Gamepad2 className="w-5 h-5 text-orange-500"/> My Upcoming Tournaments</h2>
-            
-            {myMatches.length === 0 ? (
-              <div className="text-center py-12 bg-zinc-950 rounded-lg border border-zinc-800">
-                <p className="text-zinc-500 font-bold uppercase tracking-widest">You haven&apos;t joined any matches yet.</p>
-                <button onClick={() => router.push('/tournaments')} className="mt-4 bg-orange-500 hover:bg-orange-400 text-black font-black px-6 py-2 rounded uppercase text-xs transition-colors">Browse Tournaments</button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {myMatches.map(m => (
-                  <div key={m.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-5 flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="font-black italic text-lg tracking-wider text-white">{m.tournaments?.name || 'Tournament'}</h3>
-                          <div className="flex items-center gap-1.5 text-zinc-400 text-xs font-bold mt-1">
-                            <Clock className="w-3.5 h-3.5 text-orange-500" />
-                            {m.tournaments?.match_time ? new Date(m.tournaments.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}
-                          </div>
-                        </div>
-                        <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded border ${m.tournaments?.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : m.tournaments?.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
-                          {m.tournaments?.status}
-                        </span>
-                      </div>
-                      
-                      <div className="bg-zinc-900 border border-zinc-800 rounded p-3 mb-4 flex justify-between items-center">
-                        <div>
-                          <p className="text-xs text-zinc-500 font-bold uppercase">Booked Slot</p>
-                          <p className="text-xl font-black text-orange-500">Slot {m.slot_number}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-zinc-500 font-bold uppercase">Squad Name</p>
-                          <p className="text-sm font-bold text-white">{m.squad_name}</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <Link href={`/tournaments/${m.tournaments?.id}`} className="w-full text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded text-xs transition-colors border border-zinc-700">
-                      View Match Details
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
@@ -300,6 +228,7 @@ export default function PlayerDashboard() {
               <div className="bg-white p-8 flex flex-col items-center justify-center w-full md:w-1/2">
                 <h3 className="text-black font-black uppercase tracking-widest mb-6 flex items-center gap-2"><QrCode className="w-5 h-5"/> Scan & Pay</h3>
                 <div className="bg-white p-2 rounded-xl shadow-lg mb-6 border border-zinc-200">
+                  {/* UPDATE THIS WITH YOUR ACTUAL UPI ID */}
                   <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=digitallibrary@slc&pn=BGMI+Arena&am=${depositAmount}`} alt="UPI QR" className="w-48 h-48" />
                 </div>
                 <p className="text-zinc-500 text-xs font-bold uppercase">GPay • PhonePe • Paytm</p>
