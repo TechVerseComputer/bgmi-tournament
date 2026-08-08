@@ -35,7 +35,14 @@ export default function TournamentsPage() {
 
   useEffect(() => {
     const initPage = async () => {
-      const { data: tourneyData } = await supabase.from('tournaments').select('*').order('created_at', { ascending: false });
+      // EXCLUDE CANCELLED AND COMPLETED MATCHES
+      const { data: tourneyData } = await supabase
+        .from('tournaments')
+        .select('*')
+        .neq('status', 'CANCELLED')
+        .neq('status', 'COMPLETED')
+        .order('created_at', { ascending: false });
+        
       if (tourneyData) setTournaments(tourneyData);
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -70,10 +77,8 @@ export default function TournamentsPage() {
     try {
       const playerCount = selectedMatch.type === 'SOLO' ? 1 : selectedMatch.type === 'DUO' ? 2 : 4;
       
-      // Generate a truly unique string to bypass the UTR unique constraint
       const uniqueWalletTxId = `WALLET_tx_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
-      // 1. ATTEMPT REGISTRATION FIRST IN THE DATABASE
       const { error: regError } = await supabase.from('registrations').insert([{
         tournament_id: selectedMatch.id, 
         user_id: user.id, 
@@ -94,17 +99,14 @@ export default function TournamentsPage() {
 
       if (regError) throw regError;
 
-      // 2. ONLY AFTER SUCCESSFUL REGISTRATION, DEDUCT WALLET BALANCE
       const newBalance = walletBalance - selectedMatch.fee;
       const { error: walletError } = await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', user.id);
       
       if (walletError) {
-        // Safety rollback: remove registration if wallet update somehow fails
         await supabase.from('registrations').delete().eq('tournament_id', selectedMatch.id).eq('slot_number', selectedSlot);
         throw new Error("Wallet deduction failed. Registration cancelled.");
       }
 
-      // 3. LOG TRANSACTION ENTRY ONLY IF EVERYTHING ELSE SUCCEEDED
       await supabase.from('transactions').insert([{
         user_id: user.id, 
         type: 'TOURNAMENT_FEE', 
@@ -134,7 +136,6 @@ export default function TournamentsPage() {
     setStatusFilter('ALL');
   };
 
-  // Advanced Filter & Search Logic
   const filteredTournaments = tournaments.filter(t => {
     const matchesType = filter === 'ALL' || t.type === filter;
     const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -219,7 +220,6 @@ export default function TournamentsPage() {
                   <option value="ALL">All Statuses</option>
                   <option value="OPEN">OPEN</option>
                   <option value="FULL">FULL</option>
-                  <option value="COMPLETED">COMPLETED</option>
                 </select>
               </div>
               <div className="sm:col-span-2 md:col-span-3 flex items-end">
