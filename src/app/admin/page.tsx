@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Trophy, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3, PlusCircle, Eye, Calculator, Key } from 'lucide-react';
+import { Trophy, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3, PlusCircle, Eye, Calculator, Key, Ban, CheckSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function AdminDashboard() {
@@ -24,7 +24,6 @@ export default function AdminDashboard() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   
-  // Phase 3: Added room credentials to default state
   const defaultTourney = { 
     name: '', 
     type: 'SQUAD', 
@@ -166,8 +165,8 @@ export default function AdminDashboard() {
       match_time: tourney.match_time ? tourney.match_time.slice(0, 16) : '',
       total_winners: tourney.total_winners || 3,
       prizes: tourney.prizes || [tourney.first_prize, tourney.second_prize, 0, 0, 0, 0],
-      room_id: tourney.room_id || '', // Load Room ID
-      room_password: tourney.room_password || '' // Load Password
+      room_id: tourney.room_id || '',
+      room_password: tourney.room_password || ''
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -211,8 +210,8 @@ export default function AdminDashboard() {
         total_slots: Number(newTourney.total_slots || 25),
         status: String(newTourney.status || 'OPEN'),
         map_img: publicUrl,
-        room_id: newTourney.room_id || null, // Phase 3 Payload
-        room_password: newTourney.room_password || null // Phase 3 Payload
+        room_id: newTourney.room_id || null, 
+        room_password: newTourney.room_password || null 
       };
 
       if (editingId) {
@@ -234,7 +233,89 @@ export default function AdminDashboard() {
     } catch (err: any) { alert(`Error: ${err.message}`); } finally { setUploading(false); }
   };
 
-  const handleDeleteTournament = async (id: string) => { if(confirm("Are you sure you want to delete this match?")) { await supabase.from('tournaments').delete().eq('id', id); fetchAllData(); } };
+  // --- 1. NEW CANCEL MATCH & AUTOMATED REFUND ENGINE ---
+  const handleCancelMatch = async (tourney: any) => {
+    if (!confirm(`WARNING: Are you sure you want to CANCEL "${tourney.name}"? This will immediately refund ₹${tourney.fee} to all registered players.`)) return;
+    
+    setActionLoading(tourney.id);
+    try {
+      // Fetch all players registered for this specific match
+      const { data: regs, error: regErr } = await supabase.from('registrations').select('*').eq('tournament_id', tourney.id);
+      if (regErr) throw regErr;
+
+      // Loop and Process Refunds if entry fee > 0
+      if (regs && regs.length > 0 && tourney.fee > 0) {
+        for (const reg of regs) {
+          const { data: wallet } = await supabase.from('wallets').select('*').eq('user_id', reg.user_id).single();
+          if (wallet) {
+            const newBalance = Number(wallet.balance) + Number(tourney.fee);
+            // Credit Wallet
+            await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', reg.user_id);
+            // Log Refund Ledger
+            await supabase.from('transactions').insert([{
+              user_id: reg.user_id,
+              type: 'REFUND',
+              amount: tourney.fee,
+              status: 'SUCCESS',
+              description: `Refund for Cancelled Match: ${tourney.name} (Slot ${reg.slot_number})`
+            }]);
+          }
+        }
+      }
+
+      // Lock Tournament Status to CANCELLED
+      const { error: updateErr } = await supabase.from('tournaments').update({ status: 'CANCELLED' }).eq('id', tourney.id);
+      if (updateErr) throw updateErr;
+
+      alert(`Match Cancelled successfully! ${regs?.length || 0} players were refunded.`);
+      fetchAllData();
+    } catch (err: any) {
+      alert("Error cancelling match: " + err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // --- 2. MARK COMPLETED ENGINE ---
+  const handleMarkCompleted = async (tourney: any) => {
+    if (!confirm(`Mark "${tourney.name}" as COMPLETED? It will be moved to Old Match History.`)) return;
+    setActionLoading(tourney.id);
+    try {
+      const { error } = await supabase.from('tournaments').update({ status: 'COMPLETED' }).eq('id', tourney.id);
+      if (error) throw error;
+      fetchAllData();
+    } catch (err: any) {
+      alert("Error completing match: " + err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // --- 3. SAFE DELETE MATCH ENGINE ---
+  const handleDeleteTournament = async (tourney: any) => { 
+    if (tourney.status !== 'CANCELLED' && tourney.status !== 'COMPLETED') {
+      return alert("You can only permanently delete matches that are CANCELLED or COMPLETED.");
+    }
+    
+    if(!confirm(`Are you absolutely sure you want to PERMANENTLY DELETE "${tourney.name}"? This action cannot be undone.`)) return;
+    
+    setActionLoading(tourney.id);
+    try {
+      // Safety step: Delete the foreign-key registration rows first so Supabase doesn't block the deletion
+      await supabase.from('registrations').delete().eq('tournament_id', tourney.id);
+      
+      const { error } = await supabase.from('tournaments').delete().eq('id', tourney.id); 
+      if (error) throw error;
+
+      alert("Match and its registration data successfully deleted.");
+      fetchAllData();
+    } catch (err: any) {
+      alert("Error deleting match: " + err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleCreateLeaderboard = async (e: React.FormEvent) => { e.preventDefault(); const { error } = await supabase.from('leaderboard').insert([newLeaderboard]); if (!error) { setNewLeaderboard({ match_date: '', slot_time: '', winner_1_team: '', winner_2_team: '' }); fetchAllData(); } };
   const handleDeleteLeaderboard = async (id: string) => { if(confirm("Delete this entry?")) { await supabase.from('leaderboard').delete().eq('id', id); fetchAllData(); } };
   const handleCreateRule = async (e: React.FormEvent) => { e.preventDefault(); const { error } = await supabase.from('rules').insert([newRule]); if (!error) { setNewRule({ title: '', description: '' }); fetchAllData(); } };
@@ -255,6 +336,10 @@ export default function AdminDashboard() {
       <button onClick={handleLogout} className="mt-8 bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-8 py-3 rounded uppercase tracking-wider transition-colors border border-zinc-700">Logout & Try Another Account</button>
     </div>
   );
+
+  // Partition Tournaments for proper flow display
+  const activeMatches = tournaments.filter(t => t.status !== 'CANCELLED' && t.status !== 'COMPLETED');
+  const historyMatches = tournaments.filter(t => t.status === 'CANCELLED' || t.status === 'COMPLETED');
 
   return (
     <main className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans pb-24">
@@ -363,7 +448,6 @@ export default function AdminDashboard() {
                       <select value={newTourney.status} onChange={e => setNewTourney({...newTourney, status: e.target.value})} className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-sm focus:border-orange-500 outline-none text-white">
                         <option value="OPEN">OPEN</option>
                         <option value="FULL">FULL</option>
-                        <option value="COMPLETED">COMPLETED</option>
                       </select>
                     </div>
                   </div>
@@ -430,7 +514,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* --- PHASE 3: SECURE ROOM ID & PASSWORD SECTION --- */}
+                {/* --- ROOM ID & PASSWORD SECTION --- */}
                 <div className="bg-emerald-950/20 p-4 rounded border border-emerald-500/20 space-y-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Key className="w-4 h-4 text-emerald-500" />
@@ -455,38 +539,73 @@ export default function AdminDashboard() {
               </form>
             </div>
             
-            {/* Active Matches List */}
-            <div className="lg:col-span-2 space-y-4">
-              <h2 className="text-xl font-black italic uppercase tracking-widest mb-6">Active Database Matches</h2>
-              {tournaments.length === 0 ? (
-                <div className="bg-zinc-900 border border-zinc-800 p-8 text-center rounded text-zinc-500 font-bold uppercase tracking-wider">No matches created yet.</div>
-              ) : (
-                tournaments.map((t) => (
-                  <div key={t.id} className="bg-zinc-900 border border-zinc-800 p-4 rounded flex flex-col sm:flex-row justify-between items-center gap-4">
-                    <div className="flex items-center gap-4 w-full sm:w-auto">
-                      <img src={t.map_img} alt="map" className="w-16 h-16 object-cover rounded border border-zinc-700" />
-                      <div>
-                        <div className="flex items-center gap-2">
-                           <h3 className="font-black italic text-lg uppercase tracking-wide">{t.name}</h3>
-                           <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : t.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>{t.status}</span>
+            {/* MATCHES LIST */}
+            <div className="lg:col-span-2 space-y-8">
+              
+              {/* Active Matches */}
+              <div>
+                <h2 className="text-xl font-black italic uppercase tracking-widest mb-6 border-b border-zinc-800 pb-2">Active Matches</h2>
+                {activeMatches.length === 0 ? (
+                  <div className="bg-zinc-900 border border-zinc-800 p-8 text-center rounded text-zinc-500 font-bold uppercase tracking-wider">No active matches.</div>
+                ) : (
+                  <div className="space-y-4">
+                    {activeMatches.map((t) => (
+                      <div key={t.id} className="bg-zinc-900 border border-zinc-800 p-4 rounded flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <div className="flex items-center gap-4 w-full sm:w-auto">
+                          <img src={t.map_img} alt="map" className="w-16 h-16 object-cover rounded border border-zinc-700" />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-black italic text-lg uppercase tracking-wide">{t.name}</h3>
+                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : t.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>{t.status}</span>
+                            </div>
+                            <div className="flex gap-2 text-xs font-bold text-zinc-400 mt-1">
+                              <span className="text-orange-500">
+                                {t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'No Time Set'}
+                              </span> • <span>{t.type}</span> • <span>Slots: {t.total_slots}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex gap-2 text-xs font-bold text-zinc-400 mt-1">
-                          <span className="text-orange-500">
-                            {t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'No Time Set'}
-                          </span> • <span>{t.type}</span> • <span>Slots: {t.total_slots}</span> • <span className="text-emerald-400">{t.total_winners || 2} Winners</span>
+                        <div className="flex flex-wrap justify-end gap-2 w-full sm:w-auto">
+                          <button onClick={() => router.push(`/admin/tournament/${t.id}`)} className="bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1"><Eye className="w-3 h-3"/> View Control</button>
+                          <button onClick={() => handleEditClick(t)} className="bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white border border-blue-500/20 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all"><Edit3 className="w-3 h-3"/></button>
+                          <button disabled={actionLoading === t.id} onClick={() => handleMarkCompleted(t)} className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white border border-emerald-500/20 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 disabled:opacity-50"><CheckSquare className="w-3 h-3"/> Complete</button>
+                          <button disabled={actionLoading === t.id} onClick={() => handleCancelMatch(t)} className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 disabled:opacity-50"><Ban className="w-3 h-3"/> Cancel & Refund</button>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex gap-2 w-full sm:w-auto">
-                      <button onClick={() => router.push(`/admin/tournament/${t.id}`)} className="flex-1 sm:flex-none bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 px-4 py-2 rounded text-xs font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1">
-                        <Eye className="w-3.5 h-3.5"/> View More
-                      </button>
-                      <button onClick={() => handleEditClick(t)} className="flex-1 sm:flex-none bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white border border-blue-500/20 px-4 py-2 rounded text-xs font-black uppercase tracking-wider transition-all">Edit</button>
-                      <button onClick={() => handleDeleteTournament(t.id)} className="flex-1 sm:flex-none bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 px-4 py-2 rounded text-xs font-black uppercase tracking-wider transition-all">Delete</button>
-                    </div>
+                    ))}
                   </div>
-                ))
-              )}
+                )}
+              </div>
+
+              {/* Match History (Cancelled & Completed) */}
+              <div>
+                <h2 className="text-xl font-black italic uppercase tracking-widest mb-6 border-b border-zinc-800 pb-2 text-zinc-500">Old Match History</h2>
+                {historyMatches.length === 0 ? (
+                  <div className="bg-zinc-900 border border-zinc-800 p-8 text-center rounded text-zinc-500 font-bold uppercase tracking-wider">No history found.</div>
+                ) : (
+                  <div className="space-y-4 opacity-75">
+                    {historyMatches.map((t) => (
+                      <div key={t.id} className="bg-zinc-950 border border-zinc-800 p-4 rounded flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <div className="flex items-center gap-4 w-full sm:w-auto">
+                          <img src={t.map_img} alt="map" className="w-12 h-12 object-cover rounded border border-zinc-700 grayscale" />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-black italic text-base uppercase tracking-wide text-zinc-400">{t.name}</h3>
+                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>{t.status}</span>
+                            </div>
+                            <p className="text-xs font-bold text-zinc-500 mt-1">{t.type} • {t.match_time ? new Date(t.match_time).toLocaleDateString() : 'N/A'}</p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                          <button onClick={() => router.push(`/admin/tournament/${t.id}`)} className="bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 px-4 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1"><Eye className="w-3 h-3"/> View Records</button>
+                          <button disabled={actionLoading === t.id} onClick={() => handleDeleteTournament(t)} className="bg-red-900/20 text-red-500 hover:bg-red-600 hover:text-white border border-red-900/30 px-4 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 disabled:opacity-50"><Trash2 className="w-3 h-3"/> Perm Delete</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
         )}
