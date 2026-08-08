@@ -61,7 +61,7 @@ export default function TournamentsPage() {
     if (regs) setBookedSlots(regs.map(r => r.slot_number).filter(s => s !== null));
   };
 
-  // --- BULLETPROOF BOOKING LOGIC (REGISTRATION FIRST, WALLET SECOND) ---
+  // --- BULLETPROOF BOOKING LOGIC ---
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSlot) return alert("Please select a drop slot!");
@@ -70,6 +70,9 @@ export default function TournamentsPage() {
     setIsSubmitting(true);
     try {
       const playerCount = selectedMatch.type === 'SOLO' ? 1 : selectedMatch.type === 'DUO' ? 2 : 4;
+      
+      // Generate a truly unique string to bypass the UTR unique constraint
+      const uniqueWalletTxId = `WALLET_tx_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
       // 1. ATTEMPT REGISTRATION FIRST IN THE DATABASE
       const { error: regError } = await supabase.from('registrations').insert([{
@@ -85,7 +88,7 @@ export default function TournamentsPage() {
         player_3_ign: playerCount >= 4 ? team.p3_ign : null,
         player_4_id: playerCount >= 4 ? team.p4_id : null, 
         player_4_ign: playerCount >= 4 ? team.p4_ign : null,
-        utr_number: 'PAID_VIA_WALLET', 
+        utr_number: uniqueWalletTxId, 
         payment_status: 'Verified', 
         slot_number: selectedSlot
       }]);
@@ -102,7 +105,7 @@ export default function TournamentsPage() {
         throw new Error("Wallet deduction failed. Registration cancelled.");
       }
 
-      // 3. LOG TRANSACTION ENTRY
+      // 3. LOG TRANSACTION ENTRY ONLY IF EVERYTHING ELSE SUCCEEDED
       await supabase.from('transactions').insert([{
         user_id: user.id, 
         type: 'TOURNAMENT_FEE', 
