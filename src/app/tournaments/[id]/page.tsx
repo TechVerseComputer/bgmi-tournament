@@ -155,13 +155,48 @@ export default function TournamentDetailPage() {
 
   const bookedSlotNumbers = registrations.map(r => r.slot_number).filter(s => s !== null);
   const bookedCount = registrations.length;
+  
+  // --- BUG FIX: DYNAMIC LIVE POOL CALCULATION BOUND BY EXACT WINNER COUNT ---
   const totalLivePool = bookedCount > 0 ? Math.floor(bookedCount * Number(tournament.fee || 0) * 0.85) : 0;
   
-  const activePrizes = tournament.fee > 0 && totalLivePool > 0 ? [
-    Math.floor(totalLivePool * 0.55),
-    Math.floor(totalLivePool * 0.30),
-    totalLivePool - Math.floor(totalLivePool * 0.55) - Math.floor(totalLivePool * 0.30)
-  ].filter(p => p > 0) : (tournament.prize_breakdown?.length > 0 ? tournament.prize_breakdown : [tournament.first_prize || 0, tournament.second_prize || 0]);
+  let activePrizes: number[] = [];
+  const winnerCount = tournament.total_winners || (tournament.prize_breakdown?.length > 0 ? tournament.prize_breakdown.length : 2);
+
+  if (tournament.fee > 0 && totalLivePool > 0) {
+    if (winnerCount === 1) {
+      activePrizes = [totalLivePool];
+    } else if (winnerCount === 2) {
+      const p1 = Math.floor(totalLivePool * 0.70);
+      activePrizes = [p1, totalLivePool - p1];
+    } else if (winnerCount === 3) {
+      const p1 = Math.floor(totalLivePool * 0.55);
+      const p2 = Math.floor(totalLivePool * 0.30);
+      activePrizes = [p1, p2, totalLivePool - p1 - p2];
+    } else if (winnerCount === 4) {
+      const p1 = Math.floor(totalLivePool * 0.50);
+      const p2 = Math.floor(totalLivePool * 0.25);
+      const p3 = Math.floor(totalLivePool * 0.15);
+      activePrizes = [p1, p2, p3, totalLivePool - p1 - p2 - p3];
+    } else if (winnerCount === 5) {
+      const p1 = Math.floor(totalLivePool * 0.45);
+      const p2 = Math.floor(totalLivePool * 0.25);
+      const p3 = Math.floor(totalLivePool * 0.15);
+      const p4 = Math.floor(totalLivePool * 0.10);
+      activePrizes = [p1, p2, p3, p4, totalLivePool - p1 - p2 - p3 - p4];
+    } else if (winnerCount >= 6) {
+      const p1 = Math.floor(totalLivePool * 0.45);
+      const p2 = Math.floor(totalLivePool * 0.25);
+      const p3 = Math.floor(totalLivePool * 0.15);
+      const p4 = Math.floor(totalLivePool * 0.10);
+      const p5 = Math.floor(totalLivePool * 0.03); 
+      activePrizes = [p1, p2, p3, p4, p5, totalLivePool - p1 - p2 - p3 - p4 - p5];
+    }
+  } else {
+    // For static pools (0 bookings), rigorously slice to the exact winner count to prevent UI overflow
+    activePrizes = tournament.prize_breakdown?.length > 0 
+      ? tournament.prize_breakdown.slice(0, winnerCount) 
+      : [tournament.first_prize || 0, tournament.second_prize || 0].slice(0, winnerCount);
+  }
 
   const countdown = formatCountdown(tournament.registration_closing_time);
   const isClosed = countdown === "CLOSED" || tournament.status === 'FULL';
