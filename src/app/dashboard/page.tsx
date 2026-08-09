@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, ShieldCheck, X, Home, LogOut, Gamepad2, Clock, Key, AlertCircle } from 'lucide-react';
+import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, ShieldCheck, X, Home, LogOut, Gamepad2, Clock, Key, AlertCircle, UploadCloud, ImageIcon, CheckCircle2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -16,6 +16,7 @@ export default function PlayerDashboard() {
   const [wallet, setWallet] = useState({ balance: 0, total_deposited: 0, total_won: 0 });
   const [transactions, setTransactions] = useState<any[]>([]);
   const [myMatches, setMyMatches] = useState<any[]>([]);
+  const [myResults, setMyResults] = useState<any[]>([]); // NEW: Tracks submitted screenshots
   
   // Deposit States
   const [depositAmount, setDepositAmount] = useState<number | ''>('');
@@ -27,6 +28,12 @@ export default function PlayerDashboard() {
   // Withdraw States
   const [withdrawAmount, setWithdrawAmount] = useState<number | ''>('');
   const [upiId, setUpiId] = useState('');
+
+  // Screenshot Submission States
+  const [resultModalObj, setResultModalObj] = useState<any>(null);
+  const [resultFile, setResultFile] = useState<File | null>(null);
+  const [resultPreview, setResultPreview] = useState<string | null>(null);
+  const [isUploadingResult, setIsUploadingResult] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -42,7 +49,6 @@ export default function PlayerDashboard() {
   }, []);
 
   const fetchWalletData = async (userId: string) => {
-    // 1. Fetch or Create Wallet
     let { data: walletData } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
     
     if (!walletData) {
@@ -52,13 +58,15 @@ export default function PlayerDashboard() {
     
     if (walletData) setWallet(walletData);
 
-    // 2. Fetch Transactions
     const { data: txData } = await supabase.from('transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false });
     if (txData) setTransactions(txData);
 
-    // 3. Fetch Enrolled Matches
     const { data: regs } = await supabase.from('registrations').select('*, tournaments(*)').eq('user_id', userId).order('created_at', { ascending: false });
     if (regs) setMyMatches(regs);
+    
+    // NEW: Fetch submitted match results
+    const { data: resultsData } = await supabase.from('match_results').select('*').eq('user_id', userId);
+    if (resultsData) setMyResults(resultsData);
     
     setAuthLoading(false);
   };
@@ -121,6 +129,62 @@ export default function PlayerDashboard() {
       fetchWalletData(user.id);
     }
     setIsSubmitting(false);
+  };
+
+  // --- NEW: HANDLE MATCH RESULT IMAGE SELECTION ---
+  const handleResultImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setResultFile(file);
+      const objectUrl = URL.createObjectURL(file);
+      setResultPreview(objectUrl);
+    }
+  };
+
+  // --- NEW: HANDLE MATCH RESULT SUBMISSION ---
+  const submitMatchResult = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resultFile || !resultModalObj) return alert("Please select an image first.");
+    
+    setIsUploadingResult(true);
+    try {
+      const fileExt = resultFile.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `screenshots/${fileName}`;
+      
+      const { error: uploadError } = await supabase.storage.from('match-results').upload(filePath, resultFile);
+      if (uploadError) throw uploadError;
+      
+      const { data: publicUrlData } = supabase.storage.from('match-results').getPublicUrl(filePath);
+
+      // Check if user is replacing a rejected result
+      const existingResult = myResults.find(r => r.registration_id === resultModalObj.id);
+
+      if (existingResult) {
+        await supabase.from('match_results').update({ 
+          image_url: publicUrlData.publicUrl, 
+          status: 'PENDING', 
+          admin_note: null 
+        }).eq('id', existingResult.id);
+      } else {
+        await supabase.from('match_results').insert([{
+          tournament_id: resultModalObj.tournament_id,
+          registration_id: resultModalObj.id,
+          user_id: user.id,
+          image_url: publicUrlData.publicUrl
+        }]);
+      }
+
+      alert("Result submitted successfully! Our admins will review it shortly.");
+      setResultModalObj(null);
+      setResultFile(null);
+      setResultPreview(null);
+      fetchWalletData(user.id);
+    } catch (err: any) {
+      alert("Upload Error: " + err.message);
+    } finally {
+      setIsUploadingResult(false);
+    }
   };
 
   if (authLoading) return <div className="min-h-screen bg-[#050505] text-emerald-500 flex items-center justify-center font-black animate-pulse tracking-widest uppercase">Loading Secure Portal...</div>;
@@ -204,10 +268,10 @@ export default function PlayerDashboard() {
           </div>
         )}
 
-        {/* --- PHASE 3: MY MATCHES TAB (WITH ROOM ID REVEAL) --- */}
+        {/* --- MY MATCHES TAB --- */}
         {activeTab === 'matches' && (
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-            <h2 className="text-lg font-black uppercase flex items-center gap-2 mb-6"><Gamepad2 className="w-5 h-5 text-orange-500"/> My Upcoming Tournaments</h2>
+            <h2 className="text-lg font-black uppercase flex items-center gap-2 mb-6"><Gamepad2 className="w-5 h-5 text-orange-500"/> My Tournaments & Results</h2>
             
             {myMatches.length === 0 ? (
               <div className="text-center py-12 bg-zinc-950 rounded-lg border border-zinc-800">
@@ -219,6 +283,12 @@ export default function PlayerDashboard() {
                 {myMatches.map((m: any, idx: number) => {
                   const tourney = Array.isArray(m.tournaments) ? m.tournaments[0] : m.tournaments;
                   if (!tourney) return null;
+
+                  // Evaluate Result Status
+                  const submittedResult = myResults.find(r => r.registration_id === m.id);
+                  const isMatchActive = tourney.status === 'FULL' || tourney.status === 'COMPLETED';
+                  const needsSubmission = isMatchActive && (!submittedResult || submittedResult.status === 'REJECTED');
+
                   return (
                     <div key={idx} className="bg-zinc-950 border border-zinc-800 rounded-lg p-5 flex flex-col justify-between">
                       <div>
@@ -246,7 +316,7 @@ export default function PlayerDashboard() {
                           </div>
                         </div>
 
-                        {/* --- THE ROOM CREDENTIALS WIDGET --- */}
+                        {/* --- ROOM CREDENTIALS WIDGET --- */}
                         {tourney.room_id ? (
                           <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-lg p-4 mb-4">
                             <div className="flex items-center gap-2 mb-3 border-b border-emerald-500/20 pb-2">
@@ -273,11 +343,37 @@ export default function PlayerDashboard() {
                             </div>
                           </div>
                         )}
+
+                        {/* --- NEW: SCREENSHOT SUBMISSION STATUS UI --- */}
+                        {submittedResult && (
+                          <div className={`p-4 rounded-lg border mb-4 ${
+                            submittedResult.status === 'PENDING' ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' :
+                            submittedResult.status === 'APPROVED' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500' :
+                            'bg-red-500/10 border-red-500/30 text-red-500'
+                          }`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              {submittedResult.status === 'PENDING' && <Clock className="w-4 h-4" />}
+                              {submittedResult.status === 'APPROVED' && <CheckCircle2 className="w-4 h-4" />}
+                              {submittedResult.status === 'REJECTED' && <AlertCircle className="w-4 h-4" />}
+                              <p className="text-xs font-black uppercase tracking-wider">Result Status: {submittedResult.status}</p>
+                            </div>
+                            {submittedResult.status === 'REJECTED' && submittedResult.admin_note && (
+                              <p className="text-[10px] mt-2 font-bold text-red-400 bg-red-950/40 p-2 rounded">Note: {submittedResult.admin_note}</p>
+                            )}
+                          </div>
+                        )}
                       </div>
                       
-                      <Link href={`/tournaments/${tourney.id}`} className="w-full text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded text-xs transition-colors border border-zinc-700 mt-2">
-                        View Match Details
-                      </Link>
+                      <div className="flex gap-2 mt-2">
+                        <Link href={`/tournaments/${tourney.id}`} className="flex-1 text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded text-xs transition-colors border border-zinc-700">
+                          View Match
+                        </Link>
+                        {needsSubmission && (
+                          <button onClick={() => setResultModalObj({ ...m, tournament_id: tourney.id })} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-wider py-3 rounded text-xs transition-colors shadow-lg flex items-center justify-center gap-1.5">
+                            <UploadCloud className="w-4 h-4" /> Submit Result
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -404,8 +500,8 @@ export default function PlayerDashboard() {
                 {transactions.map(tx => (
                   <div key={tx.id} className="bg-zinc-950 border border-zinc-800 p-4 rounded-lg flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-full ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_MONEY' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
-                        {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_MONEY' ? <ArrowDownToLine className="w-5 h-5"/> : <ArrowUpFromLine className="w-5 h-5"/>}
+                      <div className={`p-3 rounded-full ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' ? 'bg-emerald-500/10 text-emerald-500' : tx.type === 'REFUND' ? 'bg-amber-500/10 text-amber-500' : 'bg-red-500/10 text-red-500'}`}>
+                        {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? <ArrowDownToLine className="w-5 h-5"/> : <ArrowUpFromLine className="w-5 h-5"/>}
                       </div>
                       <div>
                         <p className="font-bold text-white">{tx.description}</p>
@@ -413,8 +509,8 @@ export default function PlayerDashboard() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className={`font-black text-lg ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_MONEY' ? 'text-emerald-500' : 'text-white'}`}>
-                        {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_MONEY' ? '+' : '-'}₹{tx.amount}
+                      <p className={`font-black text-lg ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? 'text-emerald-500' : 'text-white'}`}>
+                        {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? '+' : '-'}₹{tx.amount}
                       </p>
                       <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${tx.status === 'PENDING' ? 'bg-amber-500/20 text-amber-500' : tx.status === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-red-500'}`}>
                         {tx.status}
@@ -424,6 +520,61 @@ export default function PlayerDashboard() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* --- RESULT UPLOAD MODAL --- */}
+        {resultModalObj && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl relative">
+              <button onClick={() => { setResultModalObj(null); setResultFile(null); setResultPreview(null); }} className="absolute top-4 right-4 bg-zinc-900 p-2 rounded-full text-zinc-400 hover:text-white transition-colors z-10">
+                <X className="w-4 h-4"/>
+              </button>
+              
+              <div className="p-6 border-b border-zinc-800">
+                <h3 className="text-xl font-black uppercase flex items-center gap-2">
+                  <UploadCloud className="w-5 h-5 text-blue-500"/> Submit Match Result
+                </h3>
+                <p className="text-xs font-bold text-zinc-500 mt-1">Slot {resultModalObj.slot_number} • {resultModalObj.squad_name}</p>
+              </div>
+
+              <form onSubmit={submitMatchResult} className="p-6 space-y-6">
+                <div className="bg-zinc-900 border border-zinc-800 border-dashed rounded-xl p-6 text-center">
+                  {!resultPreview ? (
+                    <div className="flex flex-col items-center justify-center space-y-3">
+                      <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center">
+                        <ImageIcon className="w-8 h-8 text-zinc-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-zinc-300">Upload Screenshot Evidence</p>
+                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">JPG, PNG up to 5MB</p>
+                      </div>
+                      <label className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-wider px-6 py-2.5 rounded cursor-pointer transition-colors mt-2">
+                        Browse Files
+                        <input type="file" accept="image/*" className="hidden" onChange={handleResultImageChange} />
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="relative group rounded-lg overflow-hidden border border-zinc-700">
+                      <img src={resultPreview} alt="Preview" className="w-full h-auto max-h-64 object-contain bg-black" />
+                      <label className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white font-bold text-xs uppercase tracking-wider">
+                        <UploadCloud className="w-4 h-4 mr-2"/> Replace Image
+                        <input type="file" accept="image/*" className="hidden" onChange={handleResultImageChange} />
+                      </label>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-lg flex gap-3 text-sm text-blue-400">
+                  <AlertCircle className="w-5 h-5 shrink-0" />
+                  <p className="text-xs leading-relaxed font-medium">Please ensure the screenshot clearly shows your squad's placement and total kills. Fraudulent submissions will result in a permanent ban.</p>
+                </div>
+
+                <button type="submit" disabled={isUploadingResult || !resultFile} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest py-4 rounded-xl transition-colors disabled:opacity-50 flex justify-center items-center gap-2">
+                  {isUploadingResult ? 'Uploading Evidence...' : 'Submit Evidence for Review'}
+                </button>
+              </form>
+            </div>
           </div>
         )}
 
