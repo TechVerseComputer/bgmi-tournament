@@ -3,7 +3,6 @@ import withPWAInit from "@ducanh2912/next-pwa";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  // Ensure perfectly working code isn't blocked by strict build linters
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
 };
