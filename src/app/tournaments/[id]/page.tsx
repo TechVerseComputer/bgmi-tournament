@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import { Trophy, Users, Clock, ShieldAlert, ArrowLeft, CheckCircle, AlertCircle, Timer } from 'lucide-react';
+import { Trophy, Users, Clock, ShieldAlert, ArrowLeft, CheckCircle, AlertCircle, Timer, UploadCloud, ImageIcon, CheckCircle2, X } from 'lucide-react';
 
 const getServerTime = async () => {
   try {
-    const res = await fetch(window.location.href, { method: 'HEAD', cache: 'no-store' });
+    const url = typeof window !== 'undefined' ? window.location.href : '/';
+    const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
     const dateHeader = res.headers.get('Date');
     return dateHeader ? new Date(dateHeader).getTime() : Date.now();
   } catch {
@@ -23,7 +24,7 @@ export default function TournamentDetailPage() {
   const [tournament, setTournament] = useState<any>(null);
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [currentTime, setCurrentTime] = useState<number | null>(null);
 
   // Modal & Booking States
   const [user, setUser] = useState<any>(null);
@@ -32,6 +33,13 @@ export default function TournamentDetailPage() {
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [team, setTeam] = useState({ p1_ign: '', p1_id: '', p2_ign: '', p2_id: '', p3_ign: '', p3_id: '', p4_ign: '', p4_id: '' });
+
+  // NEW: Screenshot Submission States
+  const [myResult, setMyResult] = useState<any>(null);
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [resultFile, setResultFile] = useState<File | null>(null);
+  const [resultPreview, setResultPreview] = useState<string | null>(null);
+  const [isUploadingResult, setIsUploadingResult] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -47,18 +55,23 @@ export default function TournamentDetailPage() {
         setUser(session.user);
         const { data: wallet } = await supabase.from('wallets').select('balance').eq('user_id', session.user.id).single();
         if (wallet) setWalletBalance(wallet.balance);
+
+        // Fetch user's submitted result for this match
+        const { data: resultData } = await supabase.from('match_results').select('*').eq('tournament_id', id).eq('user_id', session.user.id);
+        if (resultData && resultData.length > 0) setMyResult(resultData[0]);
       }
 
       setLoading(false);
     };
     fetchDetails();
 
+    setCurrentTime(Date.now());
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [id]);
 
   const formatCountdown = (closingTime: string) => {
-    if (!closingTime) return null;
+    if (!closingTime || !currentTime) return null;
     const target = new Date(closingTime).getTime();
     const diff = target - currentTime;
     
@@ -150,13 +163,65 @@ export default function TournamentDetailPage() {
     }
   };
 
+  // --- EVIDENCE UPLOAD HANDLERS ---
+  const handleResultImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setResultFile(file);
+      setResultPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const submitMatchResult = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resultFile || !myRegistration) return alert("Please select an image first.");
+    
+    setIsUploadingResult(true);
+    try {
+      const fileExt = resultFile.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `screenshots/${fileName}`;
+      
+      const { error: uploadError } = await supabase.storage.from('match-results').upload(filePath, resultFile);
+      if (uploadError) throw uploadError;
+      
+      const { data: publicUrlData } = supabase.storage.from('match-results').getPublicUrl(filePath);
+
+      if (myResult) {
+        await supabase.from('match_results').update({ 
+          image_url: publicUrlData.publicUrl, 
+          status: 'PENDING', 
+          admin_note: null 
+        }).eq('id', myResult.id);
+      } else {
+        await supabase.from('match_results').insert([{
+          tournament_id: tournament.id,
+          registration_id: myRegistration.id,
+          user_id: user.id,
+          image_url: publicUrlData.publicUrl
+        }]);
+      }
+
+      alert("Result submitted successfully! Our admins will review it shortly.");
+      setShowResultModal(false);
+      setResultFile(null);
+      setResultPreview(null);
+      
+      const { data: newResult } = await supabase.from('match_results').select('*').eq('tournament_id', id).eq('user_id', user.id);
+      if (newResult && newResult.length > 0) setMyResult(newResult[0]);
+    } catch (err: any) {
+      alert("Upload Error: " + err.message);
+    } finally {
+      setIsUploadingResult(false);
+    }
+  };
+
   if (loading) return <div className="min-h-screen bg-[#0a0a0a] text-orange-500 font-bold flex items-center justify-center animate-pulse">Loading Match Details...</div>;
   if (!tournament) return <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-bold">Match not found.</div>;
 
   const bookedSlotNumbers = registrations.map(r => r.slot_number).filter(s => s !== null);
   const bookedCount = registrations.length;
   
-  // --- BUG FIX: DYNAMIC LIVE POOL CALCULATION BOUND BY EXACT WINNER COUNT ---
   const totalLivePool = bookedCount > 0 ? Math.floor(bookedCount * Number(tournament.fee || 0) * 0.85) : 0;
   
   let activePrizes: number[] = [];
@@ -192,7 +257,6 @@ export default function TournamentDetailPage() {
       activePrizes = [p1, p2, p3, p4, p5, totalLivePool - p1 - p2 - p3 - p4 - p5];
     }
   } else {
-    // For static pools (0 bookings), rigorously slice to the exact winner count to prevent UI overflow
     activePrizes = tournament.prize_breakdown?.length > 0 
       ? tournament.prize_breakdown.slice(0, winnerCount) 
       : [tournament.first_prize || 0, tournament.second_prize || 0].slice(0, winnerCount);
@@ -200,6 +264,10 @@ export default function TournamentDetailPage() {
 
   const countdown = formatCountdown(tournament.registration_closing_time);
   const isClosed = countdown === "CLOSED" || tournament.status === 'FULL';
+  
+  // Registration Check
+  const myRegistration = user ? registrations.find(r => r.user_id === user.id) : null;
+  const isMatchActiveOrCompleted = tournament.status === 'FULL' || tournament.status === 'COMPLETED';
 
   return (
     <main className="bg-[#0a0a0a] text-white font-sans min-h-screen pb-24">
@@ -299,28 +367,87 @@ export default function TournamentDetailPage() {
 
             <div className="space-y-3 text-sm font-bold">
               <div className="flex justify-between text-zinc-400"><p>Entry Fee</p><p className="text-white">₹{tournament.fee}</p></div>
-              <div className="flex justify-between text-zinc-400"><p>Wallet Balance</p><p className="text-emerald-500">₹{walletBalance}</p></div>
+              {user && <div className="flex justify-between text-zinc-400"><p>Wallet Balance</p><p className="text-emerald-500">₹{walletBalance}</p></div>}
             </div>
 
-            <button disabled={isClosed} onClick={handleOpenModal} className={`w-full font-black uppercase tracking-widest py-4 rounded-xl transition-all ${isClosed ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700' : 'bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black shadow-[0_0_20px_rgba(249,115,22,0.4)]'}`}>
-              {isClosed ? 'Match Closed' : 'Join Match Now'}
-            </button>
+            {/* --- NEW: CAPTAIN EVIDENCE SUBMISSION WIDGET --- */}
+            {myRegistration ? (
+              <div className="border-t border-zinc-800 pt-4 space-y-4">
+                <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-lg flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase text-emerald-500 tracking-wider">Your Squad</p>
+                    <p className="font-bold text-white text-sm">{myRegistration.squad_name}</p>
+                  </div>
+                  <div className="bg-emerald-500 text-black font-black px-3 py-1 rounded text-xs">
+                    S{myRegistration.slot_number}
+                  </div>
+                </div>
+
+                {isMatchActiveOrCompleted && (
+                  <>
+                    {myResult && (
+                      <div className={`p-3 rounded-lg border ${
+                        myResult.status === 'PENDING' ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' :
+                        myResult.status === 'APPROVED' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500' :
+                        'bg-red-500/10 border-red-500/30 text-red-500'
+                      }`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          {myResult.status === 'PENDING' && <Clock className="w-4 h-4" />}
+                          {myResult.status === 'APPROVED' && <CheckCircle2 className="w-4 h-4" />}
+                          {myResult.status === 'REJECTED' && <AlertCircle className="w-4 h-4" />}
+                          <p className="text-xs font-black uppercase tracking-wider">Result: {myResult.status}</p>
+                        </div>
+                        {myResult.status === 'REJECTED' && myResult.admin_note && (
+                          <p className="text-[10px] mt-2 font-bold text-red-400 bg-red-950/40 p-2 rounded">Note: {myResult.admin_note}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {(!myResult || myResult.status === 'REJECTED') && (
+                      <button onClick={() => setShowResultModal(true)} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest py-3 rounded-xl shadow-lg flex items-center justify-center gap-2 transition-colors">
+                        <UploadCloud className="w-4 h-4" /> Submit Result
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : (
+              <button disabled={isClosed} onClick={handleOpenModal} className={`w-full font-black uppercase tracking-widest py-4 rounded-xl transition-all ${isClosed ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700' : 'bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black shadow-[0_0_20px_rgba(249,115,22,0.4)]'}`}>
+                {isClosed ? 'Match Closed' : 'Join Match Now'}
+              </button>
+            )}
           </div>
         </div>
       </div>
 
+      {/* Quick Booking Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm overflow-y-auto">
           <div className="bg-[#111116] w-full max-w-2xl rounded-xl border border-zinc-800 relative my-8">
-            <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-zinc-400 hover:text-white bg-zinc-900 p-2 rounded-full">✕</button>
-            <div className="p-6 border-b border-zinc-800">
-              <h2 className="text-xl font-black uppercase tracking-wide text-white">Book Slot - {tournament.name}</h2>
+            <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-zinc-400 hover:text-white bg-zinc-900 p-2 rounded-full"><X className="w-5 h-5"/></button>
+            <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-black uppercase tracking-wide text-white">{tournament.name}</h2>
+                <p className="text-zinc-500 text-xs font-bold">{tournament.type} • {tournament.perspective}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-orange-500 font-black text-xl">₹{tournament.fee}</p>
+                <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Entry Fee</p>
+              </div>
             </div>
+            {walletBalance < tournament.fee && (
+              <div className="bg-red-500/10 border-b border-red-500/20 p-4 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-red-500 text-sm font-bold"><AlertCircle className="w-5 h-5" /> Insufficient Wallet Balance (₹{walletBalance})</div>
+                <button onClick={() => router.push('/dashboard')} className="bg-red-500 text-white text-xs font-black uppercase px-4 py-2 rounded hover:bg-red-600 transition-colors">Add Funds</button>
+              </div>
+            )}
             <form onSubmit={handleConfirmBooking} className="p-6 space-y-6">
               <div className="space-y-4">
                 {Array.from({ length: tournament.type === 'SOLO' ? 1 : tournament.type === 'DUO' ? 2 : 4 }, (_, i) => i + 1).map((num) => (
                   <div key={num} className="bg-zinc-900/50 p-4 rounded-lg border border-zinc-800/50">
-                    <p className="text-xs font-bold text-orange-500 mb-3 uppercase tracking-wider">Player {num} {num === 1 && '(Captain)'}</p>
+                    <p className="text-xs font-bold text-orange-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+                      {num === 1 && <Trophy className="w-3 h-3"/>} Player {num} {num === 1 && '(Captain)'}
+                    </p>
                     <div className="grid grid-cols-2 gap-4">
                       <input required type="text" placeholder="In-Game Name (IGN)" value={team[`p${num}_ign` as keyof typeof team]} onChange={e => setTeam({...team, [`p${num}_ign`]: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-3 text-sm focus:border-orange-500 outline-none text-zinc-300" />
                       <input required type="text" placeholder="Game ID (Numbers)" value={team[`p${num}_id` as keyof typeof team]} onChange={e => setTeam({...team, [`p${num}_id`]: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-3 text-sm focus:border-orange-500 outline-none font-mono text-zinc-300" />
@@ -352,6 +479,62 @@ export default function TournamentDetailPage() {
           </div>
         </div>
       )}
+
+      {/* --- RESULT UPLOAD MODAL --- */}
+      {showResultModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl relative">
+            <button onClick={() => { setShowResultModal(false); setResultFile(null); setResultPreview(null); }} className="absolute top-4 right-4 bg-zinc-900 p-2 rounded-full text-zinc-400 hover:text-white transition-colors z-10">
+              <X className="w-4 h-4"/>
+            </button>
+            
+            <div className="p-6 border-b border-zinc-800">
+              <h3 className="text-xl font-black uppercase flex items-center gap-2">
+                <UploadCloud className="w-5 h-5 text-blue-500"/> Submit Match Result
+              </h3>
+              {myRegistration && <p className="text-xs font-bold text-zinc-500 mt-1">Slot {myRegistration.slot_number} • {myRegistration.squad_name}</p>}
+            </div>
+
+            <form onSubmit={submitMatchResult} className="p-6 space-y-6">
+              <div className="bg-zinc-900 border border-zinc-800 border-dashed rounded-xl p-6 text-center">
+                {!resultPreview ? (
+                  <div className="flex flex-col items-center justify-center space-y-3">
+                    <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center">
+                      <ImageIcon className="w-8 h-8 text-zinc-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-zinc-300">Upload Screenshot Evidence</p>
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">JPG, PNG up to 5MB</p>
+                    </div>
+                    <label className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-wider px-6 py-2.5 rounded cursor-pointer transition-colors mt-2">
+                      Browse Files
+                      <input type="file" accept="image/*" className="hidden" onChange={handleResultImageChange} />
+                    </label>
+                  </div>
+                ) : (
+                  <div className="relative group rounded-lg overflow-hidden border border-zinc-700">
+                    <img src={resultPreview} alt="Preview" className="w-full h-auto max-h-64 object-contain bg-black" />
+                    <label className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white font-bold text-xs uppercase tracking-wider">
+                      <UploadCloud className="w-4 h-4 mr-2"/> Replace Image
+                      <input type="file" accept="image/*" className="hidden" onChange={handleResultImageChange} />
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-lg flex gap-3 text-sm text-blue-400">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <p className="text-xs leading-relaxed font-medium">Please ensure the screenshot clearly shows your squad's placement and total kills. Fraudulent submissions will result in a permanent ban.</p>
+              </div>
+
+              <button type="submit" disabled={isUploadingResult || !resultFile} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest py-4 rounded-xl transition-colors disabled:opacity-50 flex justify-center items-center gap-2">
+                {isUploadingResult ? 'Uploading Evidence...' : 'Submit Evidence for Review'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }
