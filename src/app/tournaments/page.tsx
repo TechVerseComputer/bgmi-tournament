@@ -3,8 +3,20 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Crosshair, Users, Trophy, X, AlertCircle, Search, Clock, SlidersHorizontal, RotateCcw } from 'lucide-react';
+import { Crosshair, Users, Trophy, X, AlertCircle, Search, Clock, SlidersHorizontal, RotateCcw, Timer } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
+
+// Lightweight, zero-dependency function to fetch the true server time from HTTP headers.
+// This completely ignores the user's device clock.
+const getServerTime = async () => {
+  try {
+    const res = await fetch(window.location.href, { method: 'HEAD', cache: 'no-store' });
+    const dateHeader = res.headers.get('Date');
+    return dateHeader ? new Date(dateHeader).getTime() : Date.now();
+  } catch {
+    return Date.now();
+  }
+};
 
 export default function TournamentsPage() {
   const router = useRouter();
@@ -14,8 +26,8 @@ export default function TournamentsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentTime, setCurrentTime] = useState(Date.now());
   
-  // Advanced Filter States
   const [showFilters, setShowFilters] = useState(false);
   const [minFee, setMinFee] = useState('');
   const [maxFee, setMaxFee] = useState('');
@@ -35,7 +47,6 @@ export default function TournamentsPage() {
 
   useEffect(() => {
     const initPage = async () => {
-      // EXCLUDE CANCELLED AND COMPLETED MATCHES
       const { data: tourneyData } = await supabase
         .from('tournaments')
         .select('*')
@@ -54,7 +65,27 @@ export default function TournamentsPage() {
       setLoading(false);
     };
     initPage();
+
+    // Live Ticker for countdowns
+    const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(timer);
   }, []);
+
+  const formatCountdown = (closingTime: string) => {
+    if (!closingTime) return null;
+    const target = new Date(closingTime).getTime();
+    const diff = target - currentTime;
+    
+    if (diff <= 0) return "CLOSED";
+    
+    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
+    const m = Math.floor((diff / 1000 / 60) % 60);
+    const s = Math.floor((diff / 1000) % 60);
+    
+    if (d > 0) return `Closes in ${d}d ${h}h`;
+    return `Closes in ${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
   const handleJoinClick = async (match: any) => {
     if (!user) {
@@ -75,8 +106,20 @@ export default function TournamentsPage() {
     
     setIsSubmitting(true);
     try {
+      // SECURE SERVER-SIDE TIME VALIDATION
+      if (selectedMatch.registration_closing_time) {
+        const trueServerTime = await getServerTime();
+        const closingTime = new Date(selectedMatch.registration_closing_time).getTime();
+        
+        if (trueServerTime > closingTime) {
+          alert("REGISTRATION FAILED: The registration window for this match has officially closed.");
+          setIsSubmitting(false);
+          setSelectedMatch(null);
+          return;
+        }
+      }
+
       const playerCount = selectedMatch.type === 'SOLO' ? 1 : selectedMatch.type === 'DUO' ? 2 : 4;
-      
       const uniqueWalletTxId = `WALLET_tx_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
       const { error: regError } = await supabase.from('registrations').insert([{
@@ -242,14 +285,18 @@ export default function TournamentsPage() {
             {filteredTournaments.map((t) => {
               const activePrizes = t.prize_breakdown?.length > 0 ? t.prize_breakdown : [t.first_prize || 0, t.second_prize || 0];
               const totalPrizePool = activePrizes.reduce((a: number, b: number) => a + Number(b), 0);
+              
+              const countdown = formatCountdown(t.registration_closing_time);
+              const isClosed = countdown === "CLOSED" || t.status === 'FULL';
 
               return (
-                <div key={t.id} className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden group hover:border-orange-500 transition-colors flex flex-col h-full shadow-lg">
+                <div key={t.id} className={`bg-zinc-900 border ${isClosed ? 'border-red-900/30' : 'border-zinc-800'} rounded-xl overflow-hidden group hover:border-orange-500 transition-colors flex flex-col h-full shadow-lg relative`}>
                   <div className="h-44 overflow-hidden relative shrink-0">
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent z-10" />
-                    <img src={t.map_img} alt={t.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                    <span className="absolute top-3 right-3 z-20 bg-black/70 backdrop-blur-md text-orange-400 border border-orange-500/30 px-3 py-1 rounded-full text-[10px] font-black uppercase">
-                      {t.status || 'OPEN'}
+                    <img src={t.map_img} alt={t.name} className={`w-full h-full object-cover transition-transform duration-500 ${isClosed ? 'grayscale opacity-50' : 'group-hover:scale-110'}`} />
+                    
+                    <span className={`absolute top-3 right-3 z-20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase border ${isClosed ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-black/70 text-orange-400 border-orange-500/30'}`}>
+                      {isClosed ? 'CLOSED' : (t.status || 'OPEN')}
                     </span>
                     <h3 className="absolute bottom-3 left-4 z-20 font-black italic text-xl tracking-wider">{t.name}</h3>
                   </div>
@@ -273,19 +320,27 @@ export default function TournamentsPage() {
                         </div>
                       </div>
 
-                      <div>
-                        <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Entry Fee</p>
-                        <p className="text-3xl font-black text-orange-500">{t.fee === 0 ? 'FREE' : `₹${t.fee}`}</p>
+                      <div className="flex justify-between items-end">
+                        <div>
+                          <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Entry Fee</p>
+                          <p className={`text-3xl font-black ${isClosed ? 'text-zinc-600' : 'text-orange-500'}`}>{t.fee === 0 ? 'FREE' : `₹${t.fee}`}</p>
+                        </div>
+                        {/* THE COUNTDOWN TICKER */}
+                        {countdown && (
+                           <div className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1 border px-2 py-1 rounded ${isClosed ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-orange-500/10 text-orange-400 border-orange-500/30'}`}>
+                             <Timer className="w-3 h-3"/> {isClosed ? 'REGISTRATION CLOSED' : countdown}
+                           </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Dual CTAs: View More & Join Match */}
                     <div className="grid grid-cols-2 gap-3 pt-2">
                       <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded text-xs transition-colors border border-zinc-700 flex items-center justify-center">
-                        View More
+                        View Details
                       </Link>
-                      <button onClick={() => handleJoinClick(t)} className="bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-wider py-3 rounded text-xs transition-colors shadow-[0_0_10px_rgba(249,115,22,0.3)] flex items-center justify-center">
-                        Join Match
+                      <button disabled={isClosed} onClick={() => handleJoinClick(t)} className={`font-black uppercase tracking-wider py-3 rounded text-xs transition-all flex items-center justify-center ${isClosed ? 'bg-zinc-900 text-zinc-600 border border-zinc-800 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-400 text-black shadow-[0_0_10px_rgba(249,115,22,0.3)]'}`}>
+                        {isClosed ? 'Closed' : 'Join Match'}
                       </button>
                     </div>
                   </div>
