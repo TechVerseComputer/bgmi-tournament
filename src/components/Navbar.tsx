@@ -28,10 +28,10 @@ export default function Navbar() {
   if (pathname === '/admin' || pathname === '/dashboard') return null;
 
   return (
-    <nav className="w-full z-50 p-4 lg:px-12 flex justify-between items-center bg-zinc-950 border-b border-zinc-900 sticky top-0">
+    <nav className="w-full z-50 p-4 md:px-8 lg:px-12 flex justify-between items-center bg-zinc-950 border-b border-zinc-900 sticky top-0">
       <Link href="/" className="flex items-center gap-2">
-        <Gamepad className="text-orange-500 w-8 h-8" />
-        <div className="font-black text-2xl tracking-tighter text-white">BGMI <span className="text-orange-500">ARENA</span></div>
+        <Gamepad className="text-orange-500 w-6 h-6 md:w-8 md:h-8 shrink-0" />
+        <div className="font-black text-xl md:text-2xl tracking-tighter text-white whitespace-nowrap">BGMI <span className="text-orange-500">ARENA</span></div>
       </Link>
       
       {/* Desktop Navigation */}
@@ -41,18 +41,17 @@ export default function Navbar() {
         <Link href="/leaderboard" className={`transition-colors ${pathname === '/leaderboard' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>LEADERBOARD</Link>
         <Link href="/rules" className={`transition-colors ${pathname === '/rules' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>RULES</Link>
         
-        {/* NEW: Dedicated Dashboard Link for Desktop */}
         {user && (
           <Link href="/dashboard" className={`transition-colors ${pathname === '/dashboard' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>DASHBOARD</Link>
         )}
         
         {user ? (
           <Link href="/dashboard" className="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded flex items-center gap-2 transition-colors border border-zinc-700 text-emerald-500">
-            <Wallet className="w-4 h-4" /> ₹{balance}
+            <Wallet className="w-4 h-4 shrink-0" /> ₹{balance}
           </Link>
         ) : (
           <Link href="/dashboard" className="bg-orange-500 hover:bg-orange-400 text-black px-5 py-2.5 rounded flex items-center gap-2 transition-colors font-black uppercase tracking-wider shadow-[0_0_15px_rgba(249,115,22,0.3)]">
-            <LogIn className="w-4 h-4" /> Player Login
+            <LogIn className="w-4 h-4 shrink-0" /> Player Login
           </Link>
         )}
       </div>
@@ -61,30 +60,29 @@ export default function Navbar() {
       <div className="flex md:hidden items-center gap-3">
         {user && (
           <Link href="/dashboard" className="bg-zinc-800 px-3 py-1.5 rounded flex items-center gap-1.5 text-xs text-emerald-500 border border-zinc-700 font-bold">
-            <Wallet className="w-3.5 h-3.5" /> ₹{balance}
+            <Wallet className="w-3.5 h-3.5 shrink-0" /> ₹{balance}
           </Link>
         )}
-        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-zinc-300 hover:text-orange-500 p-2">
-          {mobileMenuOpen ? <X className="w-7 h-7" /> : <Menu className="w-7 h-7" />}
+        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-zinc-300 hover:text-orange-500 p-1">
+          {mobileMenuOpen ? <X className="w-7 h-7 shrink-0" /> : <Menu className="w-7 h-7 shrink-0" />}
         </button>
       </div>
 
       {/* Mobile Dropdown Drawer */}
       {mobileMenuOpen && (
-        <div className="absolute top-full left-0 w-full bg-zinc-950 border-b border-zinc-900 p-6 flex flex-col gap-4 md:hidden shadow-2xl">
-          <Link href="/" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-2 ${pathname === '/' ? 'text-orange-500' : 'text-zinc-300'}`}>HOME</Link>
-          <Link href="/tournaments" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-2 ${pathname.includes('/tournaments') ? 'text-orange-500' : 'text-zinc-300'}`}>TOURNAMENTS</Link>
-          <Link href="/leaderboard" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-2 ${pathname === '/leaderboard' ? 'text-orange-500' : 'text-zinc-300'}`}>LEADERBOARD</Link>
-          <Link href="/rules" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-2 ${pathname === '/rules' ? 'text-orange-500' : 'text-zinc-300'}`}>RULES</Link>
+        <div className="absolute top-full left-0 w-full bg-zinc-950 border-b border-zinc-900 p-6 flex flex-col gap-2 md:hidden shadow-2xl">
+          <Link href="/" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-3 ${pathname === '/' ? 'text-orange-500' : 'text-zinc-300 hover:text-white'}`}>HOME</Link>
+          <Link href="/tournaments" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-3 ${pathname.includes('/tournaments') ? 'text-orange-500' : 'text-zinc-300 hover:text-white'}`}>TOURNAMENTS</Link>
+          <Link href="/leaderboard" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-3 ${pathname === '/leaderboard' ? 'text-orange-500' : 'text-zinc-300 hover:text-white'}`}>LEADERBOARD</Link>
+          <Link href="/rules" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-3 ${pathname === '/rules' ? 'text-orange-500' : 'text-zinc-300 hover:text-white'}`}>RULES</Link>
           
-          {/* NEW: Dedicated Dashboard Link for Mobile */}
           {user && (
-            <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-2 ${pathname === '/dashboard' ? 'text-orange-500' : 'text-zinc-300'}`}>DASHBOARD</Link>
+            <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-3 ${pathname === '/dashboard' ? 'text-orange-500' : 'text-zinc-300 hover:text-white'}`}>DASHBOARD</Link>
           )}
           
           {!user && (
-            <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="bg-orange-500 text-black py-3 rounded text-center font-black uppercase tracking-wider mt-2 flex items-center justify-center gap-2">
-              <LogIn className="w-4 h-4" /> Player Login
+            <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="bg-orange-500 text-black py-3.5 rounded text-center font-black uppercase tracking-wider mt-4 flex items-center justify-center gap-2">
+              <LogIn className="w-4 h-4 shrink-0" /> Player Login
             </Link>
           )}
         </div>
