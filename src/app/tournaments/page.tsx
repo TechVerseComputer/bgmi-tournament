@@ -7,10 +7,11 @@ import { Crosshair, Users, Trophy, X, AlertCircle, Search, Clock, SlidersHorizon
 import { createClient } from '@/utils/supabase/client';
 
 // Lightweight, zero-dependency function to fetch the true server time from HTTP headers.
-// This completely ignores the user's device clock.
+// Includes strict typeof window checks to bypass Vercel SSR build errors.
 const getServerTime = async () => {
   try {
-    const res = await fetch(window.location.href, { method: 'HEAD', cache: 'no-store' });
+    const url = typeof window !== 'undefined' ? window.location.href : '/';
+    const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
     const dateHeader = res.headers.get('Date');
     return dateHeader ? new Date(dateHeader).getTime() : Date.now();
   } catch {
@@ -26,7 +27,9 @@ export default function TournamentsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  
+  // Vercel Hydration Fix: Start as null to match SSR, then populate on client
+  const [currentTime, setCurrentTime] = useState<number | null>(null);
   
   const [showFilters, setShowFilters] = useState(false);
   const [minFee, setMinFee] = useState('');
@@ -66,13 +69,14 @@ export default function TournamentsPage() {
     };
     initPage();
 
-    // Live Ticker for countdowns
+    // Start Live Ticker only after client mount to prevent Hydration errors
+    setCurrentTime(Date.now());
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
   const formatCountdown = (closingTime: string) => {
-    if (!closingTime) return null;
+    if (!closingTime || !currentTime) return null; // Wait for client time
     const target = new Date(closingTime).getTime();
     const diff = target - currentTime;
     
@@ -401,7 +405,7 @@ export default function TournamentsPage() {
                 <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-4">Choose Drop Slot</h3>
                 <div className="grid grid-cols-5 gap-2">
                   {Array.from({ length: selectedMatch.total_slots || 25 }, (_, i) => i + 1).map((slot) => {
-                    const isBooked = bookedSlotNumbers.includes(slot);
+                    const isBooked = bookedSlots.includes(slot);
                     const isSelected = selectedSlot === slot;
                     return (
                       <button type="button" key={slot} disabled={isBooked} onClick={() => setSelectedSlot(slot)} className={`py-3 rounded text-sm font-black transition-all ${isBooked ? 'bg-red-500/10 text-red-500/50 border border-red-500/10 cursor-not-allowed' : isSelected ? 'bg-orange-500 text-black border-2 border-orange-500' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-orange-500'}`}>
@@ -412,7 +416,7 @@ export default function TournamentsPage() {
                 </div>
               </div>
               <div className="pt-4 border-t border-zinc-800 flex gap-4">
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors">Cancel</button>
+                <button type="button" onClick={() => setSelectedMatch(null)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors">Cancel</button>
                 <button type="submit" disabled={isSubmitting || !selectedSlot} className="flex-[2] bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-4 rounded transition-colors disabled:opacity-50">
                   {isSubmitting ? 'Processing...' : `Confirm & Pay ₹${selectedMatch.fee}`}
                 </button>
