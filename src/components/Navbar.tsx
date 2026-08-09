@@ -28,17 +28,19 @@ export default function Navbar() {
     fetchUser();
 
     // Listen for PWA install capability
-    const handleBeforeInstallPrompt = (e: Event) => {
+    const handleBeforeInstallPrompt = (e: any) => {
       // Prevent the mini-infobar from appearing on mobile automatically
       e.preventDefault();
       // Stash the event so it can be triggered later.
       setDeferredPrompt(e);
     };
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    // Bypass strict TypeScript event checking for PWA
+    const win = window as any;
+    win.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      win.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, [pathname]);
 
