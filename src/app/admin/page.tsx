@@ -31,7 +31,8 @@ export default function AdminDashboard() {
     fee: 100, 
     total_slots: 25, 
     status: 'OPEN', 
-    match_time: '', 
+    match_time: '',
+    registration_closing_time: '', // NEW
     map_img: '',
     total_winners: 3,
     prizes: [1500, 800, 400, 0, 0, 0],
@@ -163,6 +164,7 @@ export default function AdminDashboard() {
     setNewTourney({
       ...tourney,
       match_time: tourney.match_time ? tourney.match_time.slice(0, 16) : '',
+      registration_closing_time: tourney.registration_closing_time ? tourney.registration_closing_time.slice(0, 16) : '', // NEW
       total_winners: tourney.total_winners || 3,
       prizes: tourney.prizes || [tourney.first_prize, tourney.second_prize, 0, 0, 0, 0],
       room_id: tourney.room_id || '',
@@ -207,6 +209,7 @@ export default function AdminDashboard() {
         total_winners: Number(newTourney.total_winners),
         prize_breakdown: activePrizes,
         match_time: newTourney.match_time ? new Date(newTourney.match_time).toISOString() : '',
+        registration_closing_time: newTourney.registration_closing_time ? new Date(newTourney.registration_closing_time).toISOString() : null, // NEW
         total_slots: Number(newTourney.total_slots || 25),
         status: String(newTourney.status || 'OPEN'),
         map_img: publicUrl,
@@ -233,25 +236,20 @@ export default function AdminDashboard() {
     } catch (err: any) { alert(`Error: ${err.message}`); } finally { setUploading(false); }
   };
 
-  // --- 1. NEW CANCEL MATCH & AUTOMATED REFUND ENGINE ---
   const handleCancelMatch = async (tourney: any) => {
     if (!confirm(`WARNING: Are you sure you want to CANCEL "${tourney.name}"? This will immediately refund ₹${tourney.fee} to all registered players.`)) return;
     
     setActionLoading(tourney.id);
     try {
-      // Fetch all players registered for this specific match
       const { data: regs, error: regErr } = await supabase.from('registrations').select('*').eq('tournament_id', tourney.id);
       if (regErr) throw regErr;
 
-      // Loop and Process Refunds if entry fee > 0
       if (regs && regs.length > 0 && tourney.fee > 0) {
         for (const reg of regs) {
           const { data: wallet } = await supabase.from('wallets').select('*').eq('user_id', reg.user_id).single();
           if (wallet) {
             const newBalance = Number(wallet.balance) + Number(tourney.fee);
-            // Credit Wallet
             await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', reg.user_id);
-            // Log Refund Ledger
             await supabase.from('transactions').insert([{
               user_id: reg.user_id,
               type: 'REFUND',
@@ -263,7 +261,6 @@ export default function AdminDashboard() {
         }
       }
 
-      // Lock Tournament Status to CANCELLED
       const { error: updateErr } = await supabase.from('tournaments').update({ status: 'CANCELLED' }).eq('id', tourney.id);
       if (updateErr) throw updateErr;
 
@@ -276,7 +273,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // --- 2. MARK COMPLETED ENGINE ---
   const handleMarkCompleted = async (tourney: any) => {
     if (!confirm(`Mark "${tourney.name}" as COMPLETED? It will be moved to Old Match History.`)) return;
     setActionLoading(tourney.id);
@@ -291,7 +287,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // --- 3. SAFE DELETE MATCH ENGINE ---
   const handleDeleteTournament = async (tourney: any) => { 
     if (tourney.status !== 'CANCELLED' && tourney.status !== 'COMPLETED') {
       return alert("You can only permanently delete matches that are CANCELLED or COMPLETED.");
@@ -301,9 +296,7 @@ export default function AdminDashboard() {
     
     setActionLoading(tourney.id);
     try {
-      // Safety step: Delete the foreign-key registration rows first so Supabase doesn't block the deletion
       await supabase.from('registrations').delete().eq('tournament_id', tourney.id);
-      
       const { error } = await supabase.from('tournaments').delete().eq('id', tourney.id); 
       if (error) throw error;
 
@@ -337,7 +330,6 @@ export default function AdminDashboard() {
     </div>
   );
 
-  // Partition Tournaments for proper flow display
   const activeMatches = tournaments.filter(t => t.status !== 'CANCELLED' && t.status !== 'COMPLETED');
   const historyMatches = tournaments.filter(t => t.status === 'CANCELLED' || t.status === 'COMPLETED');
 
@@ -438,6 +430,11 @@ export default function AdminDashboard() {
                     <label className="text-xs font-bold text-orange-500 uppercase tracking-wider block mb-1">Match Date & Time (IST)</label>
                     <input required type="datetime-local" value={newTourney.match_time} onChange={e => setNewTourney({...newTourney, match_time: e.target.value})} className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-sm focus:border-orange-500 outline-none text-white [color-scheme:dark]" />
                   </div>
+                  {/* --- NEW: REGISTRATION CLOSING TIME --- */}
+                  <div>
+                    <label className="text-xs font-bold text-red-400 uppercase tracking-wider block mb-1">Registration Closes At (IST)</label>
+                    <input type="datetime-local" required value={newTourney.registration_closing_time} onChange={e => setNewTourney({...newTourney, registration_closing_time: e.target.value})} className="w-full bg-red-950/20 border border-red-900/50 rounded p-2 text-sm focus:border-red-500 outline-none text-red-200 [color-scheme:dark]" />
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-xs font-bold text-orange-500 uppercase tracking-wider block mb-1">Total Slots</label>
@@ -469,7 +466,6 @@ export default function AdminDashboard() {
                   <input required type="number" value={newTourney.fee} onChange={e => setNewTourney({...newTourney, fee: Number(e.target.value)})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none text-white" />
                 </div>
 
-                {/* --- DYNAMIC PRIZE POOL CALCULATOR SECTION --- */}
                 <div className="bg-zinc-950 p-4 rounded border border-zinc-800 space-y-4">
                   <div className="flex justify-between items-center">
                     <label className="text-xs font-bold text-orange-500 uppercase tracking-wider">Number of Winners</label>
@@ -514,7 +510,6 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* --- ROOM ID & PASSWORD SECTION --- */}
                 <div className="bg-emerald-950/20 p-4 rounded border border-emerald-500/20 space-y-4">
                   <div className="flex items-center gap-2 mb-2">
                     <Key className="w-4 h-4 text-emerald-500" />
