@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Trophy, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3, PlusCircle, Eye, Calculator, Key, Ban, CheckSquare } from 'lucide-react';
+import { Trophy, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3, PlusCircle, Eye, Calculator, Key, Ban, CheckSquare, FileText } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function AdminDashboard() {
@@ -32,7 +32,7 @@ export default function AdminDashboard() {
     total_slots: 25, 
     status: 'OPEN', 
     match_time: '',
-    registration_closing_time: '', // NEW
+    registration_closing_time: '',
     map_img: '',
     total_winners: 3,
     prizes: [1500, 800, 400, 0, 0, 0],
@@ -164,7 +164,7 @@ export default function AdminDashboard() {
     setNewTourney({
       ...tourney,
       match_time: tourney.match_time ? tourney.match_time.slice(0, 16) : '',
-      registration_closing_time: tourney.registration_closing_time ? tourney.registration_closing_time.slice(0, 16) : '', // NEW
+      registration_closing_time: tourney.registration_closing_time ? tourney.registration_closing_time.slice(0, 16) : '',
       total_winners: tourney.total_winners || 3,
       prizes: tourney.prizes || [tourney.first_prize, tourney.second_prize, 0, 0, 0, 0],
       room_id: tourney.room_id || '',
@@ -209,7 +209,7 @@ export default function AdminDashboard() {
         total_winners: Number(newTourney.total_winners),
         prize_breakdown: activePrizes,
         match_time: newTourney.match_time ? new Date(newTourney.match_time).toISOString() : '',
-        registration_closing_time: newTourney.registration_closing_time ? new Date(newTourney.registration_closing_time).toISOString() : null, // NEW
+        registration_closing_time: newTourney.registration_closing_time ? new Date(newTourney.registration_closing_time).toISOString() : null,
         total_slots: Number(newTourney.total_slots || 25),
         status: String(newTourney.status || 'OPEN'),
         map_img: publicUrl,
@@ -344,6 +344,9 @@ export default function AdminDashboard() {
             <p className="text-emerald-500 text-sm mt-1 font-bold flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Authenticated as {user.email}</p>
           </div>
           <div className="flex gap-4 w-full md:w-auto">
+            <button onClick={() => router.push('/admin/ledger')} className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold px-4 py-2.5 rounded border border-emerald-500 transition-all flex items-center justify-center gap-2">
+              <FileText className="w-4 h-4"/> Financial Ledger
+            </button>
             <button onClick={fetchAllData} className="flex-1 md:flex-none bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-sm font-bold px-4 py-2.5 rounded border border-zinc-700 transition-all">🔄 Refresh Data</button>
             <button onClick={handleLogout} className="flex-1 md:flex-none bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white text-sm font-bold px-4 py-2.5 rounded border border-red-500/20 transition-all flex items-center justify-center gap-2"><LogOut className="w-4 h-4" /> Logout</button>
           </div>
@@ -430,7 +433,6 @@ export default function AdminDashboard() {
                     <label className="text-xs font-bold text-orange-500 uppercase tracking-wider block mb-1">Match Date & Time (IST)</label>
                     <input required type="datetime-local" value={newTourney.match_time} onChange={e => setNewTourney({...newTourney, match_time: e.target.value})} className="w-full bg-zinc-900 border border-zinc-700 rounded p-2 text-sm focus:border-orange-500 outline-none text-white [color-scheme:dark]" />
                   </div>
-                  {/* --- NEW: REGISTRATION CLOSING TIME --- */}
                   <div>
                     <label className="text-xs font-bold text-red-400 uppercase tracking-wider block mb-1">Registration Closes At (IST)</label>
                     <input type="datetime-local" required value={newTourney.registration_closing_time} onChange={e => setNewTourney({...newTourney, registration_closing_time: e.target.value})} className="w-full bg-red-950/20 border border-red-900/50 rounded p-2 text-sm focus:border-red-500 outline-none text-red-200 [color-scheme:dark]" />
