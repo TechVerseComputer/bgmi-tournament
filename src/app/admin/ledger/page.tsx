@@ -24,7 +24,7 @@ export default function AdminRevenueLedger() {
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [filterTournament, setFilterTournament] = useState('ALL');
   const [startDate, setStartDate] = useState('');
-  const [endDate, setStartDateEnd] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
     const checkAuthAndFetch = async () => {
@@ -111,11 +111,16 @@ export default function AdminRevenueLedger() {
 
     // Date Range Filter
     let matchesDate = true;
+    const entryDate = new Date(entry.date);
+    
     if (startDate) {
-      matchesDate = matchesDate && new Date(entry.date) >= new Date(startDate);
+      matchesDate = matchesDate && entryDate >= new Date(startDate);
     }
     if (endDate) {
-      matchesDate = matchesDate && new Date(entry.date) <= new Date(endDate);
+      // Set to 23:59:59 to ensure transactions on the end date are included
+      const endOfDay = new Date(endDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      matchesDate = matchesDate && entryDate <= endOfDay;
     }
 
     return matchesSearch && matchesType && matchesStatus && matchesTourney && matchesDate;
@@ -244,11 +249,26 @@ export default function AdminRevenueLedger() {
 
         {/* Filters & Search Controls */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4">
-          <div className="flex items-center gap-2 text-xs font-black uppercase text-orange-500 tracking-wider mb-2">
-            <Filter className="w-4 h-4"/> Filter & Audit Controls
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="flex justify-between items-center mb-2">
+            <div className="flex items-center gap-2 text-xs font-black uppercase text-orange-500 tracking-wider">
+              <Filter className="w-4 h-4"/> Filter & Audit Controls
+            </div>
             
+            {/* Show Clear Filters button if any filter is active */}
+            {(startDate || endDate || filterType !== 'ALL' || filterStatus !== 'ALL' || filterTournament !== 'ALL' || searchQuery) && (
+              <button 
+                onClick={() => {
+                  setSearchQuery(''); setFilterType('ALL'); setFilterStatus('ALL'); 
+                  setFilterTournament('ALL'); setStartDate(''); setEndDate('');
+                }} 
+                className="text-[10px] font-black text-red-400 hover:text-red-300 uppercase tracking-widest transition-colors"
+              >
+                Clear All Filters
+              </button>
+            )}
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             {/* Search Input */}
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-3 text-zinc-500" />
@@ -286,7 +306,28 @@ export default function AdminRevenueLedger() {
                 <option key={t.id} value={t.name}>{t.name}</option>
               ))}
             </select>
+          </div>
 
+          {/* Date Range Filters */}
+          <div className="flex flex-wrap items-center gap-4 pt-3 border-t border-zinc-800/50">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider w-12">From:</span>
+              <input 
+                type="date" 
+                value={startDate} 
+                onChange={e => setStartDate(e.target.value)} 
+                className="flex-1 sm:flex-none bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs font-bold focus:border-orange-500 outline-none text-white [color-scheme:dark]" 
+              />
+            </div>
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider w-12 sm:w-auto">To:</span>
+              <input 
+                type="date" 
+                value={endDate} 
+                onChange={e => setEndDate(e.target.value)} 
+                className="flex-1 sm:flex-none bg-zinc-950 border border-zinc-800 rounded px-3 py-1.5 text-xs font-bold focus:border-orange-500 outline-none text-white [color-scheme:dark]" 
+              />
+            </div>
           </div>
         </div>
 
