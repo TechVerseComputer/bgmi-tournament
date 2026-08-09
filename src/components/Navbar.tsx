@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { usePathname } from 'next/navigation';
 
-// 1. Strictly type the PWA event to prevent TypeScript compilation errors
+// Strictly type the PWA event to satisfy the TypeScript compiler
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
   readonly userChoice: Promise<{
@@ -16,13 +16,6 @@ interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
-// 2. Safely merge it into the global Window object
-declare global {
-  interface WindowEventMap {
-    beforeinstallprompt: BeforeInstallPromptEvent;
-  }
-}
-
 export default function Navbar() {
   const supabase = createClient();
   const pathname = usePathname();
@@ -30,7 +23,7 @@ export default function Navbar() {
   const [balance, setBalance] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // PWA Install Prompt State
+  // PWA Install Prompt State with strict typing
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
 
   useEffect(() => {
@@ -44,10 +37,12 @@ export default function Navbar() {
     };
     fetchUser();
 
-    // Properly typed event listener
-    const handleBeforeInstallPrompt = (e: BeforeInstallPromptEvent) => {
+    // Listen for PWA install capability safely
+    const handleBeforeInstallPrompt = (e: Event) => {
+      // Prevent the mini-infobar from appearing on mobile automatically
       e.preventDefault();
-      setDeferredPrompt(e);
+      // Stash the event so it can be triggered later, cast as the correct interface
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -59,10 +54,11 @@ export default function Navbar() {
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
-    
+    // Show the install prompt
     deferredPrompt.prompt();
+    // Wait for the user to respond to the prompt
     const { outcome } = await deferredPrompt.userChoice;
-    
+    // We no longer need the prompt. Clear it up.
     if (outcome === 'accepted') {
       setDeferredPrompt(null);
     }
@@ -88,7 +84,7 @@ export default function Navbar() {
           <Link href="/dashboard" className={`transition-colors ${pathname === '/dashboard' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>DASHBOARD</Link>
         )}
 
-        {/* PWA Install Button (Desktop) */}
+        {/* PWA Install Button (Desktop) - Only shows if device supports it */}
         {deferredPrompt && (
           <button onClick={handleInstallClick} className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white px-4 py-2 rounded flex items-center gap-2 transition-colors border border-blue-500/30">
             <Download className="w-4 h-4 shrink-0" /> Install App
