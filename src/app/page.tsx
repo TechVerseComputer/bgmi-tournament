@@ -169,7 +169,12 @@ export default function Home() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {latestTournaments.map((t) => {
-            const activePrizes = t.prize_breakdown?.length > 0 ? t.prize_breakdown : [t.first_prize || 0, t.second_prize || 0];
+            // BUG FIX: Strictly bound the visual prize array to the configured winner count
+            const winnerCount = t.total_winners || (t.prize_breakdown?.length > 0 ? t.prize_breakdown.length : 2);
+            const activePrizes = t.prize_breakdown?.length > 0 
+              ? t.prize_breakdown.slice(0, winnerCount) 
+              : [t.first_prize || 0, t.second_prize || 0].slice(0, winnerCount);
+              
             const totalPrizePool = activePrizes.reduce((a: number, b: number) => a + Number(b), 0);
 
             return (
@@ -197,7 +202,10 @@ export default function Home() {
                       </div>
                       <div className="flex justify-between items-center pt-1 border-t border-zinc-900">
                         <span className="text-zinc-400">Total Pool: <strong className="text-emerald-400 font-black">₹{totalPrizePool}</strong></span>
-                        <span className="text-orange-400">1st: ₹{activePrizes[0] || 0}</span>
+                        <span className="text-orange-400">
+                          1st: ₹{activePrizes[0] || 0} 
+                          {winnerCount >= 2 && activePrizes[1] ? ` | 2nd: ₹${activePrizes[1]}` : ''}
+                        </span>
                       </div>
                     </div>
 
