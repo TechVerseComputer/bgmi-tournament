@@ -283,7 +283,12 @@ export default function TournamentsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredTournaments.map((t) => {
-              const activePrizes = t.prize_breakdown?.length > 0 ? t.prize_breakdown : [t.first_prize || 0, t.second_prize || 0];
+              // BUG FIX: Strictly bound the visual prize array to the configured winner count
+              const winnerCount = t.total_winners || (t.prize_breakdown?.length > 0 ? t.prize_breakdown.length : 2);
+              const activePrizes = t.prize_breakdown?.length > 0 
+                ? t.prize_breakdown.slice(0, winnerCount) 
+                : [t.first_prize || 0, t.second_prize || 0].slice(0, winnerCount);
+                
               const totalPrizePool = activePrizes.reduce((a: number, b: number) => a + Number(b), 0);
               
               const countdown = formatCountdown(t.registration_closing_time);
@@ -316,7 +321,10 @@ export default function TournamentsPage() {
                         </div>
                         <div className="flex justify-between items-center pt-1 border-t border-zinc-900">
                           <span className="text-zinc-400">Total Pool: <strong className="text-emerald-400 font-black">₹{totalPrizePool}</strong></span>
-                          <span className="text-orange-400">1st: ₹{activePrizes[0] || 0} {activePrizes[1] ? `| 2nd: ₹${activePrizes[1]}` : ''}</span>
+                          <span className="text-orange-400">
+                            1st: ₹{activePrizes[0] || 0} 
+                            {winnerCount >= 2 && activePrizes[1] ? ` | 2nd: ₹${activePrizes[1]}` : ''}
+                          </span>
                         </div>
                       </div>
 
@@ -390,13 +398,13 @@ export default function TournamentsPage() {
                 </div>
               </div>
               <div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-4">Choose Drop Slot <span className="text-red-500">*</span></h3>
+                <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-4">Choose Drop Slot</h3>
                 <div className="grid grid-cols-5 gap-2">
                   {Array.from({ length: selectedMatch.total_slots || 25 }, (_, i) => i + 1).map((slot) => {
-                    const isBooked = bookedSlots.includes(slot);
+                    const isBooked = bookedSlotNumbers.includes(slot);
                     const isSelected = selectedSlot === slot;
                     return (
-                      <button type="button" key={slot} disabled={isBooked} onClick={() => setSelectedSlot(slot)} className={`py-3 rounded text-sm font-black transition-all ${isBooked ? 'bg-red-500/10 text-red-500/50 border border-red-500/10 cursor-not-allowed' : isSelected ? 'bg-orange-500 text-black border-2 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-orange-500/50 hover:text-white'}`}>
+                      <button type="button" key={slot} disabled={isBooked} onClick={() => setSelectedSlot(slot)} className={`py-3 rounded text-sm font-black transition-all ${isBooked ? 'bg-red-500/10 text-red-500/50 border border-red-500/10 cursor-not-allowed' : isSelected ? 'bg-orange-500 text-black border-2 border-orange-500' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-orange-500'}`}>
                         S{slot}
                       </button>
                     );
@@ -404,9 +412,9 @@ export default function TournamentsPage() {
                 </div>
               </div>
               <div className="pt-4 border-t border-zinc-800 flex gap-4">
-                <button type="button" onClick={() => setSelectedMatch(null)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors border border-zinc-800">Cancel</button>
-                <button type="submit" disabled={isSubmitting || walletBalance < selectedMatch.fee || !selectedSlot} className="flex-[2] bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-4 rounded transition-colors disabled:opacity-50">
-                  {isSubmitting ? 'Processing...' : `Join Match - ₹${selectedMatch.fee}`}
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors">Cancel</button>
+                <button type="submit" disabled={isSubmitting || !selectedSlot} className="flex-[2] bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-4 rounded transition-colors disabled:opacity-50">
+                  {isSubmitting ? 'Processing...' : `Confirm & Pay ₹${selectedMatch.fee}`}
                 </button>
               </div>
             </form>
