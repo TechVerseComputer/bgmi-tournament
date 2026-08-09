@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Gamepad, Wallet, LogIn, Menu, X } from 'lucide-react';
+import { Gamepad, Wallet, LogIn, Menu, X, Download } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { usePathname } from 'next/navigation';
@@ -12,6 +12,9 @@ export default function Navbar() {
   const [user, setUser] = useState<any>(null);
   const [balance, setBalance] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // PWA Install Prompt State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -23,7 +26,33 @@ export default function Navbar() {
       }
     };
     fetchUser();
+
+    // Listen for PWA install capability
+    const handleBeforeInstallPrompt = (e: Event) => {
+      // Prevent the mini-infobar from appearing on mobile automatically
+      e.preventDefault();
+      // Stash the event so it can be triggered later.
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
   }, [pathname]);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    // Show the install prompt
+    deferredPrompt.prompt();
+    // Wait for the user to respond to the prompt
+    const { outcome } = await deferredPrompt.userChoice;
+    // We no longer need the prompt. Clear it up.
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
 
   if (pathname === '/admin' || pathname === '/dashboard') return null;
 
@@ -44,6 +73,13 @@ export default function Navbar() {
         {user && (
           <Link href="/dashboard" className={`transition-colors ${pathname === '/dashboard' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>DASHBOARD</Link>
         )}
+
+        {/* PWA Install Button (Desktop) - Only shows if device supports it */}
+        {deferredPrompt && (
+          <button onClick={handleInstallClick} className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white px-4 py-2 rounded flex items-center gap-2 transition-colors border border-blue-500/30">
+            <Download className="w-4 h-4 shrink-0" /> Install App
+          </button>
+        )}
         
         {user ? (
           <Link href="/dashboard" className="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded flex items-center gap-2 transition-colors border border-zinc-700 text-emerald-500">
@@ -56,8 +92,15 @@ export default function Navbar() {
         )}
       </div>
 
-      {/* Mobile Hamburger Button */}
+      {/* Mobile Top Bar */}
       <div className="flex md:hidden items-center gap-3">
+        {/* PWA Install Button (Mobile Top Bar) */}
+        {deferredPrompt && (
+          <button onClick={handleInstallClick} className="bg-blue-600/20 text-blue-400 p-1.5 rounded border border-blue-500/30" aria-label="Install App">
+            <Download className="w-5 h-5 shrink-0" />
+          </button>
+        )}
+
         {user && (
           <Link href="/dashboard" className="bg-zinc-800 px-3 py-1.5 rounded flex items-center gap-1.5 text-xs text-emerald-500 border border-zinc-700 font-bold">
             <Wallet className="w-3.5 h-3.5 shrink-0" /> ₹{balance}
@@ -78,6 +121,13 @@ export default function Navbar() {
           
           {user && (
             <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-3 ${pathname === '/dashboard' ? 'text-orange-500' : 'text-zinc-300 hover:text-white'}`}>DASHBOARD</Link>
+          )}
+
+          {/* PWA Install Button (Mobile Drawer) */}
+          {deferredPrompt && (
+            <button onClick={() => { handleInstallClick(); setMobileMenuOpen(false); }} className="bg-blue-600/20 text-blue-400 border border-blue-500/30 py-3 rounded text-center font-black uppercase tracking-wider mt-2 flex items-center justify-center gap-2">
+              <Download className="w-4 h-4 shrink-0" /> Install App
+            </button>
           )}
           
           {!user && (
