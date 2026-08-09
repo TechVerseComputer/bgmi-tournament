@@ -112,8 +112,50 @@ export default function AdminTournamentControlCenter() {
 
   if (loading) return <div className="min-h-screen bg-[#050505] text-orange-500 font-bold flex items-center justify-center animate-pulse">Loading Control Center Data...</div>;
 
-  const activePrizes = tournament.prize_breakdown?.length > 0 ? tournament.prize_breakdown : [tournament.first_prize || 0, tournament.second_prize || 0];
   const isArchived = tournament.status === 'CANCELLED' || tournament.status === 'COMPLETED';
+
+  // --- BUG FIX: DYNAMIC LIVE POOL FOR ADMIN EXACTLY MIRRORING FRONTEND ---
+  const bookedCount = registrations.length;
+  const totalLivePool = bookedCount > 0 ? Math.floor(bookedCount * Number(tournament.fee || 0) * 0.85) : 0;
+  
+  let activePrizes: number[] = [];
+  const winnerCount = tournament.total_winners || (tournament.prize_breakdown?.length > 0 ? tournament.prize_breakdown.length : 2);
+
+  if (tournament.fee > 0 && totalLivePool > 0) {
+    if (winnerCount === 1) {
+      activePrizes = [totalLivePool];
+    } else if (winnerCount === 2) {
+      const p1 = Math.floor(totalLivePool * 0.70);
+      activePrizes = [p1, totalLivePool - p1];
+    } else if (winnerCount === 3) {
+      const p1 = Math.floor(totalLivePool * 0.55);
+      const p2 = Math.floor(totalLivePool * 0.30);
+      activePrizes = [p1, p2, totalLivePool - p1 - p2];
+    } else if (winnerCount === 4) {
+      const p1 = Math.floor(totalLivePool * 0.50);
+      const p2 = Math.floor(totalLivePool * 0.25);
+      const p3 = Math.floor(totalLivePool * 0.15);
+      activePrizes = [p1, p2, p3, totalLivePool - p1 - p2 - p3];
+    } else if (winnerCount === 5) {
+      const p1 = Math.floor(totalLivePool * 0.45);
+      const p2 = Math.floor(totalLivePool * 0.25);
+      const p3 = Math.floor(totalLivePool * 0.15);
+      const p4 = Math.floor(totalLivePool * 0.10);
+      activePrizes = [p1, p2, p3, p4, totalLivePool - p1 - p2 - p3 - p4];
+    } else if (winnerCount >= 6) {
+      const p1 = Math.floor(totalLivePool * 0.45);
+      const p2 = Math.floor(totalLivePool * 0.25);
+      const p3 = Math.floor(totalLivePool * 0.15);
+      const p4 = Math.floor(totalLivePool * 0.10);
+      const p5 = Math.floor(totalLivePool * 0.03); 
+      activePrizes = [p1, p2, p3, p4, p5, totalLivePool - p1 - p2 - p3 - p4 - p5];
+    }
+  } else {
+    // Static fallback rigorously sliced to exact winner count
+    activePrizes = tournament.prize_breakdown?.length > 0 
+      ? tournament.prize_breakdown.slice(0, winnerCount) 
+      : [tournament.first_prize || 0, tournament.second_prize || 0].slice(0, winnerCount);
+  }
 
   return (
     <main className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans pb-24">
