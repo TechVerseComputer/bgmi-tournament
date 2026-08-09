@@ -6,6 +6,23 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { usePathname } from 'next/navigation';
 
+// 1. Strictly type the PWA event to prevent TypeScript compilation errors
+interface BeforeInstallPromptEvent extends Event {
+  readonly platforms: string[];
+  readonly userChoice: Promise<{
+    outcome: 'accepted' | 'dismissed';
+    platform: string;
+  }>;
+  prompt(): Promise<void>;
+}
+
+// 2. Safely merge it into the global Window object
+declare global {
+  interface WindowEventMap {
+    beforeinstallprompt: BeforeInstallPromptEvent;
+  }
+}
+
 export default function Navbar() {
   const supabase = createClient();
   const pathname = usePathname();
@@ -14,7 +31,7 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // PWA Install Prompt State
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -27,30 +44,25 @@ export default function Navbar() {
     };
     fetchUser();
 
-    // Listen for PWA install capability
-    const handleBeforeInstallPrompt = (e: any) => {
-      // Prevent the mini-infobar from appearing on mobile automatically
+    // Properly typed event listener
+    const handleBeforeInstallPrompt = (e: BeforeInstallPromptEvent) => {
       e.preventDefault();
-      // Stash the event so it can be triggered later.
       setDeferredPrompt(e);
     };
 
-    // Bypass strict TypeScript event checking for PWA
-    const win = window as any;
-    win.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     return () => {
-      win.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, [pathname]);
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
-    // Show the install prompt
+    
     deferredPrompt.prompt();
-    // Wait for the user to respond to the prompt
     const { outcome } = await deferredPrompt.userChoice;
-    // We no longer need the prompt. Clear it up.
+    
     if (outcome === 'accepted') {
       setDeferredPrompt(null);
     }
@@ -76,7 +88,7 @@ export default function Navbar() {
           <Link href="/dashboard" className={`transition-colors ${pathname === '/dashboard' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>DASHBOARD</Link>
         )}
 
-        {/* PWA Install Button (Desktop) - Only shows if device supports it */}
+        {/* PWA Install Button (Desktop) */}
         {deferredPrompt && (
           <button onClick={handleInstallClick} className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white px-4 py-2 rounded flex items-center gap-2 transition-colors border border-blue-500/30">
             <Download className="w-4 h-4 shrink-0" /> Install App
