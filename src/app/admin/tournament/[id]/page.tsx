@@ -3,7 +3,18 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import { ShieldAlert, ArrowLeft, Users, Trophy, Mail, Copy, Check, CheckSquare, Eye, X } from 'lucide-react';
+import { ShieldAlert, ArrowLeft, Users, Trophy, Mail, Copy, Check, CheckSquare, Eye, X, Timer, Search } from 'lucide-react';
+
+const getServerTime = async () => {
+  try {
+    const url = typeof window !== 'undefined' ? window.location.href : '/';
+    const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+    const dateHeader = res.headers.get('Date');
+    return dateHeader ? new Date(dateHeader).getTime() : Date.now();
+  } catch {
+    return Date.now();
+  }
+};
 
 export default function AdminTournamentControlCenter() {
   const { id } = useParams();
@@ -21,13 +32,14 @@ export default function AdminTournamentControlCenter() {
   const [copied, setCopied] = useState(false);
   const [payoutLoading, setPayoutLoading] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  
+  const [currentTime, setCurrentTime] = useState<number | null>(null);
 
   // Evidence Review States
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [rejectModalObj, setRejectModalObj] = useState<any>(null);
   const [rejectNote, setRejectNote] = useState('');
 
-  // NEW: Track selected dropdown prize index for each registration
   const [selectedPayouts, setSelectedPayouts] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -44,6 +56,11 @@ export default function AdminTournamentControlCenter() {
       setAuthLoading(false);
     };
     checkAuthAndFetch();
+
+    // Start live clock for Review Timer calculations
+    setCurrentTime(Date.now());
+    const clock = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(clock);
   }, [id]);
 
   const fetchMatchData = async () => {
@@ -67,27 +84,22 @@ export default function AdminTournamentControlCenter() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // UPGRADED: Secure Payout Logic with Database Lock
   const handlePayoutWinner = async (regId: string, targetUserId: string, squadName: string, prizeAmount: number, positionLabel: string) => {
     if (!confirm(`Are you sure you want to payout ₹${prizeAmount} (${positionLabel}) to ${squadName}?`)) return;
 
     setPayoutLoading(regId);
     try {
-      // 1. Verify not already paid in DB to prevent race conditions
       const { data: checkReg } = await supabase.from('registrations').select('awarded_prize').eq('id', regId).single();
       if (checkReg?.awarded_prize) throw new Error("This squad has already been awarded a prize.");
 
-      // 2. Fetch Winner's Wallet
       const { data: wallet, error: walletErr } = await supabase.from('wallets').select('*').eq('user_id', targetUserId).single();
       if (walletErr || !wallet) throw new Error("Winner wallet not found.");
 
       const newBalance = Number(wallet.balance) + Number(prizeAmount);
 
-      // 3. Credit Wallet
       const { error: updateErr } = await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', targetUserId);
       if (updateErr) throw updateErr;
 
-      // 4. Record Transaction Ledger
       const { error: txErr } = await supabase.from('transactions').insert([{
         user_id: targetUserId,
         type: 'PRIZE_WIN',
@@ -97,18 +109,14 @@ export default function AdminTournamentControlCenter() {
       }]);
       if (txErr) throw txErr;
 
-      // 5. SECURE LOCK: Update Registration so they cannot be paid again
       const { error: regUpdateErr } = await supabase.from('registrations').update({ awarded_prize: positionLabel }).eq('id', regId);
       if (regUpdateErr) throw regUpdateErr;
 
       alert(`Successfully credited ₹${prizeAmount} to ${squadName}'s wallet!`);
       
-      // Clear the local selection state for this row
       const newSelections = { ...selectedPayouts };
       delete newSelections[regId];
       setSelectedPayouts(newSelections);
-
-      // Refresh Data to reflect the lock
       fetchMatchData();
     } catch (err: any) {
       alert(`Payout failed: ${err.message}`);
@@ -117,15 +125,35 @@ export default function AdminTournamentControlCenter() {
     }
   };
 
-  const handleMarkCompleted = async () => {
-    if (!confirm(`Mark "${tournament.name}" as COMPLETED? It will be moved to Old Match History and no further payouts can be made.`)) return;
+  // --- UPGRADED: 3-STEP REVIEW WORKFLOW ---
+  const handleStartReview = async () => {
+    if (!confirm(`Mark "${tournament.name}" as UNDER REVIEW?\n\nThis will start a mandatory 30-minute lockdown where players can submit evidence and admins can review screenshots before payouts are unlocked.`)) return;
+    setActionLoading(true);
+    try {
+      const serverTime = new Date(await getServerTime()).toISOString();
+      const { error } = await supabase.from('tournaments').update({ 
+        status: 'UNDER REVIEW',
+        review_started_at: serverTime
+      }).eq('id', tournament.id);
+      
+      if (error) throw error;
+      fetchMatchData();
+    } catch (err: any) {
+      alert("Error starting review: " + err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleFinalizeMatch = async () => {
+    if (!confirm(`Finalize Match Results?\n\nThis will change the status to COMPLETED and officially unlock all winner payout buttons.`)) return;
     setActionLoading(true);
     try {
       const { error } = await supabase.from('tournaments').update({ status: 'COMPLETED' }).eq('id', tournament.id);
       if (error) throw error;
       fetchMatchData();
     } catch (err: any) {
-      alert("Error completing match: " + err.message);
+      alert("Error finalizing match: " + err.message);
     } finally {
       setActionLoading(false);
     }
@@ -162,6 +190,29 @@ export default function AdminTournamentControlCenter() {
   if (loading) return <div className="min-h-screen bg-[#050505] text-orange-500 font-bold flex items-center justify-center animate-pulse">Loading Control Center Data...</div>;
 
   const isArchived = tournament.status === 'CANCELLED' || tournament.status === 'COMPLETED';
+  const isUnderReview = tournament.status === 'UNDER REVIEW';
+
+  // --- REVIEW TIMER LOGIC ---
+  let reviewTimeLeft = 0;
+  let canFinalize = false;
+
+  if (isUnderReview && tournament.review_started_at && currentTime) {
+    const reviewStart = new Date(tournament.review_started_at).getTime();
+    const reviewEnd = reviewStart + (30 * 60 * 1000); // 30 minutes
+    reviewTimeLeft = reviewEnd - currentTime;
+    
+    if (reviewTimeLeft <= 0) {
+      canFinalize = true;
+      reviewTimeLeft = 0;
+    }
+  }
+
+  const formatReviewTimer = (ms: number) => {
+    if (ms <= 0) return "REVIEW PERIOD ENDED";
+    const m = Math.floor((ms / 1000 / 60) % 60);
+    const s = Math.floor((ms / 1000) % 60);
+    return `Mandatory Review: ${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
   // Dynamic Live Pool Match
   const bookedCount = registrations.length;
@@ -205,7 +256,6 @@ export default function AdminTournamentControlCenter() {
       : [tournament.first_prize || 0, tournament.second_prize || 0].slice(0, winnerCount);
   }
 
-  // Generate dynamic labels (1st Place, 2nd Place, etc.)
   const posLabels = activePrizes.map((_, idx) => {
     if (idx === 0) return '1st Place';
     if (idx === 1) return '2nd Place';
@@ -213,7 +263,6 @@ export default function AdminTournamentControlCenter() {
     return `${idx + 1}th Place`;
   });
 
-  // Extract which prizes have already been globally paid out for this tournament
   const takenPrizes = registrations.map(r => r.awarded_prize).filter(Boolean);
 
   return (
@@ -228,25 +277,56 @@ export default function AdminTournamentControlCenter() {
             </button>
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-black italic tracking-wider text-orange-500 uppercase">{tournament?.name} — Control Center</h1>
-              {isArchived && (
-                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${tournament.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>
-                  {tournament.status}
-                </span>
-              )}
+              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${
+                tournament.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 
+                tournament.status === 'UNDER REVIEW' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse' :
+                tournament.status === 'CANCELLED' ? 'bg-red-500/10 text-red-500 border-red-500/20' :
+                'bg-zinc-800 text-zinc-400 border-zinc-700'
+              }`}>
+                {tournament.status}
+              </span>
             </div>
             <p className="text-zinc-400 text-sm mt-1 font-bold">Manage enrollments, review evidence, and execute secure one-click prize payouts.</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-            {!isArchived && (
-              <button disabled={actionLoading} onClick={handleMarkCompleted} className="bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500 px-5 py-3 rounded text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all disabled:opacity-50">
-                <CheckSquare className="w-4 h-4"/> Mark Completed
+            
+            {/* DYNAMIC REVIEW STATUS BUTTON */}
+            {!isArchived && !isUnderReview && (
+              <button disabled={actionLoading} onClick={handleStartReview} className="bg-amber-600 hover:bg-amber-500 text-black border border-amber-500 px-5 py-3 rounded text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all disabled:opacity-50">
+                <Search className="w-4 h-4"/> Start 30-Min Review
               </button>
             )}
+            {isUnderReview && (
+              <button disabled={actionLoading || !canFinalize} onClick={handleFinalizeMatch} className={`px-5 py-3 rounded text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all border ${canFinalize ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-zinc-800 text-zinc-500 border-zinc-700 cursor-not-allowed'}`}>
+                {canFinalize ? <><CheckSquare className="w-4 h-4"/> Finalize Match Results</> : <><Timer className="w-4 h-4"/> Review Active (Wait)</>}
+              </button>
+            )}
+
             <button onClick={handleCopyRoomDetails} className="bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 px-5 py-3 rounded text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all">
               {copied ? <Check className="w-4 h-4 text-emerald-500"/> : <Copy className="w-4 h-4 text-orange-500"/>} {copied ? 'Copied to Clipboard' : 'Copy All Squad Rosters'}
             </button>
           </div>
         </div>
+
+        {/* --- REVIEW TIMER BANNER --- */}
+        {isUnderReview && (
+          <div className={`border p-4 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg ${canFinalize ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
+            <div>
+              <h3 className={`font-black italic uppercase tracking-wider flex items-center gap-2 ${canFinalize ? 'text-emerald-500' : 'text-amber-500'}`}>
+                {canFinalize ? <CheckCircle className="w-5 h-5"/> : <AlertCircle className="w-5 h-5"/>} 
+                {canFinalize ? 'Review Period Complete' : 'Match Currently Under Review'}
+              </h3>
+              <p className="text-zinc-400 text-xs font-bold mt-1">
+                {canFinalize 
+                  ? "You may now finalize the match and distribute payouts." 
+                  : "Payouts are strictly locked. Please use this time to review player evidence."}
+              </p>
+            </div>
+            <div className={`text-xl font-black font-mono tracking-widest px-4 py-2 rounded-lg border ${canFinalize ? 'bg-emerald-950 text-emerald-400 border-emerald-900' : 'bg-amber-950 text-amber-400 border-amber-900'}`}>
+              {formatReviewTimer(reviewTimeLeft)}
+            </div>
+          </div>
+        )}
 
         {/* Quick Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -294,9 +374,12 @@ export default function AdminTournamentControlCenter() {
                   {registrations.map((reg) => {
                     const result = matchResults.find(r => r.registration_id === reg.id);
                     const isPaid = !!reg.awarded_prize;
+                    
+                    // Payouts are ONLY unlocked if the match is officially COMPLETED
+                    const payoutsLocked = tournament.status !== 'COMPLETED';
 
                     return (
-                      <tr key={reg.id} className={`hover:bg-zinc-800/40 transition-colors ${isArchived ? 'opacity-50' : ''}`}>
+                      <tr key={reg.id} className={`hover:bg-zinc-800/40 transition-colors`}>
                         <td className="p-4 font-black text-orange-500">S{reg.slot_number}</td>
                         <td className="p-4 font-black text-white">
                           {reg.squad_name}
@@ -328,7 +411,8 @@ export default function AdminTournamentControlCenter() {
                                 {result.status}
                               </span>
                               
-                              {result.status === 'PENDING' && !isArchived && (
+                              {/* Always allow evidence review regardless of completion status */}
+                              {result.status === 'PENDING' && (
                                 <div className="flex gap-1 mt-1">
                                   <button onClick={() => handleApproveEvidence(result.id)} disabled={actionLoading} className="bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-black p-1.5 rounded transition-colors disabled:opacity-50" title="Approve">
                                     <Check className="w-3 h-3"/>
@@ -344,11 +428,13 @@ export default function AdminTournamentControlCenter() {
 
                         {/* PAYOUT CONTROLS */}
                         <td className="p-4 text-right whitespace-nowrap">
-                          {isArchived ? (
-                            <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Match Locked</span>
-                          ) : isPaid ? (
+                          {isPaid ? (
                             <div className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider">
                               <Check className="w-3.5 h-3.5" /> Paid: {reg.awarded_prize}
+                            </div>
+                          ) : payoutsLocked ? (
+                            <div className="inline-flex items-center gap-1.5 bg-zinc-800 text-zinc-500 border border-zinc-700 px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest cursor-not-allowed">
+                              {isUnderReview ? 'Payouts Locked (Review)' : 'Payouts Locked'}
                             </div>
                           ) : (
                             <div className="flex items-center justify-end gap-2">
