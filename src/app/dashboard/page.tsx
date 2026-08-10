@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, ShieldCheck, X, Home, LogOut, Gamepad2, Clock, Key, AlertCircle, UploadCloud, ImageIcon, CheckCircle2 } from 'lucide-react';
+import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, ShieldCheck, X, Home, LogOut, Gamepad2, Clock, Key, AlertCircle, UploadCloud, ImageIcon, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -16,7 +16,7 @@ export default function PlayerDashboard() {
   const [wallet, setWallet] = useState({ balance: 0, total_deposited: 0, total_won: 0 });
   const [transactions, setTransactions] = useState<any[]>([]);
   const [myMatches, setMyMatches] = useState<any[]>([]);
-  const [myResults, setMyResults] = useState<any[]>([]); // NEW: Tracks submitted screenshots
+  const [myResults, setMyResults] = useState<any[]>([]); 
   
   // Deposit States
   const [depositAmount, setDepositAmount] = useState<number | ''>('');
@@ -64,7 +64,6 @@ export default function PlayerDashboard() {
     const { data: regs } = await supabase.from('registrations').select('*, tournaments(*)').eq('user_id', userId).order('created_at', { ascending: false });
     if (regs) setMyMatches(regs);
     
-    // NEW: Fetch submitted match results
     const { data: resultsData } = await supabase.from('match_results').select('*').eq('user_id', userId);
     if (resultsData) setMyResults(resultsData);
     
@@ -131,7 +130,6 @@ export default function PlayerDashboard() {
     setIsSubmitting(false);
   };
 
-  // --- NEW: HANDLE MATCH RESULT IMAGE SELECTION ---
   const handleResultImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -141,7 +139,6 @@ export default function PlayerDashboard() {
     }
   };
 
-  // --- NEW: HANDLE MATCH RESULT SUBMISSION ---
   const submitMatchResult = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!resultFile || !resultModalObj) return alert("Please select an image first.");
@@ -157,7 +154,6 @@ export default function PlayerDashboard() {
       
       const { data: publicUrlData } = supabase.storage.from('match-results').getPublicUrl(filePath);
 
-      // Check if user is replacing a rejected result
       const existingResult = myResults.find(r => r.registration_id === resultModalObj.id);
 
       if (existingResult) {
@@ -203,12 +199,19 @@ export default function PlayerDashboard() {
     );
   }
 
+  // Pre-calculate upcoming match for mobile app view
+  const upcomingMatches = myMatches.filter((m: any) => {
+    const t = Array.isArray(m.tournaments) ? m.tournaments[0] : m.tournaments;
+    return t && t.status !== 'COMPLETED' && t.status !== 'CANCELLED';
+  });
+  const nextMatch = upcomingMatches.length > 0 ? upcomingMatches[0] : null;
+
   return (
-    <main className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans pb-24">
+    <main className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans pb-28 md:pb-24">
       <div className="max-w-6xl mx-auto">
         
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-zinc-800 pb-6">
+        {/* --- DESKTOP HEADER (Hidden on Mobile) --- */}
+        <div className="hidden md:flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-zinc-800 pb-6">
           <div className="flex items-center gap-3">
             <Wallet className="w-8 h-8 text-emerald-500" />
             <div>
@@ -226,8 +229,19 @@ export default function PlayerDashboard() {
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex flex-wrap gap-2 mb-8 bg-zinc-900 p-1 rounded-lg border border-zinc-800 w-full md:w-fit">
+        {/* --- MOBILE APP HEADER (Visible only on Mobile) --- */}
+        <div className="md:hidden flex justify-between items-center mb-6 pt-2">
+          <div>
+            <h1 className="text-2xl font-black italic tracking-wider">ACCOUNT</h1>
+            <p className="text-zinc-500 text-[10px] font-bold tracking-wide truncate max-w-[200px]">{user.email}</p>
+          </div>
+          <button onClick={handleLogout} className="bg-red-500/10 border border-red-500/20 text-red-500 p-2.5 rounded-full hover:bg-red-500 hover:text-white transition-colors" aria-label="Logout">
+            <LogOut className="w-4 h-4"/>
+          </button>
+        </div>
+
+        {/* --- DESKTOP TAB NAVIGATION (Hidden on Mobile) --- */}
+        <div className="hidden md:flex flex-wrap gap-2 mb-8 bg-zinc-900 p-1 rounded-lg border border-zinc-800 w-full md:w-fit">
           {[
             { id: 'overview', icon: Wallet, label: 'Overview' },
             { id: 'matches', icon: Gamepad2, label: 'My Matches' },
@@ -243,75 +257,197 @@ export default function PlayerDashboard() {
 
         {/* --- OVERVIEW TAB --- */}
         {activeTab === 'overview' && (
-          <div className="space-y-6">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col md:flex-row justify-between items-center gap-6">
+          <>
+            {/* DESKTOP VIEW */}
+            <div className="hidden md:block space-y-6">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col md:flex-row justify-between items-center gap-6">
+                <div>
+                  <p className="text-zinc-400 font-bold text-sm uppercase tracking-wider flex items-center gap-2 mb-2"><Wallet className="w-4 h-4 text-emerald-500"/> Available Balance</p>
+                  <p className="text-5xl font-black text-white">₹{wallet.balance}</p>
+                </div>
+                <div className="flex gap-4 w-full md:w-auto">
+                  <button onClick={() => setActiveTab('deposit')} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-wider px-6 py-3 rounded flex items-center justify-center gap-2 transition-colors"><ArrowDownToLine className="w-5 h-5"/> Add Money</button>
+                  <button onClick={() => setActiveTab('withdraw')} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase tracking-wider px-6 py-3 rounded border border-zinc-700 flex items-center justify-center gap-2 transition-colors"><ArrowUpFromLine className="w-5 h-5"/> Withdraw</button>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-6">
+                  <p className="text-emerald-500 font-black text-2xl mb-1">₹{wallet.total_deposited}</p>
+                  <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Total Deposited</p>
+                </div>
+                <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-6">
+                  <p className="text-amber-500 font-black text-2xl mb-1">₹{wallet.total_won}</p>
+                  <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Total Winnings</p>
+                </div>
+              </div>
+            </div>
+
+            {/* MOBILE VIEW (App-Like Flow) */}
+            <div className="md:hidden space-y-6">
+              {/* Premium Compact Wallet Card */}
+              <div className="bg-gradient-to-br from-[#121215] to-[#0a0a0c] border border-zinc-800 rounded-2xl p-5 relative overflow-hidden shadow-2xl">
+                <div className="absolute top-0 right-0 p-4 opacity-[0.03]"><Wallet size={120}/></div>
+                <p className="text-[9px] text-zinc-400 font-black uppercase tracking-widest mb-1">Available Balance</p>
+                <p className="text-4xl font-black text-white mb-5 tracking-tight">₹{wallet.balance}</p>
+                
+                <div className="flex justify-between border-t border-zinc-800/80 pt-4">
+                  <div>
+                    <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mb-0.5">Deposited</p>
+                    <p className="text-xs font-black text-emerald-500">₹{wallet.total_deposited}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mb-0.5">Winnings</p>
+                    <p className="text-xs font-black text-amber-500">₹{wallet.total_won}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Primary Actions Grid */}
+              <div className="flex gap-3">
+                <button onClick={() => setActiveTab('deposit')} className="flex-1 bg-emerald-500 active:scale-95 text-black py-3.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_4px_15px_rgba(16,185,129,0.2)] transition-transform">
+                  <ArrowDownToLine size={16}/> Add Money
+                </button>
+                <button onClick={() => setActiveTab('withdraw')} className="flex-1 bg-zinc-800 active:scale-95 text-white py-3.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 border border-zinc-700 shadow-lg transition-transform">
+                  <ArrowUpFromLine size={16}/> Withdraw
+                </button>
+              </div>
+
+              {/* My Matches Compact Feed */}
               <div>
-                <p className="text-zinc-400 font-bold text-sm uppercase tracking-wider flex items-center gap-2 mb-2"><Wallet className="w-4 h-4 text-emerald-500"/> Available Balance</p>
-                <p className="text-5xl font-black text-white">₹{wallet.balance}</p>
+                <div className="flex justify-between items-end mb-3 px-1">
+                  <h3 className="font-black text-xs uppercase tracking-wider text-zinc-300">My Matches</h3>
+                  {myMatches.length > 0 && (
+                    <button onClick={() => setActiveTab('matches')} className="text-[10px] font-bold text-orange-500 uppercase tracking-widest">View All</button>
+                  )}
+                </div>
+                
+                {nextMatch ? (
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 flex flex-col gap-3 shadow-lg">
+                    <div className="flex justify-between items-start">
+                      <div className="pr-4">
+                        <h4 className="font-black italic text-lg text-white leading-tight truncate">{nextMatch.tournaments.name || 'Tournament'}</h4>
+                        <p className="text-xs text-zinc-400 font-bold mt-1">
+                          {nextMatch.tournaments.match_time ? new Date(nextMatch.tournaments.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}
+                        </p>
+                      </div>
+                      <span className="bg-orange-500/10 text-orange-500 border border-orange-500/20 px-2 py-1 rounded text-[9px] font-black uppercase tracking-wider shrink-0">
+                        ₹{nextMatch.tournaments.fee} Entry
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center bg-zinc-950 p-3 rounded-lg border border-zinc-800/80">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-0.5">Booked Slot</span>
+                        <span className="text-sm font-black text-white">S{nextMatch.slot_number}</span>
+                      </div>
+                      <div className="flex flex-col text-right">
+                        <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mb-0.5">Status</span>
+                        <span className="text-xs font-black text-emerald-500">{nextMatch.tournaments.status || 'OPEN'}</span>
+                      </div>
+                    </div>
+                    
+                    <button onClick={() => setActiveTab('matches')} className="w-full bg-zinc-800 active:scale-95 text-white text-[10px] font-black uppercase tracking-widest py-3 rounded-lg border border-zinc-700 transition-transform">
+                      Manage Match
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 text-center">
+                    <Gamepad2 className="w-8 h-8 text-zinc-600 mx-auto mb-3"/>
+                    <p className="text-xs font-bold text-zinc-400 mb-4">No upcoming matches scheduled.</p>
+                    <Link href="/tournaments" className="inline-block bg-orange-500 text-black px-5 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest">Explore Tournaments</Link>
+                  </div>
+                )}
               </div>
-              <div className="flex gap-4 w-full md:w-auto">
-                <button onClick={() => setActiveTab('deposit')} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-wider px-6 py-3 rounded flex items-center justify-center gap-2 transition-colors"><ArrowDownToLine className="w-5 h-5"/> Add Money</button>
-                <button onClick={() => setActiveTab('withdraw')} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase tracking-wider px-6 py-3 rounded border border-zinc-700 flex items-center justify-center gap-2 transition-colors"><ArrowUpFromLine className="w-5 h-5"/> Withdraw</button>
+
+              {/* Recent Activity Feed */}
+              <div className="pt-2">
+                <div className="flex justify-between items-end mb-3 px-1">
+                  <h3 className="font-black text-xs uppercase tracking-wider text-zinc-300">Recent Activity</h3>
+                  {transactions.length > 0 && (
+                    <button onClick={() => setActiveTab('history')} className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Full Ledger</button>
+                  )}
+                </div>
+
+                {transactions.length > 0 ? (
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden divide-y divide-zinc-800 shadow-lg">
+                    {transactions.slice(0, 3).map(tx => (
+                      <div key={tx.id} className="p-3 flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-full shrink-0 ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                            {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? <ArrowDownToLine size={14}/> : <ArrowUpFromLine size={14}/>}
+                          </div>
+                          <div className="min-w-0 pr-2">
+                            <p className="text-[11px] font-bold text-white truncate w-full">{tx.description}</p>
+                            <p className="text-[9px] text-zinc-500 font-mono mt-0.5">{new Date(tx.created_at).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className={`text-sm font-black ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? 'text-emerald-500' : 'text-white'}`}>
+                            {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? '+' : '-'}₹{tx.amount}
+                          </p>
+                          <span className={`text-[8px] font-black uppercase tracking-wider ${tx.status === 'PENDING' ? 'text-amber-500' : tx.status === 'SUCCESS' ? 'text-emerald-500' : 'text-red-500'}`}>{tx.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 text-center">
+                    <History className="w-8 h-8 text-zinc-600 mx-auto mb-2"/>
+                    <p className="text-xs font-bold text-zinc-400">No recent transactions.</p>
+                  </div>
+                )}
               </div>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-6">
-                <p className="text-emerald-500 font-black text-2xl mb-1">₹{wallet.total_deposited}</p>
-                <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Total Deposited</p>
-              </div>
-              <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-6">
-                <p className="text-amber-500 font-black text-2xl mb-1">₹{wallet.total_won}</p>
-                <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Total Winnings</p>
-              </div>
-            </div>
-          </div>
+          </>
         )}
 
         {/* --- MY MATCHES TAB --- */}
         {activeTab === 'matches' && (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-6 max-w-5xl mx-auto">
+            <div className="md:hidden mb-4">
+              <button onClick={() => setActiveTab('overview')} className="flex items-center gap-1 text-zinc-400 text-[10px] font-black uppercase tracking-wider"><ArrowLeft className="w-3 h-3"/> Back to Hub</button>
+            </div>
             <h2 className="text-lg font-black uppercase flex items-center gap-2 mb-6"><Gamepad2 className="w-5 h-5 text-orange-500"/> My Tournaments & Results</h2>
             
             {myMatches.length === 0 ? (
               <div className="text-center py-12 bg-zinc-950 rounded-lg border border-zinc-800">
-                <p className="text-zinc-500 font-bold uppercase tracking-widest">You haven&apos;t joined any matches yet.</p>
-                <button onClick={() => router.push('/tournaments')} className="mt-4 bg-orange-500 hover:bg-orange-400 text-black font-black px-6 py-2 rounded uppercase text-xs transition-colors">Browse Tournaments</button>
+                <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs md:text-sm">You haven&apos;t joined any matches yet.</p>
+                <button onClick={() => router.push('/tournaments')} className="mt-4 bg-orange-500 hover:bg-orange-400 text-black font-black px-6 py-3 rounded uppercase text-xs transition-colors">Browse Tournaments</button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
                 {myMatches.map((m: any, idx: number) => {
                   const tourney = Array.isArray(m.tournaments) ? m.tournaments[0] : m.tournaments;
                   if (!tourney) return null;
 
-                  // Evaluate Result Status
                   const submittedResult = myResults.find(r => r.registration_id === m.id);
-                  const isMatchActive = tourney.status === 'FULL' || tourney.status === 'COMPLETED';
+                  const isMatchActive = tourney.status === 'FULL' || tourney.status === 'COMPLETED' || tourney.status === 'UNDER REVIEW';
                   const needsSubmission = isMatchActive && (!submittedResult || submittedResult.status === 'REJECTED');
 
                   return (
-                    <div key={idx} className="bg-zinc-950 border border-zinc-800 rounded-lg p-5 flex flex-col justify-between">
+                    <div key={idx} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 md:p-5 flex flex-col justify-between shadow-lg">
                       <div>
                         <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h3 className="font-black italic text-lg tracking-wider text-white">{tourney.name || 'Tournament'}</h3>
-                            <div className="flex items-center gap-1.5 text-zinc-400 text-xs font-bold mt-1">
-                              <Clock className="w-3.5 h-3.5 text-orange-500" />
+                          <div className="pr-3">
+                            <h3 className="font-black italic text-base md:text-lg tracking-wider text-white leading-tight">{tourney.name || 'Tournament'}</h3>
+                            <div className="flex items-center gap-1.5 text-zinc-400 text-[10px] md:text-xs font-bold mt-1.5">
+                              <Clock className="w-3 h-3 text-orange-500" />
                               {tourney.match_time ? new Date(tourney.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}
                             </div>
                           </div>
-                          <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded border ${tourney.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : tourney.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
+                          <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded border shrink-0 ${tourney.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : tourney.status === 'UNDER REVIEW' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse' : tourney.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
                             {tourney.status || 'OPEN'}
                           </span>
                         </div>
                         
-                        <div className="bg-zinc-900 border border-zinc-800 rounded p-3 mb-4 flex justify-between items-center">
+                        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 mb-4 flex justify-between items-center">
                           <div>
-                            <p className="text-xs text-zinc-500 font-bold uppercase">Booked Slot</p>
-                            <p className="text-xl font-black text-orange-500">Slot {m.slot_number}</p>
+                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-0.5">Booked Slot</p>
+                            <p className="text-lg font-black text-orange-500">S{m.slot_number}</p>
                           </div>
                           <div className="text-right">
-                            <p className="text-xs text-zinc-500 font-bold uppercase">Squad Name</p>
+                            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-0.5">Squad Name</p>
                             <p className="text-sm font-bold text-white">{m.squad_name}</p>
                           </div>
                         </div>
@@ -321,16 +457,16 @@ export default function PlayerDashboard() {
                           <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-lg p-4 mb-4">
                             <div className="flex items-center gap-2 mb-3 border-b border-emerald-500/20 pb-2">
                               <Key className="w-4 h-4 text-emerald-500" />
-                              <h4 className="text-xs font-black uppercase tracking-widest text-emerald-500">Room Details Unlocked</h4>
+                              <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Room Unlocked</h4>
                             </div>
                             <div className="grid grid-cols-2 gap-4 text-sm">
                               <div>
-                                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Room ID</p>
-                                <p className="font-mono font-black text-white select-all">{tourney.room_id}</p>
+                                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Room ID</p>
+                                <p className="font-mono font-black text-white select-all text-xs md:text-sm">{tourney.room_id}</p>
                               </div>
                               <div>
-                                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Password</p>
-                                <p className="font-mono font-black text-white select-all">{tourney.room_password}</p>
+                                <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Password</p>
+                                <p className="font-mono font-black text-white select-all text-xs md:text-sm">{tourney.room_password}</p>
                               </div>
                             </div>
                           </div>
@@ -338,39 +474,39 @@ export default function PlayerDashboard() {
                           <div className="bg-zinc-900/50 border border-zinc-800 border-dashed rounded-lg p-4 mb-4 flex items-start gap-3">
                             <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                             <div>
-                              <p className="text-xs font-black text-amber-500 uppercase tracking-wider mb-1">Room Details Pending</p>
-                              <p className="text-[10px] text-zinc-400 font-bold leading-relaxed">The Room ID and Password will automatically appear here approx 15 minutes before the match starts.</p>
+                              <p className="text-[10px] font-black text-amber-500 uppercase tracking-wider mb-1">Details Pending</p>
+                              <p className="text-[9px] text-zinc-400 font-bold leading-relaxed">Room ID & Pass will appear 15 mins before start.</p>
                             </div>
                           </div>
                         )}
 
-                        {/* --- NEW: SCREENSHOT SUBMISSION STATUS UI --- */}
+                        {/* --- SCREENSHOT SUBMISSION STATUS UI --- */}
                         {submittedResult && (
-                          <div className={`p-4 rounded-lg border mb-4 ${
+                          <div className={`p-3 md:p-4 rounded-lg border mb-4 ${
                             submittedResult.status === 'PENDING' ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' :
                             submittedResult.status === 'APPROVED' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500' :
                             'bg-red-500/10 border-red-500/30 text-red-500'
                           }`}>
                             <div className="flex items-center gap-2 mb-1">
-                              {submittedResult.status === 'PENDING' && <Clock className="w-4 h-4" />}
-                              {submittedResult.status === 'APPROVED' && <CheckCircle2 className="w-4 h-4" />}
-                              {submittedResult.status === 'REJECTED' && <AlertCircle className="w-4 h-4" />}
-                              <p className="text-xs font-black uppercase tracking-wider">Result Status: {submittedResult.status}</p>
+                              {submittedResult.status === 'PENDING' && <Clock className="w-3.5 h-3.5" />}
+                              {submittedResult.status === 'APPROVED' && <CheckCircle2 className="w-3.5 h-3.5" />}
+                              {submittedResult.status === 'REJECTED' && <AlertCircle className="w-3.5 h-3.5" />}
+                              <p className="text-[10px] md:text-xs font-black uppercase tracking-wider">Result: {submittedResult.status}</p>
                             </div>
                             {submittedResult.status === 'REJECTED' && submittedResult.admin_note && (
-                              <p className="text-[10px] mt-2 font-bold text-red-400 bg-red-950/40 p-2 rounded">Note: {submittedResult.admin_note}</p>
+                              <p className="text-[9px] md:text-[10px] mt-2 font-bold text-red-400 bg-red-950/40 p-2 rounded">Note: {submittedResult.admin_note}</p>
                             )}
                           </div>
                         )}
                       </div>
                       
                       <div className="flex gap-2 mt-2">
-                        <Link href={`/tournaments/${tourney.id}`} className="flex-1 text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded text-xs transition-colors border border-zinc-700">
+                        <Link href={`/tournaments/${tourney.id}`} className="flex-1 text-center bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase tracking-wider py-3 rounded-lg text-[10px] md:text-xs transition-colors border border-zinc-700">
                           View Match
                         </Link>
                         {needsSubmission && (
-                          <button onClick={() => setResultModalObj({ ...m, tournament_id: tourney.id })} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-wider py-3 rounded text-xs transition-colors shadow-lg flex items-center justify-center gap-1.5">
-                            <UploadCloud className="w-4 h-4" /> Submit Result
+                          <button onClick={() => setResultModalObj({ ...m, tournament_id: tourney.id })} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-wider py-3 rounded-lg text-[10px] md:text-xs transition-colors shadow-lg flex items-center justify-center gap-1.5">
+                            <UploadCloud className="w-3.5 h-3.5" /> Submit Result
                           </button>
                         )}
                       </div>
@@ -384,14 +520,17 @@ export default function PlayerDashboard() {
 
         {/* --- DEPOSIT TAB --- */}
         {activeTab === 'deposit' && (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-3xl mx-auto">
-            <h2 className="text-lg font-black uppercase flex items-center gap-2 mb-6"><ArrowDownToLine className="w-5 h-5 text-emerald-500"/> Add Money to Wallet</h2>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-6 max-w-3xl mx-auto">
+            <div className="md:hidden mb-4">
+              <button onClick={() => setActiveTab('overview')} className="flex items-center gap-1 text-zinc-400 text-[10px] font-black uppercase tracking-wider"><ArrowLeft className="w-3 h-3"/> Back to Hub</button>
+            </div>
+            <h2 className="text-lg font-black uppercase flex items-center gap-2 mb-6"><ArrowDownToLine className="w-5 h-5 text-emerald-500"/> Add Money</h2>
             
             <div className="mb-6">
-              <p className="text-xs text-zinc-400 font-bold uppercase tracking-wider mb-3">Quick Select</p>
-              <div className="grid grid-cols-3 gap-3">
+              <p className="text-[10px] md:text-xs text-zinc-400 font-bold uppercase tracking-wider mb-3">Quick Select</p>
+              <div className="grid grid-cols-3 gap-2 md:gap-3">
                 {quickAmounts.map(amt => (
-                  <button key={amt} type="button" onClick={() => setDepositAmount(amt)} className={`py-3 rounded font-black border transition-all ${depositAmount === amt ? 'bg-emerald-500 text-black border-emerald-500' : 'bg-zinc-950 border-zinc-800 text-zinc-300 hover:border-emerald-500/50'}`}>
+                  <button key={amt} type="button" onClick={() => setDepositAmount(amt)} className={`py-3 rounded-lg font-black border text-xs transition-all ${depositAmount === amt ? 'bg-emerald-500 text-black border-emerald-500' : 'bg-zinc-950 border-zinc-800 text-zinc-300 hover:border-emerald-500/50'}`}>
                     ₹{amt}
                   </button>
                 ))}
@@ -399,87 +538,51 @@ export default function PlayerDashboard() {
             </div>
 
             <div className="mb-8">
-              <p className="text-xs text-zinc-400 font-bold uppercase tracking-wider mb-3">Or enter custom amount</p>
-              <input type="number" value={depositAmount} onChange={(e) => setDepositAmount(Number(e.target.value))} placeholder="Enter amount" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-bold text-lg focus:border-emerald-500 outline-none text-white" />
-              <div className="flex justify-between text-[10px] text-zinc-500 font-bold uppercase mt-2">
+              <p className="text-[10px] md:text-xs text-zinc-400 font-bold uppercase tracking-wider mb-3">Or enter custom amount</p>
+              <input type="number" value={depositAmount} onChange={(e) => setDepositAmount(Number(e.target.value))} placeholder="Enter amount" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 font-black text-xl md:text-2xl focus:border-emerald-500 outline-none text-white" />
+              <div className="flex justify-between text-[9px] md:text-[10px] text-zinc-500 font-bold uppercase mt-2">
                 <span>Min ₹10</span><span>Max ₹50,000</span>
               </div>
             </div>
 
-            <div className="border-t border-zinc-800 pt-6 mb-6 space-y-3 text-sm font-bold">
+            <div className="border-t border-zinc-800 pt-6 mb-6 space-y-3 text-xs md:text-sm font-bold">
               <div className="flex justify-between text-zinc-400"><p>Deposit Amount</p><p>₹{depositAmount || 0}</p></div>
               <div className="flex justify-between text-zinc-400"><p>Processing Fee</p><p className="text-emerald-500">FREE</p></div>
-              <div className="flex justify-between text-lg text-white border-t border-zinc-800 pt-3"><p>Total to Pay</p><p>₹{depositAmount || 0}</p></div>
+              <div className="flex justify-between text-base md:text-lg text-white border-t border-zinc-800 pt-3"><p>Total to Pay</p><p>₹{depositAmount || 0}</p></div>
             </div>
 
-            <button disabled={!depositAmount || depositAmount < 10} onClick={() => setShowQRModal(true)} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:hover:bg-emerald-500 text-black font-black uppercase tracking-widest py-4 rounded-lg flex items-center justify-center gap-2 transition-colors">
+            <button disabled={!depositAmount || depositAmount < 10} onClick={() => setShowQRModal(true)} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:hover:bg-emerald-500 text-black font-black uppercase tracking-widest py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg">
               ⚡ Pay ₹{depositAmount || 0} via UPI
             </button>
           </div>
         )}
 
-        {/* --- ZAPUPI QR MODAL --- */}
-        {showQRModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm">
-            <div className="bg-[#1c1c24] w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl border border-zinc-800 relative flex flex-col md:flex-row">
-              <button onClick={() => setShowQRModal(false)} className="absolute top-4 right-4 bg-zinc-800 p-2 rounded-full text-zinc-400 hover:text-white z-10"><X className="w-5 h-5"/></button>
-              
-              {/* Left Side: QR Code */}
-              <div className="bg-white p-8 flex flex-col items-center justify-center w-full md:w-1/2">
-                <h3 className="text-black font-black uppercase tracking-widest mb-6 flex items-center gap-2"><QrCode className="w-5 h-5"/> Scan & Pay</h3>
-                <div className="bg-white p-2 rounded-xl shadow-lg mb-6 border border-zinc-200">
-                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=digitallibrary@slc&pn=BGMI+Arena&am=${depositAmount}`} alt="UPI QR" className="w-48 h-48" />
-                </div>
-                <p className="text-zinc-500 text-xs font-bold uppercase">GPay • PhonePe • Paytm</p>
-              </div>
-
-              {/* Right Side: Details & Input */}
-              <div className="p-8 w-full md:w-1/2 flex flex-col justify-center bg-[#1c1c24]">
-                <div className="text-center mb-8">
-                  <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider mb-2">Amount to Pay</p>
-                  <p className="text-5xl font-black text-[#8b8df8]">₹{depositAmount}.00</p>
-                </div>
-
-                <form onSubmit={handleDepositSubmit} className="space-y-4">
-                  <div className="bg-[#252530] p-4 rounded-xl border border-zinc-700">
-                    <label className="text-xs font-bold text-zinc-400 uppercase flex items-center gap-2 mb-2"><ShieldCheck className="w-4 h-4 text-[#8b8df8]"/> Already Paid? Enter UTR</label>
-                    <input required type="text" placeholder="12-digit UTR Number" value={utrNumber} onChange={(e) => setUtrNumber(e.target.value)} className="w-full bg-[#1c1c24] border border-zinc-700 rounded-lg p-3 text-sm font-mono focus:border-[#8b8df8] outline-none text-white" />
-                  </div>
-                  <button type="submit" disabled={isSubmitting} className="w-full bg-[#8b8df8] hover:bg-[#7a7ce0] text-white font-black uppercase tracking-widest py-3 rounded-xl transition-colors disabled:opacity-50">
-                    {isSubmitting ? 'Verifying...' : 'Submit to Verify'}
-                  </button>
-                </form>
-                <div className="mt-8 flex items-center justify-center gap-2 text-zinc-600 text-[10px] font-bold uppercase">
-                  <ShieldCheck className="w-4 h-4" /> Secure Gateway
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* --- WITHDRAW TAB --- */}
         {activeTab === 'withdraw' && (
-           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 max-w-3xl mx-auto">
+           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-6 max-w-3xl mx-auto">
+             <div className="md:hidden mb-4">
+               <button onClick={() => setActiveTab('overview')} className="flex items-center gap-1 text-zinc-400 text-[10px] font-black uppercase tracking-wider"><ArrowLeft className="w-3 h-3"/> Back to Hub</button>
+             </div>
              <h2 className="text-lg font-black uppercase flex items-center gap-2 mb-6"><ArrowUpFromLine className="w-5 h-5 text-zinc-400"/> Withdraw Winnings</h2>
              
-             <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-lg mb-6 flex justify-between items-center">
+             <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl mb-6 flex justify-between items-center">
                <div>
-                 <p className="text-emerald-500 font-bold text-xs uppercase mb-1">Available to Withdraw</p>
-                 <p className="text-2xl font-black text-white">₹{wallet.balance}</p>
+                 <p className="text-emerald-500 font-bold text-[10px] md:text-xs uppercase mb-1">Available to Withdraw</p>
+                 <p className="text-2xl md:text-3xl font-black text-white">₹{wallet.balance}</p>
                </div>
                <Wallet className="w-8 h-8 text-emerald-500/50" />
              </div>
 
              <form onSubmit={handleWithdrawSubmit} className="space-y-6">
                <div>
-                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-2">Amount to Withdraw</label>
-                 <input required type="number" min="100" max={wallet.balance} value={withdrawAmount} onChange={(e) => setWithdrawAmount(Number(e.target.value))} placeholder="Min ₹100" className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-bold focus:border-emerald-500 outline-none text-white" />
+                 <label className="text-[10px] md:text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-2">Amount to Withdraw</label>
+                 <input required type="number" min="100" max={wallet.balance} value={withdrawAmount} onChange={(e) => setWithdrawAmount(Number(e.target.value))} placeholder="Min ₹100" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 font-black text-xl focus:border-emerald-500 outline-none text-white" />
                </div>
                <div>
-                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-2">Your UPI ID</label>
-                 <input required type="text" placeholder="e.g. 9876543210@ybl" value={upiId} onChange={(e) => setUpiId(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-4 font-bold focus:border-emerald-500 outline-none text-white" />
+                 <label className="text-[10px] md:text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-2">Your UPI ID</label>
+                 <input required type="text" placeholder="e.g. 9876543210@ybl" value={upiId} onChange={(e) => setUpiId(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 font-bold text-sm md:text-base focus:border-emerald-500 outline-none text-white" />
                </div>
-               <button type="submit" disabled={isSubmitting || wallet.balance < 100} className="w-full bg-white hover:bg-zinc-200 text-black font-black uppercase tracking-widest py-4 rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 transition-colors">
+               <button type="submit" disabled={isSubmitting || wallet.balance < 100} className="w-full bg-white hover:bg-zinc-200 text-black font-black uppercase tracking-widest py-4 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-colors shadow-lg">
                  {isSubmitting ? 'Processing...' : 'Request Withdrawal'}
                </button>
              </form>
@@ -488,31 +591,34 @@ export default function PlayerDashboard() {
 
         {/* --- HISTORY TAB --- */}
         {activeTab === 'history' && (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 md:p-6 max-w-4xl mx-auto">
+            <div className="md:hidden mb-4">
+              <button onClick={() => setActiveTab('overview')} className="flex items-center gap-1 text-zinc-400 text-[10px] font-black uppercase tracking-wider"><ArrowLeft className="w-3 h-3"/> Back to Hub</button>
+            </div>
             <h2 className="text-lg font-black uppercase flex items-center gap-2 mb-6"><History className="w-5 h-5 text-zinc-400"/> Transaction Ledger</h2>
             
             {transactions.length === 0 ? (
               <div className="text-center py-12 bg-zinc-950 rounded-lg border border-zinc-800">
-                <p className="text-zinc-500 font-bold uppercase tracking-widest">No transactions yet</p>
+                <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs md:text-sm">No transactions yet</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {transactions.map(tx => (
-                  <div key={tx.id} className="bg-zinc-950 border border-zinc-800 p-4 rounded-lg flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-full ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' ? 'bg-emerald-500/10 text-emerald-500' : tx.type === 'REFUND' ? 'bg-amber-500/10 text-amber-500' : 'bg-red-500/10 text-red-500'}`}>
-                        {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? <ArrowDownToLine className="w-5 h-5"/> : <ArrowUpFromLine className="w-5 h-5"/>}
+                  <div key={tx.id} className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl flex justify-between items-center shadow-sm">
+                    <div className="flex items-center gap-3 md:gap-4">
+                      <div className={`p-2.5 md:p-3 rounded-full shrink-0 ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                        {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? <ArrowDownToLine className="w-4 h-4 md:w-5 md:h-5"/> : <ArrowUpFromLine className="w-4 h-4 md:w-5 md:h-5"/>}
                       </div>
                       <div>
-                        <p className="font-bold text-white">{tx.description}</p>
-                        <p className="text-xs text-zinc-500 mt-1 font-mono">{new Date(tx.created_at).toLocaleString()}</p>
+                        <p className="font-bold text-white text-xs md:text-sm leading-tight max-w-[180px] md:max-w-none truncate">{tx.description}</p>
+                        <p className="text-[10px] md:text-xs text-zinc-500 mt-1 font-mono">{new Date(tx.created_at).toLocaleString()}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className={`font-black text-lg ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? 'text-emerald-500' : 'text-white'}`}>
+                    <div className="text-right shrink-0">
+                      <p className={`font-black text-base md:text-lg ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? 'text-emerald-500' : 'text-white'}`}>
                         {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? '+' : '-'}₹{tx.amount}
                       </p>
-                      <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${tx.status === 'PENDING' ? 'bg-amber-500/20 text-amber-500' : tx.status === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-red-500'}`}>
+                      <span className={`text-[8px] md:text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${tx.status === 'PENDING' ? 'bg-amber-500/20 text-amber-500' : tx.status === 'SUCCESS' ? 'bg-emerald-500/20 text-emerald-500' : 'bg-red-500/20 text-red-500'}`}>
                         {tx.status}
                       </span>
                     </div>
@@ -523,33 +629,72 @@ export default function PlayerDashboard() {
           </div>
         )}
 
+        {/* --- ZAPUPI QR MODAL --- */}
+        {showQRModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm overflow-y-auto">
+            <div className="bg-[#1c1c24] w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl border border-zinc-800 relative flex flex-col md:flex-row my-8">
+              <button onClick={() => setShowQRModal(false)} className="absolute top-4 right-4 bg-zinc-800 p-2 rounded-full text-zinc-400 hover:text-white z-10"><X className="w-5 h-5"/></button>
+              
+              {/* Left Side: QR Code */}
+              <div className="bg-white p-8 flex flex-col items-center justify-center w-full md:w-1/2 shrink-0">
+                <h3 className="text-black font-black uppercase tracking-widest mb-6 flex items-center gap-2"><QrCode className="w-5 h-5"/> Scan & Pay</h3>
+                <div className="bg-white p-2 rounded-xl shadow-lg mb-6 border border-zinc-200">
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi://pay?pa=digitallibrary@slc&pn=BGMI+Arena&am=${depositAmount}`} alt="UPI QR" className="w-40 h-40 md:w-48 md:h-48" />
+                </div>
+                <p className="text-zinc-500 text-xs font-bold uppercase tracking-wider text-center">GPay • PhonePe • Paytm</p>
+              </div>
+
+              {/* Right Side: Details & Input */}
+              <div className="p-6 md:p-8 w-full md:w-1/2 flex flex-col justify-center bg-[#1c1c24]">
+                <div className="text-center mb-8">
+                  <p className="text-zinc-400 text-[10px] md:text-xs font-bold uppercase tracking-wider mb-2">Amount to Pay</p>
+                  <p className="text-4xl md:text-5xl font-black text-[#8b8df8]">₹{depositAmount}.00</p>
+                </div>
+
+                <form onSubmit={handleDepositSubmit} className="space-y-4">
+                  <div className="bg-[#252530] p-4 rounded-xl border border-zinc-700">
+                    <label className="text-[10px] md:text-xs font-bold text-zinc-400 uppercase flex items-center gap-2 mb-2"><ShieldCheck className="w-4 h-4 text-[#8b8df8]"/> Already Paid? Enter UTR</label>
+                    <input required type="text" placeholder="12-digit UTR Number" value={utrNumber} onChange={(e) => setUtrNumber(e.target.value)} className="w-full bg-[#1c1c24] border border-zinc-700 rounded-lg p-3 md:p-4 text-xs md:text-sm font-mono focus:border-[#8b8df8] outline-none text-white" />
+                  </div>
+                  <button type="submit" disabled={isSubmitting} className="w-full bg-[#8b8df8] hover:bg-[#7a7ce0] text-white font-black uppercase tracking-widest py-3 md:py-4 rounded-xl transition-colors disabled:opacity-50 text-sm">
+                    {isSubmitting ? 'Verifying...' : 'Submit to Verify'}
+                  </button>
+                </form>
+                <div className="mt-6 md:mt-8 flex items-center justify-center gap-2 text-zinc-600 text-[9px] md:text-[10px] font-bold uppercase tracking-widest">
+                  <ShieldCheck className="w-3 h-3 md:w-4 md:h-4" /> Secure Gateway
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* --- RESULT UPLOAD MODAL --- */}
         {resultModalObj && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm">
-            <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl relative">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm overflow-y-auto">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl relative my-8">
               <button onClick={() => { setResultModalObj(null); setResultFile(null); setResultPreview(null); }} className="absolute top-4 right-4 bg-zinc-900 p-2 rounded-full text-zinc-400 hover:text-white transition-colors z-10">
                 <X className="w-4 h-4"/>
               </button>
               
-              <div className="p-6 border-b border-zinc-800">
-                <h3 className="text-xl font-black uppercase flex items-center gap-2">
-                  <UploadCloud className="w-5 h-5 text-blue-500"/> Submit Match Result
+              <div className="p-5 md:p-6 border-b border-zinc-800">
+                <h3 className="text-lg md:text-xl font-black uppercase flex items-center gap-2 text-white">
+                  <UploadCloud className="w-5 h-5 text-blue-500"/> Submit Result
                 </h3>
-                <p className="text-xs font-bold text-zinc-500 mt-1">Slot {resultModalObj.slot_number} • {resultModalObj.squad_name}</p>
+                <p className="text-[10px] md:text-xs font-bold text-zinc-500 mt-1 uppercase tracking-wider">Slot {resultModalObj.slot_number} • {resultModalObj.squad_name}</p>
               </div>
 
-              <form onSubmit={submitMatchResult} className="p-6 space-y-6">
+              <form onSubmit={submitMatchResult} className="p-5 md:p-6 space-y-6">
                 <div className="bg-zinc-900 border border-zinc-800 border-dashed rounded-xl p-6 text-center">
                   {!resultPreview ? (
                     <div className="flex flex-col items-center justify-center space-y-3">
-                      <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center">
-                        <ImageIcon className="w-8 h-8 text-zinc-500" />
+                      <div className="w-14 h-14 md:w-16 md:h-16 bg-zinc-800 rounded-full flex items-center justify-center">
+                        <ImageIcon className="w-6 h-6 md:w-8 md:h-8 text-zinc-500" />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-zinc-300">Upload Screenshot Evidence</p>
-                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">JPG, PNG up to 5MB</p>
+                        <p className="text-xs md:text-sm font-bold text-zinc-300">Upload Screenshot Evidence</p>
+                        <p className="text-[9px] md:text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1">JPG, PNG up to 5MB</p>
                       </div>
-                      <label className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-wider px-6 py-2.5 rounded cursor-pointer transition-colors mt-2">
+                      <label className="bg-blue-600 hover:bg-blue-500 text-white text-[10px] md:text-xs font-black uppercase tracking-wider px-6 py-2.5 rounded-lg cursor-pointer transition-colors mt-2">
                         Browse Files
                         <input type="file" accept="image/*" className="hidden" onChange={handleResultImageChange} />
                       </label>
@@ -565,12 +710,12 @@ export default function PlayerDashboard() {
                   )}
                 </div>
 
-                <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-lg flex gap-3 text-sm text-blue-400">
-                  <AlertCircle className="w-5 h-5 shrink-0" />
-                  <p className="text-xs leading-relaxed font-medium">Please ensure the screenshot clearly shows your squad's placement and total kills. Fraudulent submissions will result in a permanent ban.</p>
+                <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl flex gap-3 text-[10px] md:text-xs text-blue-400">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <p className="leading-relaxed font-medium">Please ensure the screenshot clearly shows your squad's placement and total kills. Fraudulent submissions will result in a permanent ban.</p>
                 </div>
 
-                <button type="submit" disabled={isUploadingResult || !resultFile} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest py-4 rounded-xl transition-colors disabled:opacity-50 flex justify-center items-center gap-2">
+                <button type="submit" disabled={isUploadingResult || !resultFile} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-widest py-3.5 md:py-4 rounded-xl transition-colors disabled:opacity-50 flex justify-center items-center gap-2 text-xs md:text-sm shadow-lg">
                   {isUploadingResult ? 'Uploading Evidence...' : 'Submit Evidence for Review'}
                 </button>
               </form>
