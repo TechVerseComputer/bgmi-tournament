@@ -6,8 +6,6 @@ import Link from 'next/link';
 import { Crosshair, Users, Trophy, X, AlertCircle, Search, Clock, SlidersHorizontal, RotateCcw, Timer } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 
-// Lightweight, zero-dependency function to fetch the true server time from HTTP headers.
-// Includes strict typeof window checks to bypass Vercel SSR build errors.
 const getServerTime = async () => {
   try {
     const url = typeof window !== 'undefined' ? window.location.href : '/';
@@ -28,7 +26,6 @@ export default function TournamentsPage() {
   const [filter, setFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Vercel Hydration Fix: Start as null to match SSR, then populate on client
   const [currentTime, setCurrentTime] = useState<number | null>(null);
   
   const [showFilters, setShowFilters] = useState(false);
@@ -69,14 +66,13 @@ export default function TournamentsPage() {
     };
     initPage();
 
-    // Start Live Ticker only after client mount to prevent Hydration errors
     setCurrentTime(Date.now());
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
   const formatCountdown = (closingTime: string) => {
-    if (!closingTime || !currentTime) return null; // Wait for client time
+    if (!closingTime || !currentTime) return null;
     const target = new Date(closingTime).getTime();
     const diff = target - currentTime;
     
@@ -87,8 +83,8 @@ export default function TournamentsPage() {
     const m = Math.floor((diff / 1000 / 60) % 60);
     const s = Math.floor((diff / 1000) % 60);
     
-    if (d > 0) return `Closes in ${d}d ${h}h`;
-    return `Closes in ${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    if (d > 0) return `${d}D ${h}H`;
+    return `${h.toString().padStart(2, '0')}H ${m.toString().padStart(2, '0')}M ${s.toString().padStart(2, '0')}S`;
   };
 
   const handleJoinClick = async (match: any) => {
@@ -110,7 +106,6 @@ export default function TournamentsPage() {
     
     setIsSubmitting(true);
     try {
-      // 1. Strict Server Status Check
       if (selectedMatch.status === 'FULL' || selectedMatch.status === 'COMPLETED' || selectedMatch.status === 'CANCELLED') {
         alert(`REGISTRATION FAILED: This match is currently ${selectedMatch.status}.`);
         setIsSubmitting(false);
@@ -118,7 +113,6 @@ export default function TournamentsPage() {
         return;
       }
 
-      // 2. Strict Server-Side Time Validation
       if (selectedMatch.registration_closing_time) {
         const trueServerTime = await getServerTime();
         const closingTime = new Date(selectedMatch.registration_closing_time).getTime();
@@ -302,7 +296,7 @@ export default function TournamentsPage() {
               
               const totalPrizePool = activePrizes.reduce((a: number, b: number) => a + Number(b), 0);
               
-              // --- STRICT STATUS ENGINE ---
+              // --- STRICT STATUS & COUNTDOWN ENGINE ---
               const isTimePassed = t.registration_closing_time && currentTime ? currentTime > new Date(t.registration_closing_time).getTime() : false;
               const isClosed = isTimePassed || t.status === 'FULL' || t.status === 'COMPLETED' || t.status === 'CANCELLED';
               const displayStatus = (isTimePassed && t.status === 'OPEN') ? 'REGISTRATION CLOSED' : t.status;
@@ -322,41 +316,43 @@ export default function TournamentsPage() {
 
                   <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
                     <div className="space-y-3">
-                      <div className="flex flex-wrap gap-2 text-xs font-bold">
+                      
+                      {/* 1. PRIZE POOL (PROMINENT HIGHLIGHT) */}
+                      <div className="bg-gradient-to-r from-orange-500/15 via-zinc-950 to-zinc-950 border border-orange-500/30 p-3 rounded-xl flex justify-between items-center shadow-inner">
+                        <div>
+                          <p className="text-[9px] font-black uppercase text-orange-400 tracking-wider">Total Prize Pool</p>
+                          <p className="text-xl font-black text-emerald-400">₹{totalPrizePool}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[9px] font-black uppercase text-zinc-400 tracking-wider">1st Place</p>
+                          <p className="text-sm font-black text-amber-400">₹{activePrizes[0] || 0}</p>
+                        </div>
+                      </div>
+
+                      {/* 2. ENTRY FEE & 3. COUNTDOWN GRID */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80">
+                          <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Entry Fee</p>
+                          <p className="text-lg font-black text-orange-500">{t.fee === 0 ? 'FREE' : `₹${t.fee}`}</p>
+                        </div>
+                        <div className={`p-2.5 rounded-lg border flex flex-col justify-center ${isClosed ? 'bg-red-950/20 border-red-900/40 text-red-400' : 'bg-zinc-950 border-zinc-800 text-orange-400'}`}>
+                          <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-1"><Timer className="w-2.5 h-2.5"/> Closes In</p>
+                          <p className="text-xs font-black uppercase tracking-tight">{isClosed ? 'CLOSED' : (countdown || 'OPEN')}</p>
+                        </div>
+                      </div>
+
+                      {/* 4. MATCH DETAILS */}
+                      <div className="flex flex-wrap gap-2 text-xs font-bold pt-1">
                         <span className="border border-orange-500 bg-orange-500/10 text-orange-500 px-2.5 py-1 rounded flex items-center gap-1"><Users className="w-3 h-3" /> {t.type}</span>
                         <span className="border border-zinc-700 bg-zinc-800 text-gray-300 px-2.5 py-1 rounded">{t.perspective}</span>
-                      </div>
-
-                      {/* Highlights: Date & Prize Pool */}
-                      <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-800 space-y-2 text-xs">
-                        <div className="flex items-center gap-2 text-zinc-300 font-bold">
-                          <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                          <span>{t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}</span>
-                        </div>
-                        <div className="flex justify-between items-center pt-1 border-t border-zinc-900">
-                          <span className="text-zinc-400">Total Pool: <strong className="text-emerald-400 font-black">₹{totalPrizePool}</strong></span>
-                          <span className="text-orange-400">
-                            1st: ₹{activePrizes[0] || 0} 
-                            {winnerCount >= 2 && activePrizes[1] ? ` | 2nd: ₹${activePrizes[1]}` : ''}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between items-end">
-                        <div>
-                          <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Entry Fee</p>
-                          <p className={`text-3xl font-black ${isClosed ? 'text-zinc-600' : 'text-orange-500'}`}>{t.fee === 0 ? 'FREE' : `₹${t.fee}`}</p>
-                        </div>
-                        {/* THE COUNTDOWN TICKER */}
-                        {countdown && (
-                           <div className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1 border px-2 py-1 rounded ${isClosed ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-orange-500/10 text-orange-400 border-orange-500/30'}`}>
-                             <Timer className="w-3 h-3"/> {isClosed ? 'REGISTRATION CLOSED' : countdown}
-                           </div>
-                        )}
+                        <span className="border border-zinc-700 bg-zinc-800 text-gray-300 px-2.5 py-1 rounded flex items-center gap-1 ml-auto">
+                          <Clock className="w-3 h-3 text-orange-500" />
+                          {t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' }) : 'TBA'}
+                        </span>
                       </div>
                     </div>
 
-                    {/* Dual CTAs: View More & Join Match */}
+                    {/* 5. ACTIONS */}
                     <div className="grid grid-cols-2 gap-3 pt-2">
                       <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded text-xs transition-colors border border-zinc-700 flex items-center justify-center">
                         View Details
