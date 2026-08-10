@@ -95,6 +95,7 @@ export default function TournamentDetailPage() {
     setShowModal(true);
   };
 
+  // --- UPGRADED BACKEND VALIDATION LOCK ---
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSlot) return alert("Please select a drop slot!");
@@ -102,11 +103,20 @@ export default function TournamentDetailPage() {
 
     setIsSubmitting(true);
     try {
+      // 1. Strict Server Status Check
+      if (tournament.status === 'FULL' || tournament.status === 'COMPLETED' || tournament.status === 'CANCELLED') {
+        alert(`REGISTRATION FAILED: This match is currently ${tournament.status}.`);
+        setIsSubmitting(false);
+        setShowModal(false);
+        return;
+      }
+
+      // 2. Strict Server Time Check
       if (tournament.registration_closing_time) {
         const trueServerTime = await getServerTime();
         const closingTime = new Date(tournament.registration_closing_time).getTime();
         
-        if (trueServerTime > closingTime) {
+        if (trueServerTime >= closingTime) {
           alert("REGISTRATION FAILED: The registration window for this match has officially closed.");
           setIsSubmitting(false);
           setShowModal(false);
@@ -262,8 +272,11 @@ export default function TournamentDetailPage() {
       : [tournament.first_prize || 0, tournament.second_prize || 0].slice(0, winnerCount);
   }
 
+  // --- STRICT STATUS ENGINE ---
+  const isTimePassed = tournament.registration_closing_time && currentTime ? currentTime > new Date(tournament.registration_closing_time).getTime() : false;
+  const isClosed = isTimePassed || tournament.status === 'FULL' || tournament.status === 'COMPLETED' || tournament.status === 'CANCELLED';
+  const displayStatus = (isTimePassed && tournament.status === 'OPEN') ? 'REGISTRATION CLOSED' : tournament.status;
   const countdown = formatCountdown(tournament.registration_closing_time);
-  const isClosed = countdown === "CLOSED" || tournament.status === 'FULL';
   
   // Registration Check
   const myRegistration = user ? registrations.find(r => r.user_id === user.id) : null;
@@ -283,7 +296,7 @@ export default function TournamentDetailPage() {
             <span className="bg-orange-500 text-black font-black text-xs uppercase px-3 py-1 rounded">{tournament.type}</span>
             <span className="bg-zinc-800 text-zinc-300 font-bold text-xs uppercase px-3 py-1 rounded border border-zinc-700">{tournament.perspective}</span>
             <span className={`font-bold text-xs uppercase px-3 py-1 rounded border ${isClosed ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'}`}>
-              {isClosed ? 'REGISTRATION CLOSED' : tournament.status}
+              {displayStatus}
             </span>
           </div>
           <h1 className="text-3xl md:text-5xl font-black italic uppercase tracking-wider">{tournament.name}</h1>
@@ -412,6 +425,7 @@ export default function TournamentDetailPage() {
                 )}
               </div>
             ) : (
+              // DISABLED JOIN MATCH BUTTON ENGINE
               <button disabled={isClosed} onClick={handleOpenModal} className={`w-full font-black uppercase tracking-widest py-4 rounded-xl transition-all ${isClosed ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700' : 'bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black shadow-[0_0_20px_rgba(249,115,22,0.4)]'}`}>
                 {isClosed ? 'Match Closed' : 'Join Match Now'}
               </button>
