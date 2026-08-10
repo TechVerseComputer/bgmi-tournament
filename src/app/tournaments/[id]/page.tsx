@@ -231,12 +231,56 @@ export default function TournamentDetailPage() {
 
   const bookedSlotNumbers = registrations.map(r => r.slot_number).filter(s => s !== null);
   const bookedCount = registrations.length;
+  const maxSlots = Number(tournament.total_slots || 25);
   
+  // 1. MAXIMUM / PRIMARY PRIZE POOL (When full)
+  const maxPool = tournament.fee > 0 ? Math.floor(maxSlots * Number(tournament.fee || 0) * 0.85) : 0;
+  
+  // 2. LIVE SCALING POOL (Current entries)
   const totalLivePool = bookedCount > 0 ? Math.floor(bookedCount * Number(tournament.fee || 0) * 0.85) : 0;
   
-  let activePrizes: number[] = [];
   const winnerCount = tournament.total_winners || (tournament.prize_breakdown?.length > 0 ? tournament.prize_breakdown.length : 2);
 
+  // Calculate Max Prizes Breakdown
+  let maxPrizes: number[] = [];
+  if (tournament.fee > 0 && maxPool > 0) {
+    if (winnerCount === 1) {
+      maxPrizes = [maxPool];
+    } else if (winnerCount === 2) {
+      const p1 = Math.floor(maxPool * 0.70);
+      maxPrizes = [p1, maxPool - p1];
+    } else if (winnerCount === 3) {
+      const p1 = Math.floor(maxPool * 0.55);
+      const p2 = Math.floor(maxPool * 0.30);
+      maxPrizes = [p1, p2, maxPool - p1 - p2];
+    } else if (winnerCount === 4) {
+      const p1 = Math.floor(maxPool * 0.50);
+      const p2 = Math.floor(maxPool * 0.25);
+      const p3 = Math.floor(maxPool * 0.15);
+      maxPrizes = [p1, p2, p3, maxPool - p1 - p2 - p3];
+    } else if (winnerCount === 5) {
+      const p1 = Math.floor(maxPool * 0.45);
+      const p2 = Math.floor(maxPool * 0.25);
+      const p3 = Math.floor(maxPool * 0.15);
+      const p4 = Math.floor(maxPool * 0.10);
+      maxPrizes = [p1, p2, p3, p4, maxPool - p1 - p2 - p3 - p4];
+    } else if (winnerCount >= 6) {
+      const p1 = Math.floor(maxPool * 0.45);
+      const p2 = Math.floor(maxPool * 0.25);
+      const p3 = Math.floor(maxPool * 0.15);
+      const p4 = Math.floor(maxPool * 0.10);
+      const p5 = Math.floor(maxPool * 0.03); 
+      maxPrizes = [p1, p2, p3, p4, p5, maxPool - p1 - p2 - p3 - p4 - p5];
+    }
+  } else {
+    maxPrizes = tournament.prize_breakdown?.length > 0 
+      ? tournament.prize_breakdown.slice(0, winnerCount) 
+      : [tournament.first_prize || 0, tournament.second_prize || 0].slice(0, winnerCount);
+  }
+  const maxTotalPool = maxPrizes.reduce((a, b) => a + Number(b), 0);
+
+  // Calculate Live Scaled Prizes Breakdown
+  let activePrizes: number[] = [];
   if (tournament.fee > 0 && totalLivePool > 0) {
     if (winnerCount === 1) {
       activePrizes = [totalLivePool];
@@ -319,24 +363,40 @@ export default function TournamentDetailPage() {
             </div>
             <div>
               <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Total Slots</p>
-              <p className="text-lg font-bold text-white flex items-center gap-1.5"><Users className="w-4 h-4 text-orange-500"/> {tournament.total_slots || 25} Slots</p>
+              <p className="text-lg font-bold text-white flex items-center gap-1.5"><Users className="w-4 h-4 text-orange-500"/> {maxSlots} Slots</p>
             </div>
           </div>
 
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-black uppercase tracking-wider flex items-center gap-2 text-orange-500"><Trophy className="w-5 h-5"/> Prize Pool Distribution</h2>
-              {tournament.fee > 0 && <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded">Live Scaling Active ({bookedCount} Booked)</span>}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {activePrizes.map((prize: number, idx: number) => (
-                <div key={idx} className="bg-zinc-950 border border-zinc-800 p-4 rounded-lg flex justify-between items-center">
-                  <span className="font-bold text-zinc-400">
-                    {idx === 0 ? '🥇 1st Place' : idx === 1 ? '🥈 2nd Place' : idx === 2 ? '🥉 3rd Place' : `# ${idx + 1} Place`}
-                  </span>
-                  <span className="font-black text-xl text-orange-500">₹{prize}</span>
+          {/* PRIZE POOL & LIVE SCALING SECTION */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-zinc-800 pb-4">
+              <div>
+                <h2 className="text-lg font-black uppercase tracking-wider flex items-center gap-2 text-orange-500">
+                  <Trophy className="w-5 h-5"/> Prize Pool Distribution
+                </h2>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Total Prize Pool: <strong className="text-emerald-400 font-black">₹{maxTotalPool}</strong> (Maximum when full)
+                </p>
+              </div>
+              {tournament.fee > 0 && (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-400">
+                  Live Scaling: ₹{totalLivePool} based on {bookedCount} entries
                 </div>
-              ))}
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs font-black uppercase tracking-wider text-zinc-500">Current Live Breakdown ({bookedCount} Booked):</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {activePrizes.map((prize: number, idx: number) => (
+                  <div key={idx} className="bg-zinc-950 border border-zinc-800 p-4 rounded-lg flex justify-between items-center">
+                    <span className="font-bold text-zinc-400">
+                      {idx === 0 ? '🥇 1st Place' : idx === 1 ? '🥈 2nd Place' : idx === 2 ? '🥉 3rd Place' : `# ${idx + 1} Place`}
+                    </span>
+                    <span className="font-black text-xl text-orange-500">₹{prize}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -347,7 +407,7 @@ export default function TournamentDetailPage() {
             </div>
 
             <div className="grid grid-cols-5 sm:grid-cols-5 gap-3">
-              {Array.from({ length: tournament.total_slots || 25 }, (_, i) => i + 1).map((slotNum) => {
+              {Array.from({ length: maxSlots }, (_, i) => i + 1).map((slotNum) => {
                 const booking = registrations.find(r => r.slot_number === slotNum);
                 const isBooked = !!booking;
 
@@ -383,7 +443,7 @@ export default function TournamentDetailPage() {
               {user && <div className="flex justify-between text-zinc-400"><p>Wallet Balance</p><p className="text-emerald-500">₹{walletBalance}</p></div>}
             </div>
 
-            {/* --- NEW: CAPTAIN EVIDENCE SUBMISSION WIDGET --- */}
+            {/* --- CAPTAIN EVIDENCE SUBMISSION WIDGET --- */}
             {myRegistration ? (
               <div className="border-t border-zinc-800 pt-4 space-y-4">
                 <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-lg flex items-center justify-between">
@@ -425,7 +485,6 @@ export default function TournamentDetailPage() {
                 )}
               </div>
             ) : (
-              // DISABLED JOIN MATCH BUTTON ENGINE
               <button disabled={isClosed} onClick={handleOpenModal} className={`w-full font-black uppercase tracking-widest py-4 rounded-xl transition-all ${isClosed ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700' : 'bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 text-black shadow-[0_0_20px_rgba(249,115,22,0.4)]'}`}>
                 {isClosed ? 'Match Closed' : 'Join Match Now'}
               </button>
@@ -472,7 +531,7 @@ export default function TournamentDetailPage() {
               <div>
                 <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-4">Choose Drop Slot</h3>
                 <div className="grid grid-cols-5 gap-2">
-                  {Array.from({ length: tournament.total_slots || 25 }, (_, i) => i + 1).map((slot) => {
+                  {Array.from({ length: maxSlots }, (_, i) => i + 1).map((slot) => {
                     const isBooked = bookedSlotNumbers.includes(slot);
                     const isSelected = selectedSlot === slot;
                     return (
