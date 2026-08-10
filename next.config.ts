@@ -13,6 +13,7 @@ const withPWA = withPWAInit({
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
+  customWorkerDir: "worker",
   workboxOptions: {
     disableDevLogs: true,
   },
