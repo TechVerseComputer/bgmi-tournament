@@ -92,6 +92,19 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
+  // --- DISPATCH HELPER ---
+  const sendPushNotification = async (userIds: string[], title: string, body: string, url: string = '/dashboard') => {
+    try {
+      await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userIds, title, body, url })
+      });
+    } catch (err) {
+      console.error("Failed to send push notification", err);
+    }
+  };
+
   const handleApproveDeposit = async (txId: string, userId: string, amount: number) => {
     setActionLoading(txId);
     let { data: wallet } = await supabase.from('wallets').select('*').eq('user_id', userId).single();
@@ -113,14 +126,21 @@ export default function AdminDashboard() {
         return;
       }
       await supabase.from('transactions').update({ status: 'SUCCESS' }).eq('id', txId);
+      
+      // DISPATCH PUSH NOTIFICATION
+      await sendPushNotification([userId], 'Deposit Approved! 💰', `Your deposit of ₹${amount} has been successfully credited to your wallet.`, '/dashboard');
     }
     fetchAllData();
     setActionLoading(null);
   };
 
-  const handleRejectDeposit = async (txId: string) => {
+  const handleRejectDeposit = async (txId: string, userId: string) => {
     setActionLoading(txId);
     await supabase.from('transactions').update({ status: 'REJECTED' }).eq('id', txId);
+    
+    // DISPATCH PUSH NOTIFICATION
+    await sendPushNotification([userId], 'Deposit Rejected ❌', 'Your recent deposit request was rejected. Please check your transaction details or contact support.', '/dashboard');
+    
     fetchAllData();
     setActionLoading(null);
   };
@@ -244,6 +264,8 @@ export default function AdminDashboard() {
       const { data: regs, error: regErr } = await supabase.from('registrations').select('*').eq('tournament_id', tourney.id);
       if (regErr) throw regErr;
 
+      let refundedUserIds: string[] = [];
+
       if (regs && regs.length > 0 && tourney.fee > 0) {
         for (const reg of regs) {
           const { data: wallet } = await supabase.from('wallets').select('*').eq('user_id', reg.user_id).single();
@@ -257,12 +279,18 @@ export default function AdminDashboard() {
               status: 'SUCCESS',
               description: `Refund for Cancelled Match: ${tourney.name} (Slot ${reg.slot_number})`
             }]);
+            refundedUserIds.push(reg.user_id);
           }
         }
       }
 
       const { error: updateErr } = await supabase.from('tournaments').update({ status: 'CANCELLED' }).eq('id', tourney.id);
       if (updateErr) throw updateErr;
+
+      // DISPATCH BULK PUSH NOTIFICATION TO REFUNDED PLAYERS
+      if (refundedUserIds.length > 0) {
+        await sendPushNotification(refundedUserIds, 'Match Cancelled & Refunded 🚫', `"${tourney.name}" has been cancelled. Your entry fee of ₹${tourney.fee} has been returned to your wallet.`, '/dashboard');
+      }
 
       alert(`Match Cancelled successfully! ${regs?.length || 0} players were refunded.`);
       fetchAllData();
@@ -387,7 +415,7 @@ export default function AdminDashboard() {
                         <td className="p-4 font-mono font-bold text-orange-400 select-all">{tx.type === 'DEPOSIT' ? `UTR: ${tx.reference_id}` : `UPI: ${tx.upi_id}`}</td>
                         <td className="p-4 text-right space-x-2">
                           <button disabled={actionLoading === tx.id} onClick={() => handleApproveDeposit(tx.id, tx.user_id, tx.amount)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded uppercase tracking-wider inline-flex items-center gap-1 transition-colors"><CheckCircle className="w-3 h-3"/> Approve</button>
-                          <button disabled={actionLoading === tx.id} onClick={() => handleRejectDeposit(tx.id)} className="bg-zinc-800 hover:bg-red-900 text-red-400 hover:text-white text-xs font-bold px-3 py-2 rounded uppercase tracking-wider border border-zinc-700 inline-flex items-center gap-1 transition-colors"><XCircle className="w-3 h-3"/> Reject</button>
+                          <button disabled={actionLoading === tx.id} onClick={() => handleRejectDeposit(tx.id, tx.user_id)} className="bg-zinc-800 hover:bg-red-900 text-red-400 hover:text-white text-xs font-bold px-3 py-2 rounded uppercase tracking-wider border border-zinc-700 inline-flex items-center gap-1 transition-colors"><XCircle className="w-3 h-3"/> Reject</button>
                         </td>
                       </tr>
                     ))}
