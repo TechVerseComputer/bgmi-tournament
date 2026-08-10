@@ -104,7 +104,7 @@ export default function TournamentDetailPage() {
     setIsSubmitting(true);
     try {
       // 1. Strict Server Status Check
-      if (tournament.status === 'FULL' || tournament.status === 'COMPLETED' || tournament.status === 'CANCELLED') {
+      if (tournament.status === 'FULL' || tournament.status === 'COMPLETED' || tournament.status === 'CANCELLED' || tournament.status === 'UNDER REVIEW') {
         alert(`REGISTRATION FAILED: This match is currently ${tournament.status}.`);
         setIsSubmitting(false);
         setShowModal(false);
@@ -316,15 +316,35 @@ export default function TournamentDetailPage() {
       : [tournament.first_prize || 0, tournament.second_prize || 0].slice(0, winnerCount);
   }
 
-  // --- STRICT STATUS ENGINE ---
+  // --- STRICT STATUS ENGINE (UPDATED FOR UNDER REVIEW) ---
   const isTimePassed = tournament.registration_closing_time && currentTime ? currentTime > new Date(tournament.registration_closing_time).getTime() : false;
-  const isClosed = isTimePassed || tournament.status === 'FULL' || tournament.status === 'COMPLETED' || tournament.status === 'CANCELLED';
-  const displayStatus = (isTimePassed && tournament.status === 'OPEN') ? 'REGISTRATION CLOSED' : tournament.status;
+  const isUnderReview = tournament.status === 'UNDER REVIEW';
+  const isClosed = isTimePassed || tournament.status === 'FULL' || tournament.status === 'COMPLETED' || tournament.status === 'CANCELLED' || isUnderReview;
+  
+  let displayStatus = tournament.status || 'OPEN';
+  if (isTimePassed && tournament.status === 'OPEN') displayStatus = 'REGISTRATION CLOSED';
+
   const countdown = formatCountdown(tournament.registration_closing_time);
   
+  // --- PLAYER REVIEW TIMER LOGIC ---
+  let reviewTimeLeft = 0;
+  if (isUnderReview && tournament.review_started_at && currentTime) {
+    const reviewStart = new Date(tournament.review_started_at).getTime();
+    const reviewEnd = reviewStart + (30 * 60 * 1000); // 30 minutes
+    reviewTimeLeft = reviewEnd - currentTime;
+    if (reviewTimeLeft < 0) reviewTimeLeft = 0;
+  }
+
+  const formatReviewTimer = (ms: number) => {
+    if (ms <= 0) return "Review Complete. Awaiting Payouts.";
+    const m = Math.floor((ms / 1000 / 60) % 60);
+    const s = Math.floor((ms / 1000) % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} remaining`;
+  };
+
   // Registration Check
   const myRegistration = user ? registrations.find(r => r.user_id === user.id) : null;
-  const isMatchActiveOrCompleted = tournament.status === 'FULL' || tournament.status === 'COMPLETED';
+  const isMatchActiveOrCompleted = tournament.status === 'FULL' || tournament.status === 'COMPLETED' || isUnderReview;
 
   return (
     <main className="bg-[#0a0a0a] text-white font-sans min-h-screen pb-24">
@@ -339,7 +359,12 @@ export default function TournamentDetailPage() {
           <div className="flex flex-wrap items-center gap-3 mb-2">
             <span className="bg-orange-500 text-black font-black text-xs uppercase px-3 py-1 rounded">{tournament.type}</span>
             <span className="bg-zinc-800 text-zinc-300 font-bold text-xs uppercase px-3 py-1 rounded border border-zinc-700">{tournament.perspective}</span>
-            <span className={`font-bold text-xs uppercase px-3 py-1 rounded border ${isClosed ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'}`}>
+            <span className={`font-bold text-xs uppercase px-3 py-1 rounded border ${
+              tournament.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 
+              isUnderReview ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse' :
+              isClosed ? 'bg-red-500/10 text-red-500 border-red-500/20' : 
+              'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+            }`}>
               {displayStatus}
             </span>
           </div>
@@ -349,6 +374,24 @@ export default function TournamentDetailPage() {
 
       <div className="max-w-7xl mx-auto px-4 lg:px-8 mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
+          
+          {/* PLAYER REVIEW BANNER */}
+          {isUnderReview && (
+            <div className="bg-amber-500/10 border border-amber-500/30 p-6 rounded-xl flex flex-col md:flex-row justify-between items-center gap-4 shadow-[0_0_20px_rgba(245,158,11,0.1)]">
+              <div>
+                <h3 className="font-black text-amber-500 uppercase tracking-widest flex items-center gap-2 text-lg">
+                  <AlertCircle className="w-5 h-5"/> Match Under Review
+                </h3>
+                <p className="text-zinc-400 text-sm mt-1 font-medium">
+                  Admins are currently verifying screenshots and match results. Payouts will be released shortly.
+                </p>
+              </div>
+              <div className="bg-amber-950/50 border border-amber-900/50 px-4 py-2 rounded-lg text-amber-400 font-mono font-black text-center whitespace-nowrap">
+                {formatReviewTimer(reviewTimeLeft)}
+              </div>
+            </div>
+          )}
+
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 grid grid-cols-2 md:grid-cols-3 gap-6">
             <div>
               <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Entry Fee</p>
@@ -431,7 +474,7 @@ export default function TournamentDetailPage() {
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 sticky top-24 space-y-6">
             <h3 className="font-black uppercase tracking-wider text-sm border-b border-zinc-800 pb-4">Match Control</h3>
             
-            {countdown && (
+            {!isUnderReview && countdown && tournament.status !== 'COMPLETED' && (
                <div className={`p-4 rounded-lg border text-center font-black uppercase tracking-widest ${isClosed ? 'bg-red-500/10 text-red-500 border-red-500/30' : 'bg-orange-500/10 text-orange-400 border-orange-500/30'}`}>
                  <Timer className="w-5 h-5 mx-auto mb-2" />
                  {isClosed ? 'REGISTRATION CLOSED' : countdown}
