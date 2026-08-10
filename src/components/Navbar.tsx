@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Gamepad, Wallet, LogIn, Menu, X, Download, BellRing, BellOff, Bell } from 'lucide-react';
+import { Gamepad, Wallet, LogIn, Download, BellRing, BellOff, Bell, Home, Crosshair, LayoutDashboard, Trophy, ShieldAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { usePathname } from 'next/navigation';
@@ -37,7 +37,6 @@ export default function Navbar() {
   const pathname = usePathname();
   const [user, setUser] = useState<any>(null);
   const [balance, setBalance] = useState(0);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // PWA Install Prompt State with strict typing
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -93,14 +92,12 @@ export default function Navbar() {
     }
   };
 
-  // --- NOTIFICATION HANDLERS (UPGRADED FOR REAL WEB PUSH) ---
   const handleEnableNotifications = async () => {
     try {
       const permission = await Notification.requestPermission();
       setNotifPermission(permission);
       setShowNotifPrompt(false);
 
-      // If granted and the user is logged in, securely subscribe their device
       if (permission === 'granted' && user) {
         await subscribeDeviceToPush();
       }
@@ -111,22 +108,14 @@ export default function Navbar() {
 
   const subscribeDeviceToPush = async () => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-    
     try {
-      // Wait for the next-pwa service worker to be ready
       const registration = await navigator.serviceWorker.ready;
-      
-      // Check if this device is already subscribed
       const existingSubscription = await registration.pushManager.getSubscription();
       if (existingSubscription) return; 
 
       const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!publicVapidKey) {
-        console.warn('VAPID public key is missing from environment variables.');
-        return;
-      }
+      if (!publicVapidKey) return;
 
-      // Generate the secure push subscription endpoint via the browser
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
@@ -134,7 +123,6 @@ export default function Navbar() {
 
       const subJSON = subscription.toJSON();
       
-      // Save the subscription to your Supabase database securely linked to the player
       await supabase.from('push_subscriptions').upsert({
         user_id: user.id,
         endpoint: subJSON.endpoint,
@@ -153,7 +141,11 @@ export default function Navbar() {
     setShowNotifPrompt(false);
   };
 
-  if (pathname === '/admin' || pathname === '/dashboard' || pathname === '/admin/ledger') return null;
+  // Completely hide all navigation for the Admin Hub
+  if (pathname?.startsWith('/admin')) return null;
+
+  // We only hide the TOP bar on the Dashboard, the bottom bar must remain!
+  const isDashboard = pathname === '/dashboard';
 
   return (
     <>
@@ -169,16 +161,10 @@ export default function Navbar() {
               Allow notifications to receive important match updates, room details, results, and wallet deposit confirmations.
             </p>
             <div className="flex flex-col gap-3">
-              <button 
-                onClick={handleEnableNotifications}
-                className="w-full bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-3 rounded transition-colors"
-              >
+              <button onClick={handleEnableNotifications} className="w-full bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-3 rounded transition-colors">
                 Enable Notifications
               </button>
-              <button 
-                onClick={handleDismissNotificationPrompt}
-                className="w-full bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-bold uppercase tracking-widest py-3 rounded border border-zinc-800 transition-colors"
-              >
+              <button onClick={handleDismissNotificationPrompt} className="w-full bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-bold uppercase tracking-widest py-3 rounded border border-zinc-800 transition-colors">
                 Not Now
               </button>
             </div>
@@ -186,96 +172,107 @@ export default function Navbar() {
         </div>
       )}
 
-      <nav className="w-full z-50 p-4 md:px-8 lg:px-12 flex justify-between items-center bg-zinc-950 border-b border-zinc-900 sticky top-0">
-        <Link href="/" className="flex items-center gap-2">
-          <Gamepad className="text-orange-500 w-6 h-6 md:w-8 md:h-8 shrink-0" />
-          <div className="font-black text-xl md:text-2xl tracking-tighter text-white whitespace-nowrap">BGMI <span className="text-orange-500">ARENA</span></div>
-        </Link>
-        
-        {/* Desktop Navigation */}
-        <div className="hidden md:flex gap-8 text-sm font-bold tracking-wide items-center">
-          <Link href="/" className={`transition-colors ${pathname === '/' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>HOME</Link>
-          <Link href="/tournaments" className={`transition-colors ${pathname.includes('/tournaments') ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>TOURNAMENTS</Link>
-          <Link href="/leaderboard" className={`transition-colors ${pathname === '/leaderboard' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>LEADERBOARD</Link>
-          <Link href="/rules" className={`transition-colors ${pathname === '/rules' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>RULES</Link>
+      {/* --- TOP NAVIGATION BAR --- (Hidden on Dashboard) */}
+      {!isDashboard && (
+        <nav className="w-full z-50 p-4 md:px-8 lg:px-12 flex justify-between items-center bg-zinc-950 border-b border-zinc-900 sticky top-0">
+          <Link href="/" className="flex items-center gap-2">
+            <Gamepad className="text-orange-500 w-6 h-6 md:w-8 md:h-8 shrink-0" />
+            <div className="font-black text-xl md:text-2xl tracking-tighter text-white whitespace-nowrap">BGMI <span className="text-orange-500">ARENA</span></div>
+          </Link>
           
-          {user && (
-            <Link href="/dashboard" className={`transition-colors ${pathname === '/dashboard' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>DASHBOARD</Link>
-          )}
-
-          {/* Notification Status Indicator (Desktop) */}
-          {notifPermission === 'granted' && <BellRing className="w-4 h-4 text-emerald-500" title="Notifications Enabled" />}
-          {notifPermission === 'denied' && <BellOff className="w-4 h-4 text-red-500 opacity-50" title="Notifications Blocked in Browser Settings" />}
-
-          {/* PWA Install Button (Desktop) */}
-          {deferredPrompt && (
-            <button onClick={handleInstallClick} className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white px-4 py-2 rounded flex items-center gap-2 transition-colors border border-blue-500/30">
-              <Download className="w-4 h-4 shrink-0" /> Install App
-            </button>
-          )}
-          
-          {user ? (
-            <Link href="/dashboard" className="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded flex items-center gap-2 transition-colors border border-zinc-700 text-emerald-500">
-              <Wallet className="w-4 h-4 shrink-0" /> ₹{balance}
-            </Link>
-          ) : (
-            <Link href="/dashboard" className="bg-orange-500 hover:bg-orange-400 text-black px-5 py-2.5 rounded flex items-center gap-2 transition-colors font-black uppercase tracking-wider shadow-[0_0_15px_rgba(249,115,22,0.3)]">
-              <LogIn className="w-4 h-4 shrink-0" /> Player Login
-            </Link>
-          )}
-        </div>
-
-        {/* Mobile Top Bar */}
-        <div className="flex md:hidden items-center gap-3">
-          
-          {/* Notification Status Indicator (Mobile) */}
-          {notifPermission === 'granted' && <BellRing className="w-4 h-4 text-emerald-500" />}
-          {notifPermission === 'denied' && <BellOff className="w-4 h-4 text-red-500 opacity-50" />}
-
-          {/* PWA Install Button (Mobile Top Bar) */}
-          {deferredPrompt && (
-            <button onClick={handleInstallClick} className="bg-blue-600/20 text-blue-400 p-1.5 rounded border border-blue-500/30" aria-label="Install App">
-              <Download className="w-5 h-5 shrink-0" />
-            </button>
-          )}
-
-          {user && (
-            <Link href="/dashboard" className="bg-zinc-800 px-3 py-1.5 rounded flex items-center gap-1.5 text-xs text-emerald-500 border border-zinc-700 font-bold">
-              <Wallet className="w-3.5 h-3.5 shrink-0" /> ₹{balance}
-            </Link>
-          )}
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-zinc-300 hover:text-orange-500 p-1">
-            {mobileMenuOpen ? <X className="w-7 h-7 shrink-0" /> : <Menu className="w-7 h-7 shrink-0" />}
-          </button>
-        </div>
-
-        {/* Mobile Dropdown Drawer */}
-        {mobileMenuOpen && (
-          <div className="absolute top-full left-0 w-full bg-zinc-950 border-b border-zinc-900 p-6 flex flex-col gap-2 md:hidden shadow-2xl">
-            <Link href="/" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-3 ${pathname === '/' ? 'text-orange-500' : 'text-zinc-300 hover:text-white'}`}>HOME</Link>
-            <Link href="/tournaments" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-3 ${pathname.includes('/tournaments') ? 'text-orange-500' : 'text-zinc-300 hover:text-white'}`}>TOURNAMENTS</Link>
-            <Link href="/leaderboard" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-3 ${pathname === '/leaderboard' ? 'text-orange-500' : 'text-zinc-300 hover:text-white'}`}>LEADERBOARD</Link>
-            <Link href="/rules" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-3 ${pathname === '/rules' ? 'text-orange-500' : 'text-zinc-300 hover:text-white'}`}>RULES</Link>
+          {/* Desktop Links */}
+          <div className="hidden md:flex gap-8 text-sm font-bold tracking-wide items-center">
+            <Link href="/" className={`transition-colors ${pathname === '/' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>HOME</Link>
+            <Link href="/tournaments" className={`transition-colors ${pathname.includes('/tournaments') ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>TOURNAMENTS</Link>
+            <Link href="/leaderboard" className={`transition-colors ${pathname === '/leaderboard' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>LEADERBOARD</Link>
+            <Link href="/rules" className={`transition-colors ${pathname === '/rules' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>RULES</Link>
             
             {user && (
-              <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className={`text-base font-bold py-3 ${pathname === '/dashboard' ? 'text-orange-500' : 'text-zinc-300 hover:text-white'}`}>DASHBOARD</Link>
+              <Link href="/dashboard" className={`transition-colors ${pathname === '/dashboard' ? 'text-orange-500 border-b-2 border-orange-500 pb-1' : 'text-zinc-300 hover:text-orange-400'}`}>DASHBOARD</Link>
             )}
 
-            {/* PWA Install Button (Mobile Drawer) */}
+            {notifPermission === 'granted' && <BellRing className="w-4 h-4 text-emerald-500" title="Notifications Enabled" />}
+            {notifPermission === 'denied' && <BellOff className="w-4 h-4 text-red-500 opacity-50" title="Notifications Blocked in Browser Settings" />}
+
             {deferredPrompt && (
-              <button onClick={() => { handleInstallClick(); setMobileMenuOpen(false); }} className="bg-blue-600/20 text-blue-400 border border-blue-500/30 py-3 rounded text-center font-black uppercase tracking-wider mt-2 flex items-center justify-center gap-2">
+              <button onClick={handleInstallClick} className="bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white px-4 py-2 rounded flex items-center gap-2 transition-colors border border-blue-500/30">
                 <Download className="w-4 h-4 shrink-0" /> Install App
               </button>
             )}
             
-            {!user && (
-              <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="bg-orange-500 text-black py-3.5 rounded text-center font-black uppercase tracking-wider mt-4 flex items-center justify-center gap-2">
+            {user ? (
+              <Link href="/dashboard" className="bg-zinc-800 hover:bg-zinc-700 px-4 py-2 rounded flex items-center gap-2 transition-colors border border-zinc-700 text-emerald-500">
+                <Wallet className="w-4 h-4 shrink-0" /> ₹{balance}
+              </Link>
+            ) : (
+              <Link href="/dashboard" className="bg-orange-500 hover:bg-orange-400 text-black px-5 py-2.5 rounded flex items-center gap-2 transition-colors font-black uppercase tracking-wider shadow-[0_0_15px_rgba(249,115,22,0.3)]">
                 <LogIn className="w-4 h-4 shrink-0" /> Player Login
               </Link>
             )}
           </div>
-        )}
-      </nav>
+
+          {/* Mobile Top Bar Controls */}
+          <div className="flex md:hidden items-center gap-3">
+            {notifPermission === 'granted' && <BellRing className="w-4 h-4 text-emerald-500" />}
+            {notifPermission === 'denied' && <BellOff className="w-4 h-4 text-red-500 opacity-50" />}
+
+            {deferredPrompt && (
+              <button onClick={handleInstallClick} className="bg-blue-600/20 text-blue-400 p-1.5 rounded border border-blue-500/30" aria-label="Install App">
+                <Download className="w-5 h-5 shrink-0" />
+              </button>
+            )}
+
+            {user ? (
+              <div className="bg-zinc-800 px-3 py-1.5 rounded flex items-center gap-1.5 text-xs text-emerald-500 border border-zinc-700 font-bold">
+                <Wallet className="w-3 h-3 shrink-0" /> ₹{balance}
+              </div>
+            ) : (
+              <Link href="/dashboard" className="bg-orange-500 text-black px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-wider">
+                Login
+              </Link>
+            )}
+          </div>
+        </nav>
+      )}
+
+      {/* --- APP-LIKE MOBILE BOTTOM NAVIGATION --- */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-[100] bg-zinc-950 border-t border-zinc-900 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+        <div className="flex justify-around items-center h-16 px-2 relative">
+          
+          <Link href="/" className={`flex flex-col items-center gap-1 w-14 transition-colors ${pathname === '/' ? 'text-orange-500' : 'text-zinc-500 hover:text-zinc-300'}`}>
+            <Home className="w-5 h-5" />
+            <span className="text-[9px] font-black uppercase tracking-wider">Home</span>
+          </Link>
+
+          <Link href="/tournaments" className={`flex flex-col items-center gap-1 w-14 transition-colors ${pathname.includes('/tournaments') ? 'text-orange-500' : 'text-zinc-500 hover:text-zinc-300'}`}>
+            <Crosshair className="w-5 h-5" />
+            <span className="text-[9px] font-black uppercase tracking-wider">Matches</span>
+          </Link>
+
+          {/* ELEVATED CENTER DASHBOARD BUTTON */}
+          <div className="relative w-16 flex justify-center">
+            <Link href="/dashboard" className="absolute -top-7 flex flex-col items-center group">
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center border-[4px] border-[#0a0a0a] shadow-lg transition-transform active:scale-95 ${pathname === '/dashboard' ? 'bg-orange-500 text-black shadow-[0_0_15px_rgba(249,115,22,0.5)]' : 'bg-zinc-800 text-zinc-300 border-zinc-900'}`}>
+                {user ? <LayoutDashboard className="w-6 h-6" /> : <LogIn className="w-6 h-6 ml-0.5" />}
+              </div>
+              <span className={`text-[10px] font-black uppercase tracking-wider mt-1 ${pathname === '/dashboard' ? 'text-orange-500' : 'text-zinc-400'}`}>
+                {user ? 'Hub' : 'Login'}
+              </span>
+            </Link>
+          </div>
+
+          <Link href="/leaderboard" className={`flex flex-col items-center gap-1 w-14 transition-colors ${pathname === '/leaderboard' ? 'text-orange-500' : 'text-zinc-500 hover:text-zinc-300'}`}>
+            <Trophy className="w-5 h-5" />
+            <span className="text-[9px] font-black uppercase tracking-wider">Ranks</span>
+          </Link>
+
+          <Link href="/rules" className={`flex flex-col items-center gap-1 w-14 transition-colors ${pathname === '/rules' ? 'text-orange-500' : 'text-zinc-500 hover:text-zinc-300'}`}>
+            <ShieldAlert className="w-5 h-5" />
+            <span className="text-[9px] font-black uppercase tracking-wider">Rules</span>
+          </Link>
+
+        </div>
+      </div>
     </>
   );
 }
