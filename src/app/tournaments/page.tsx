@@ -110,12 +110,20 @@ export default function TournamentsPage() {
     
     setIsSubmitting(true);
     try {
-      // SECURE SERVER-SIDE TIME VALIDATION
+      // 1. Strict Server Status Check
+      if (selectedMatch.status === 'FULL' || selectedMatch.status === 'COMPLETED' || selectedMatch.status === 'CANCELLED') {
+        alert(`REGISTRATION FAILED: This match is currently ${selectedMatch.status}.`);
+        setIsSubmitting(false);
+        setSelectedMatch(null);
+        return;
+      }
+
+      // 2. Strict Server-Side Time Validation
       if (selectedMatch.registration_closing_time) {
         const trueServerTime = await getServerTime();
         const closingTime = new Date(selectedMatch.registration_closing_time).getTime();
         
-        if (trueServerTime > closingTime) {
+        if (trueServerTime >= closingTime) {
           alert("REGISTRATION FAILED: The registration window for this match has officially closed.");
           setIsSubmitting(false);
           setSelectedMatch(null);
@@ -287,16 +295,18 @@ export default function TournamentsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredTournaments.map((t) => {
-              // BUG FIX: Strictly bound the visual prize array to the configured winner count
               const winnerCount = t.total_winners || (t.prize_breakdown?.length > 0 ? t.prize_breakdown.length : 2);
               const activePrizes = t.prize_breakdown?.length > 0 
                 ? t.prize_breakdown.slice(0, winnerCount) 
                 : [t.first_prize || 0, t.second_prize || 0].slice(0, winnerCount);
-                
+              
               const totalPrizePool = activePrizes.reduce((a: number, b: number) => a + Number(b), 0);
               
+              // --- STRICT STATUS ENGINE ---
+              const isTimePassed = t.registration_closing_time && currentTime ? currentTime > new Date(t.registration_closing_time).getTime() : false;
+              const isClosed = isTimePassed || t.status === 'FULL' || t.status === 'COMPLETED' || t.status === 'CANCELLED';
+              const displayStatus = (isTimePassed && t.status === 'OPEN') ? 'REGISTRATION CLOSED' : t.status;
               const countdown = formatCountdown(t.registration_closing_time);
-              const isClosed = countdown === "CLOSED" || t.status === 'FULL';
 
               return (
                 <div key={t.id} className={`bg-zinc-900 border ${isClosed ? 'border-red-900/30' : 'border-zinc-800'} rounded-xl overflow-hidden group hover:border-orange-500 transition-colors flex flex-col h-full shadow-lg relative`}>
@@ -305,7 +315,7 @@ export default function TournamentsPage() {
                     <img src={t.map_img} alt={t.name} className={`w-full h-full object-cover transition-transform duration-500 ${isClosed ? 'grayscale opacity-50' : 'group-hover:scale-110'}`} />
                     
                     <span className={`absolute top-3 right-3 z-20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase border ${isClosed ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-black/70 text-orange-400 border-orange-500/30'}`}>
-                      {isClosed ? 'CLOSED' : (t.status || 'OPEN')}
+                      {isClosed ? 'CLOSED' : (displayStatus || 'OPEN')}
                     </span>
                     <h3 className="absolute bottom-3 left-4 z-20 font-black italic text-xl tracking-wider">{t.name}</h3>
                   </div>
