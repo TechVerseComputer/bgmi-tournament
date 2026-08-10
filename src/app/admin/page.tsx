@@ -316,20 +316,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleMarkCompleted = async (tourney: any) => {
-    if (!confirm(`Mark "${tourney.name}" as COMPLETED? It will be moved to Old Match History.`)) return;
-    setActionLoading(tourney.id);
-    try {
-      const { error } = await supabase.from('tournaments').update({ status: 'COMPLETED' }).eq('id', tourney.id);
-      if (error) throw error;
-      fetchAllData();
-    } catch (err: any) {
-      alert("Error completing match: " + err.message);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
   const handleDeleteTournament = async (tourney: any) => { 
     if (tourney.status !== 'CANCELLED' && tourney.status !== 'COMPLETED') {
       return alert("You can only permanently delete matches that are CANCELLED or COMPLETED.");
@@ -677,7 +663,14 @@ export default function AdminDashboard() {
                           <div>
                             <div className="flex items-center gap-2">
                               <h3 className="font-black italic text-lg uppercase tracking-wide">{t.name}</h3>
-                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : t.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>{t.status}</span>
+                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${
+                                t.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 
+                                t.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 
+                                t.status === 'UNDER REVIEW' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse' : 
+                                'bg-zinc-800 text-zinc-500 border-zinc-700'
+                              }`}>
+                                {t.status}
+                              </span>
                             </div>
                             <div className="flex gap-2 text-xs font-bold text-zinc-400 mt-1">
                               <span className="text-orange-500">
@@ -689,7 +682,6 @@ export default function AdminDashboard() {
                         <div className="flex flex-wrap justify-end gap-2 w-full sm:w-auto">
                           <button onClick={() => router.push(`/admin/tournament/${t.id}`)} className="bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1"><Eye className="w-3 h-3"/> View Control</button>
                           <button onClick={() => handleEditClick(t)} className="bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white border border-blue-500/20 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all"><Edit3 className="w-3 h-3"/></button>
-                          <button disabled={actionLoading === t.id} onClick={() => handleMarkCompleted(t)} className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white border border-emerald-500/20 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 disabled:opacity-50"><CheckSquare className="w-3 h-3"/> Complete</button>
                           <button disabled={actionLoading === t.id} onClick={() => handleCancelMatch(t)} className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 disabled:opacity-50"><Ban className="w-3 h-3"/> Cancel & Refund</button>
                         </div>
                       </div>
