@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Trophy, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3, PlusCircle, Eye, Calculator, Key, Ban, CheckSquare, FileText } from 'lucide-react';
+import { Trophy, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3, PlusCircle, Eye, Calculator, Key, Ban, CheckSquare, FileText, Image as ImageIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function AdminDashboard() {
@@ -21,6 +21,7 @@ export default function AdminDashboard() {
   const [rules, setRules] = useState<any[]>([]);
   const [pendingTransactions, setPendingTransactions] = useState<any[]>([]);
 
+  // Tournament States
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   
@@ -42,7 +43,21 @@ export default function AdminDashboard() {
   const [newTourney, setNewTourney] = useState(defaultTourney);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const [newLeaderboard, setNewLeaderboard] = useState({ match_date: '', slot_time: '', winner_1_team: '', winner_2_team: '' });
+  // UPGRADED: Leaderboard States
+  const defaultLeaderboard = { 
+    match_date: '', 
+    tournament_name: '', 
+    team_name: '', 
+    team_id: '', 
+    prize_won: '', 
+    status: 'Draft',
+    screenshot_url: '' 
+  };
+  const [newLeaderboard, setNewLeaderboard] = useState(defaultLeaderboard);
+  const [editingLeaderboardId, setEditingLeaderboardId] = useState<string | null>(null);
+  const [leaderboardImageFile, setLeaderboardImageFile] = useState<File | null>(null);
+  const [leaderboardUploading, setLeaderboardUploading] = useState(false);
+
   const [newRule, setNewRule] = useState({ title: '', description: '' });
 
   useEffect(() => {
@@ -337,8 +352,89 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleCreateLeaderboard = async (e: React.FormEvent) => { e.preventDefault(); const { error } = await supabase.from('leaderboard').insert([newLeaderboard]); if (!error) { setNewLeaderboard({ match_date: '', slot_time: '', winner_1_team: '', winner_2_team: '' }); fetchAllData(); } };
-  const handleDeleteLeaderboard = async (id: string) => { if(confirm("Delete this entry?")) { await supabase.from('leaderboard').delete().eq('id', id); fetchAllData(); } };
+  // --- UPGRADED LEADERBOARD HANDLERS ---
+  const handleEditLeaderboard = (item: any) => {
+    setEditingLeaderboardId(item.id);
+    setNewLeaderboard({
+      match_date: item.match_date || '',
+      tournament_name: item.tournament_name || '',
+      team_name: item.team_name || item.winner_1_team || '', // Fallback to old schema if needed
+      team_id: item.team_id || '',
+      prize_won: item.prize_won || '',
+      status: item.status || 'Draft',
+      screenshot_url: item.screenshot_url || ''
+    });
+    setLeaderboardImageFile(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelLeaderboardEdit = () => {
+    setEditingLeaderboardId(null);
+    setNewLeaderboard(defaultLeaderboard);
+    setLeaderboardImageFile(null);
+  };
+
+  const handleSaveLeaderboard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLeaderboardUploading(true);
+    
+    try {
+      let finalScreenshotUrl = newLeaderboard.screenshot_url;
+
+      if (leaderboardImageFile) {
+        const fileExt = leaderboardImageFile.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `winner-screenshots/${fileName}`;
+        
+        const { error: uploadError } = await supabase.storage.from('leaderboard-images').upload(filePath, leaderboardImageFile);
+        if (uploadError) throw uploadError;
+        
+        const { data: publicUrlData } = supabase.storage.from('leaderboard-images').getPublicUrl(filePath);
+        finalScreenshotUrl = publicUrlData.publicUrl;
+      } else if (!editingLeaderboardId && !finalScreenshotUrl) {
+        throw new Error("Please upload a winner screenshot.");
+      }
+
+      const payload = {
+        match_date: newLeaderboard.match_date,
+        tournament_name: newLeaderboard.tournament_name,
+        team_name: newLeaderboard.team_name,
+        team_id: newLeaderboard.team_id,
+        prize_won: Number(newLeaderboard.prize_won),
+        status: newLeaderboard.status,
+        screenshot_url: finalScreenshotUrl,
+        winner_1_team: newLeaderboard.team_name // Backwards compatibility just in case
+      };
+
+      if (editingLeaderboardId) {
+        const { error } = await supabase.from('leaderboard').update(payload).eq('id', editingLeaderboardId);
+        if (error) throw error;
+        alert("Winner record updated successfully!");
+      } else {
+        const { error } = await supabase.from('leaderboard').insert([payload]);
+        if (error) throw error;
+        alert("Winner record created successfully!");
+      }
+
+      setNewLeaderboard(defaultLeaderboard);
+      setEditingLeaderboardId(null);
+      setLeaderboardImageFile(null);
+      fetchAllData();
+
+    } catch (error: any) {
+      alert("Error saving leaderboard: " + error.message);
+    } finally {
+      setLeaderboardUploading(false);
+    }
+  };
+
+  const handleDeleteLeaderboard = async (id: string) => { 
+    if(confirm("Delete this winner record permanently?")) { 
+      await supabase.from('leaderboard').delete().eq('id', id); 
+      fetchAllData(); 
+    } 
+  };
+
   const handleCreateRule = async (e: React.FormEvent) => { e.preventDefault(); const { error } = await supabase.from('rules').insert([newRule]); if (!error) { setNewRule({ title: '', description: '' }); fetchAllData(); } };
   const handleDeleteRule = async (id: string) => { if(confirm("Delete this rule?")) { await supabase.from('rules').delete().eq('id', id); fetchAllData(); } };
 
@@ -635,43 +731,126 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* LEADERBOARD & RULES TABS */}
+        {/* --- LEADERBOARD TAB --- */}
         {activeTab === 'leaderboard' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="bg-zinc-900 border border-zinc-800 p-6 rounded h-fit">
-              <h2 className="text-xl font-black italic uppercase tracking-widest mb-6 border-b border-zinc-800 pb-4">Post Winners</h2>
-              <form onSubmit={handleCreateLeaderboard} className="space-y-4 text-sm font-bold">
+            <div className={`bg-zinc-900 border p-6 rounded h-fit ${editingLeaderboardId ? 'border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.15)]' : 'border-zinc-800'}`}>
+              
+              {editingLeaderboardId ? (
+                <div className="mb-6 flex flex-col gap-4 border-b border-blue-500/30 pb-4">
+                  <div className="flex items-center gap-2 text-blue-400 font-black italic tracking-widest uppercase">
+                    <Edit3 className="w-5 h-5"/> Editing Winner
+                  </div>
+                  <button type="button" onClick={handleCancelLeaderboardEdit} className="bg-zinc-950 hover:bg-zinc-800 text-white text-xs font-bold px-4 py-3 rounded uppercase tracking-wider transition-colors border border-zinc-700 flex items-center justify-center gap-2 w-full">
+                    <PlusCircle className="w-4 h-4"/> Post New Winner Instead
+                  </button>
+                </div>
+              ) : (
+                <h2 className="text-xl font-black italic uppercase tracking-widest mb-6 border-b border-zinc-800 pb-4 text-orange-500">Post Official Winner</h2>
+              )}
+
+              <form onSubmit={handleSaveLeaderboard} className="space-y-4 text-sm font-bold">
                 <div>
                   <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Match Date</label>
-                  <input required type="date" value={newLeaderboard.match_date} onChange={e => setNewLeaderboard({...newLeaderboard, match_date: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded text-zinc-300 focus:border-orange-500 outline-none" />
+                  <input required type="date" value={newLeaderboard.match_date} onChange={e => setNewLeaderboard({...newLeaderboard, match_date: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 p-2.5 rounded text-zinc-300 focus:border-orange-500 outline-none [color-scheme:dark]" />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Time Slot</label>
-                  <input required type="text" placeholder="e.g. 9:00 PM" value={newLeaderboard.slot_time} onChange={e => setNewLeaderboard({...newLeaderboard, slot_time: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded focus:border-orange-500 outline-none" />
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Tournament Name</label>
+                  <input required type="text" placeholder="e.g. Erangel Squad TPP" value={newLeaderboard.tournament_name} onChange={e => setNewLeaderboard({...newLeaderboard, tournament_name: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 p-2.5 rounded text-white focus:border-orange-500 outline-none" />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">1st Place Squad</label>
-                  <input required type="text" placeholder="Team Alpha" value={newLeaderboard.winner_1_team} onChange={e => setNewLeaderboard({...newLeaderboard, winner_1_team: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded border-l-4 border-l-orange-500 focus:border-orange-500 outline-none" />
+                  <label className="text-xs font-bold text-orange-500 uppercase tracking-wider block mb-1">Winner / Squad Name</label>
+                  <input required type="text" placeholder="Team Alpha" value={newLeaderboard.team_name} onChange={e => setNewLeaderboard({...newLeaderboard, team_name: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 p-2.5 rounded border-l-4 border-l-orange-500 text-white focus:border-orange-500 outline-none" />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">2nd Place Squad</label>
-                  <input required type="text" placeholder="Team Beta" value={newLeaderboard.winner_2_team} onChange={e => setNewLeaderboard({...newLeaderboard, winner_2_team: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 p-3 rounded border-l-4 border-l-zinc-500 focus:border-orange-500 outline-none" />
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Captain / Team ID (Optional)</label>
+                  <input type="text" placeholder="e.g. 554312345" value={newLeaderboard.team_id} onChange={e => setNewLeaderboard({...newLeaderboard, team_id: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 p-2.5 rounded text-zinc-400 focus:border-orange-500 outline-none" />
                 </div>
-                <button type="submit" className="w-full bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-3 rounded transition-colors mt-4">Publish to Leaderboard</button>
+                <div>
+                  <label className="text-xs font-bold text-emerald-500 uppercase tracking-wider block mb-1">Prize Won (₹)</label>
+                  <input required type="number" placeholder="1500" value={newLeaderboard.prize_won} onChange={e => setNewLeaderboard({...newLeaderboard, prize_won: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 p-2.5 rounded text-emerald-400 focus:border-emerald-500 outline-none font-black" />
+                </div>
+                
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Status</label>
+                  <select value={newLeaderboard.status} onChange={e => setNewLeaderboard({...newLeaderboard, status: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 p-2.5 rounded text-white focus:border-orange-500 outline-none">
+                    <option value="Draft">Draft (Hidden)</option>
+                    <option value="Under Review">Under Review (Hidden)</option>
+                    <option value="Published">Published (Public)</option>
+                  </select>
+                </div>
+
+                <div className="bg-zinc-950 border border-zinc-800 p-3 rounded-lg">
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-2">
+                    Winner Screenshot {editingLeaderboardId && '(Leave blank to keep existing)'}
+                  </label>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={e => setLeaderboardImageFile(e.target.files?.[0] || null)} 
+                    className="w-full text-xs text-zinc-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-[10px] file:font-black file:bg-zinc-800 file:text-white hover:file:bg-zinc-700 cursor-pointer" 
+                  />
+                  {newLeaderboard.screenshot_url && !leaderboardImageFile && (
+                    <div className="mt-3 relative h-20 w-full rounded overflow-hidden border border-zinc-800">
+                      <img src={newLeaderboard.screenshot_url} alt="Current" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-[10px] font-black uppercase tracking-widest text-white">Current Image</div>
+                    </div>
+                  )}
+                </div>
+
+                <button type="submit" disabled={leaderboardUploading} className={`w-full font-black uppercase tracking-widest py-3 rounded transition-colors mt-4 disabled:opacity-50 flex items-center justify-center gap-2 ${editingLeaderboardId ? 'bg-blue-500 hover:bg-blue-400 text-black' : 'bg-orange-500 hover:bg-orange-400 text-black'}`}>
+                  {leaderboardUploading ? 'Saving...' : editingLeaderboardId ? 'Update Winner' : 'Publish to Leaderboard'}
+                </button>
               </form>
             </div>
+
             <div className="lg:col-span-2 space-y-4">
-              <h2 className="text-xl font-black italic uppercase tracking-widest mb-6">Published Results</h2>
-              {leaderboards.map((l) => (
-                <div key={l.id} className="bg-zinc-900 border border-zinc-800 p-5 rounded flex justify-between items-center">
-                  <div>
-                    <span className="text-xs text-zinc-400 font-bold bg-black px-2 py-1 rounded border border-zinc-800">{l.match_date} • {l.slot_time}</span>
-                    <p className="mt-3 font-black text-xl text-orange-500">🥇 {l.winner_1_team}</p>
-                    <p className="font-bold text-zinc-300">🥈 {l.winner_2_team}</p>
-                  </div>
-                  <button onClick={() => handleDeleteLeaderboard(l.id)} className="p-2 hover:bg-red-500/10 rounded transition-colors"><Trash2 className="w-5 h-5 text-red-500" /></button>
+              <h2 className="text-xl font-black italic uppercase tracking-widest mb-6">Winner Database</h2>
+              {leaderboards.length === 0 ? (
+                <div className="bg-zinc-900 border border-zinc-800 p-8 text-center rounded text-zinc-500 font-bold uppercase tracking-wider">No winners recorded yet.</div>
+              ) : (
+                <div className="space-y-4">
+                  {leaderboards.map((l) => {
+                    const statusColors: any = {
+                      'Published': 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+                      'Under Review': 'bg-amber-500/10 text-amber-500 border-amber-500/20',
+                      'Draft': 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                    };
+                    const statusClass = statusColors[l.status || 'Draft'] || statusColors['Draft'];
+                    const displayTeamName = l.team_name || l.winner_1_team || 'Unknown Team'; // Backwards compatibility
+
+                    return (
+                      <div key={l.id} className="bg-zinc-900 border border-zinc-800 p-4 rounded-lg flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <div className="flex items-center gap-4 w-full sm:w-auto">
+                          {l.screenshot_url ? (
+                            <img src={l.screenshot_url} alt="Winner" className="w-16 h-16 object-cover rounded border border-zinc-700 bg-zinc-950" />
+                          ) : (
+                            <div className="w-16 h-16 rounded border border-zinc-800 bg-zinc-950 flex items-center justify-center text-zinc-700">
+                              <ImageIcon className="w-6 h-6" />
+                            </div>
+                          )}
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${statusClass}`}>{l.status || 'Draft'}</span>
+                              <span className="text-[10px] text-zinc-500 font-black tracking-widest uppercase">{l.match_date}</span>
+                            </div>
+                            <h3 className="font-black text-lg text-white">🥇 {displayTeamName}</h3>
+                            <p className="text-xs font-bold text-zinc-400">{l.tournament_name || 'Legacy Match'} <span className="text-emerald-500 ml-2">₹{l.prize_won || 'N/A'}</span></p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 w-full sm:w-auto justify-end">
+                          <button onClick={() => handleEditLeaderboard(l)} className="bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white border border-blue-500/20 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all">
+                            <Edit3 className="w-3 h-3"/>
+                          </button>
+                          <button onClick={() => handleDeleteLeaderboard(l.id)} className="bg-zinc-800 hover:bg-red-900 text-red-500 hover:text-white border border-zinc-700 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all">
+                            <Trash2 className="w-3 h-3"/>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
