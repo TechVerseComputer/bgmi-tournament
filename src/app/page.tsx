@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones, Flame, Timer } from 'lucide-react';
+import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones, Flame, Timer, Gamepad2, FileText, Lock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
@@ -198,7 +198,7 @@ export default function Home() {
               
             const totalPrizePool = activePrizes.reduce((a: number, b: number) => a + Number(b), 0);
 
-            // --- STRICT STATUS ENGINE ---
+            // --- STRICT STATUS & COUNTDOWN ENGINE ---
             const isTimePassed = t.registration_closing_time && currentTime > new Date(t.registration_closing_time).getTime();
             const computedStatus = (isTimePassed && t.status === 'OPEN') ? 'CLOSED' : (t.status || 'OPEN');
             const isJoinDisabled = isTimePassed || t.status === 'FULL' || t.status === 'COMPLETED' || t.status === 'CANCELLED';
@@ -281,6 +281,62 @@ export default function Home() {
           <Link href="/tournaments" className="inline-flex items-center gap-2 text-zinc-300 hover:text-orange-500 font-bold uppercase tracking-wider transition-colors border border-zinc-800 hover:border-orange-500 px-6 py-3.5 md:px-8 md:py-4 rounded-2xl bg-zinc-900/50 backdrop-blur-md shadow-lg text-xs md:text-sm">
             View All Scheduled Tournaments <ChevronRight className="w-4 h-4 shrink-0" />
           </Link>
+        </div>
+      </section>
+
+      {/* --- NEW: SUPPORT & INFORMATION SECTION --- */}
+      <section className="py-16 md:py-24 px-4 max-w-7xl mx-auto border-t border-zinc-900/80">
+        <div className="text-center mb-10 md:mb-16">
+          <span className="text-orange-500 text-[10px] md:text-xs font-black uppercase tracking-widest mb-2">Need Assistance?</span>
+          <h2 className="text-2xl sm:text-3xl md:text-5xl font-black italic uppercase tracking-wider">Support & <span className="text-orange-500">Information</span></h2>
+          <div className="h-1 w-16 md:w-20 bg-orange-500 mt-3 md:mt-4 mx-auto rounded-full" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+          
+          <Link href="/help" className="bg-zinc-900/40 border border-zinc-800/80 p-6 md:p-8 rounded-2xl flex flex-col items-start hover:border-orange-500/50 hover:bg-zinc-900/60 transition-all duration-300 group">
+            <div className="w-12 h-12 bg-orange-500/10 text-orange-500 rounded-xl flex items-center justify-center mb-5 border border-orange-500/20 group-hover:bg-orange-500 group-hover:text-black transition-colors shrink-0">
+              <Headphones className="w-6 h-6" />
+            </div>
+            <h3 className="font-black uppercase tracking-wider text-white text-base md:text-lg mb-2 group-hover:text-orange-400 transition-colors">Help Center</h3>
+            <p className="text-zinc-400 text-[11px] md:text-xs leading-relaxed flex-1">Find answers to common questions about tournaments, wallet, registration, results and withdrawals.</p>
+            <div className="mt-6 flex items-center gap-2 text-xs font-black text-orange-500 uppercase tracking-widest group-hover:translate-x-2 transition-transform">
+              Read More <ChevronRight className="w-4 h-4" />
+            </div>
+          </Link>
+
+          <Link href="/how-to-play" className="bg-zinc-900/40 border border-zinc-800/80 p-6 md:p-8 rounded-2xl flex flex-col items-start hover:border-orange-500/50 hover:bg-zinc-900/60 transition-all duration-300 group">
+            <div className="w-12 h-12 bg-orange-500/10 text-orange-500 rounded-xl flex items-center justify-center mb-5 border border-orange-500/20 group-hover:bg-orange-500 group-hover:text-black transition-colors shrink-0">
+              <Gamepad2 className="w-6 h-6" />
+            </div>
+            <h3 className="font-black uppercase tracking-wider text-white text-base md:text-lg mb-2 group-hover:text-orange-400 transition-colors">How To Play</h3>
+            <p className="text-zinc-400 text-[11px] md:text-xs leading-relaxed flex-1">Learn how to deposit funds, join a tournament, get room details, submit results and receive winnings.</p>
+            <div className="mt-6 flex items-center gap-2 text-xs font-black text-orange-500 uppercase tracking-widest group-hover:translate-x-2 transition-transform">
+              Read More <ChevronRight className="w-4 h-4" />
+            </div>
+          </Link>
+
+          <Link href="/terms" className="bg-zinc-900/40 border border-zinc-800/80 p-6 md:p-8 rounded-2xl flex flex-col items-start hover:border-orange-500/50 hover:bg-zinc-900/60 transition-all duration-300 group">
+            <div className="w-12 h-12 bg-orange-500/10 text-orange-500 rounded-xl flex items-center justify-center mb-5 border border-orange-500/20 group-hover:bg-orange-500 group-hover:text-black transition-colors shrink-0">
+              <FileText className="w-6 h-6" />
+            </div>
+            <h3 className="font-black uppercase tracking-wider text-white text-base md:text-lg mb-2 group-hover:text-orange-400 transition-colors">Terms & Conditions</h3>
+            <p className="text-zinc-400 text-[11px] md:text-xs leading-relaxed flex-1">Understand the rules, tournament conditions, entry fees, payouts, cancellations and player responsibilities.</p>
+            <div className="mt-6 flex items-center gap-2 text-xs font-black text-orange-500 uppercase tracking-widest group-hover:translate-x-2 transition-transform">
+              Read More <ChevronRight className="w-4 h-4" />
+            </div>
+          </Link>
+
+          <Link href="/privacy" className="bg-zinc-900/40 border border-zinc-800/80 p-6 md:p-8 rounded-2xl flex flex-col items-start hover:border-orange-500/50 hover:bg-zinc-900/60 transition-all duration-300 group">
+            <div className="w-12 h-12 bg-orange-500/10 text-orange-500 rounded-xl flex items-center justify-center mb-5 border border-orange-500/20 group-hover:bg-orange-500 group-hover:text-black transition-colors shrink-0">
+              <Lock className="w-6 h-6" />
+            </div>
+            <h3 className="font-black uppercase tracking-wider text-white text-base md:text-lg mb-2 group-hover:text-orange-400 transition-colors">Privacy Policy</h3>
+            <p className="text-zinc-400 text-[11px] md:text-xs leading-relaxed flex-1">Learn how BGMI Arena collects, uses, protects and manages your account and transaction information.</p>
+            <div className="mt-6 flex items-center gap-2 text-xs font-black text-orange-500 uppercase tracking-widest group-hover:translate-x-2 transition-transform">
+              Read More <ChevronRight className="w-4 h-4" />
+            </div>
+          </Link>
+          
         </div>
       </section>
 
