@@ -198,7 +198,7 @@ export default function Home() {
               
             const totalPrizePool = activePrizes.reduce((a: number, b: number) => a + Number(b), 0);
 
-            // --- STRICT STATUS & COUNTDOWN ENGINE ---
+            // --- STRICT STATUS ENGINE ---
             const isTimePassed = t.registration_closing_time && currentTime > new Date(t.registration_closing_time).getTime();
             const computedStatus = (isTimePassed && t.status === 'OPEN') ? 'CLOSED' : (t.status || 'OPEN');
             const isJoinDisabled = isTimePassed || t.status === 'FULL' || t.status === 'COMPLETED' || t.status === 'CANCELLED';
@@ -220,7 +220,17 @@ export default function Home() {
                 <div className="p-4 md:p-5 space-y-4 flex-1 flex flex-col justify-between">
                   <div className="space-y-3">
                     
-                    {/* 1. PRIZE POOL (PROMINENT HIGHLIGHT) */}
+                    {/* 1. MATCH DETAILS (MOVED UP) */}
+                    <div className="flex flex-wrap gap-2 text-[10px] md:text-xs font-bold pb-1">
+                      <span className="border border-orange-500/30 bg-orange-500/10 text-orange-500 px-2 py-1 rounded-md flex items-center gap-1"><Users className="w-3 h-3 shrink-0" /> {t.type}</span>
+                      <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2 py-1 rounded-md">{t.perspective}</span>
+                      <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2 py-1 rounded-md flex items-center gap-1 ml-auto">
+                        <Clock className="w-3 h-3 text-orange-500 shrink-0" />
+                        {t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' }) : 'TBA'}
+                      </span>
+                    </div>
+
+                    {/* 2. PRIZE POOL (PROMINENT HIGHLIGHT) */}
                     <div className="bg-gradient-to-r from-orange-500/15 via-zinc-950 to-zinc-950 border border-orange-500/30 p-3 rounded-xl flex justify-between items-center shadow-inner">
                       <div>
                         <p className="text-[9px] font-black uppercase text-orange-400 tracking-wider">Total Prize Pool</p>
@@ -232,7 +242,7 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* 2. ENTRY FEE & 3. COUNTDOWN GRID */}
+                    {/* 3. ENTRY FEE & COUNTDOWN GRID */}
                     <div className="grid grid-cols-2 gap-2">
                       <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80">
                         <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Entry Fee</p>
@@ -243,19 +253,9 @@ export default function Home() {
                         <p className="text-xs font-black uppercase tracking-tight">{isJoinDisabled ? 'CLOSED' : (countdown || 'OPEN')}</p>
                       </div>
                     </div>
-
-                    {/* 4. MATCH DETAILS */}
-                    <div className="flex flex-wrap gap-2 text-[10px] md:text-xs font-bold pt-1">
-                      <span className="border border-orange-500/30 bg-orange-500/10 text-orange-500 px-2 py-1 rounded-md flex items-center gap-1"><Users className="w-3 h-3 shrink-0" /> {t.type}</span>
-                      <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2 py-1 rounded-md">{t.perspective}</span>
-                      <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2 py-1 rounded-md flex items-center gap-1 ml-auto">
-                        <Clock className="w-3 h-3 text-orange-500 shrink-0" />
-                        {t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' }) : 'TBA'}
-                      </span>
-                    </div>
                   </div>
 
-                  {/* 5. ACTIONS */}
+                  {/* 4. ACTIONS */}
                   <div className="grid grid-cols-2 gap-2 pt-2 border-t border-zinc-800/80">
                     <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-2.5 md:py-3 rounded-xl text-[10px] md:text-xs transition-colors border border-zinc-700 flex items-center justify-center">
                       View Details
