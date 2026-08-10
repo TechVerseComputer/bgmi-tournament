@@ -317,7 +317,17 @@ export default function TournamentsPage() {
                   <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
                     <div className="space-y-3">
                       
-                      {/* 1. PRIZE POOL (PROMINENT HIGHLIGHT) */}
+                      {/* 1. MATCH DETAILS (MOVED UP) */}
+                      <div className="flex flex-wrap gap-2 text-[10px] md:text-xs font-bold pb-1">
+                        <span className="border border-orange-500/30 bg-orange-500/10 text-orange-500 px-2.5 py-1 rounded-md flex items-center gap-1"><Users className="w-3 h-3 shrink-0" /> {t.type}</span>
+                        <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2.5 py-1 rounded-md">{t.perspective}</span>
+                        <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2.5 py-1 rounded-md flex items-center gap-1 ml-auto">
+                          <Clock className="w-3 h-3 text-orange-500 shrink-0" />
+                          {t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' }) : 'TBA'}
+                        </span>
+                      </div>
+
+                      {/* 2. PRIZE POOL (PROMINENT HIGHLIGHT) */}
                       <div className="bg-gradient-to-r from-orange-500/15 via-zinc-950 to-zinc-950 border border-orange-500/30 p-3 rounded-xl flex justify-between items-center shadow-inner">
                         <div>
                           <p className="text-[9px] font-black uppercase text-orange-400 tracking-wider">Total Prize Pool</p>
@@ -329,7 +339,7 @@ export default function TournamentsPage() {
                         </div>
                       </div>
 
-                      {/* 2. ENTRY FEE & 3. COUNTDOWN GRID */}
+                      {/* 3. ENTRY FEE & COUNTDOWN GRID */}
                       <div className="grid grid-cols-2 gap-2">
                         <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80">
                           <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Entry Fee</p>
@@ -340,19 +350,9 @@ export default function TournamentsPage() {
                           <p className="text-xs font-black uppercase tracking-tight">{isClosed ? 'CLOSED' : (countdown || 'OPEN')}</p>
                         </div>
                       </div>
-
-                      {/* 4. MATCH DETAILS */}
-                      <div className="flex flex-wrap gap-2 text-xs font-bold pt-1">
-                        <span className="border border-orange-500 bg-orange-500/10 text-orange-500 px-2.5 py-1 rounded flex items-center gap-1"><Users className="w-3 h-3" /> {t.type}</span>
-                        <span className="border border-zinc-700 bg-zinc-800 text-gray-300 px-2.5 py-1 rounded">{t.perspective}</span>
-                        <span className="border border-zinc-700 bg-zinc-800 text-gray-300 px-2.5 py-1 rounded flex items-center gap-1 ml-auto">
-                          <Clock className="w-3 h-3 text-orange-500" />
-                          {t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' }) : 'TBA'}
-                        </span>
-                      </div>
                     </div>
 
-                    {/* 5. ACTIONS */}
+                    {/* 4. ACTIONS */}
                     <div className="grid grid-cols-2 gap-3 pt-2">
                       <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded text-xs transition-colors border border-zinc-700 flex items-center justify-center">
                         View Details
