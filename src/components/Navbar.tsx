@@ -16,6 +16,22 @@ interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
+// Utility function to convert VAPID key for the PushManager
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding)
+    .replace(/\-/g, '+')
+    .replace(/_/g, '/');
+
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 export default function Navbar() {
   const supabase = createClient();
   const pathname = usePathname();
@@ -77,14 +93,58 @@ export default function Navbar() {
     }
   };
 
-  // --- NOTIFICATION HANDLERS ---
+  // --- NOTIFICATION HANDLERS (UPGRADED FOR REAL WEB PUSH) ---
   const handleEnableNotifications = async () => {
     try {
       const permission = await Notification.requestPermission();
       setNotifPermission(permission);
       setShowNotifPrompt(false);
+
+      // If granted and the user is logged in, securely subscribe their device
+      if (permission === 'granted' && user) {
+        await subscribeDeviceToPush();
+      }
     } catch (error) {
       console.error('Failed to request notification permission:', error);
+    }
+  };
+
+  const subscribeDeviceToPush = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    
+    try {
+      // Wait for the next-pwa service worker to be ready
+      const registration = await navigator.serviceWorker.ready;
+      
+      // Check if this device is already subscribed
+      const existingSubscription = await registration.pushManager.getSubscription();
+      if (existingSubscription) return; 
+
+      const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!publicVapidKey) {
+        console.warn('VAPID public key is missing from environment variables.');
+        return;
+      }
+
+      // Generate the secure push subscription endpoint via the browser
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
+      });
+
+      const subJSON = subscription.toJSON();
+      
+      // Save the subscription to your Supabase database securely linked to the player
+      await supabase.from('push_subscriptions').upsert({
+        user_id: user.id,
+        endpoint: subJSON.endpoint,
+        p256dh: subJSON.keys?.p256dh,
+        auth: subJSON.keys?.auth,
+        created_at: new Date().toISOString()
+      }, { onConflict: 'endpoint' });
+
+    } catch (error) {
+      console.error('Error subscribing to push notifications:', error);
     }
   };
 
