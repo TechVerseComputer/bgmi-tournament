@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones, Flame } from 'lucide-react';
+import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones, Flame, Timer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
@@ -60,14 +60,30 @@ export default function Home() {
       setCurrentSlide((prev) => (prev + 1) % heroImages.length);
     }, 4500);
     
-    // Time ticker for accurate real-time badge updates
-    const timeInterval = setInterval(() => setCurrentTime(Date.now()), 10000);
+    // Live ticker running every second for card countdowns
+    const timeInterval = setInterval(() => setCurrentTime(Date.now()), 1000);
 
     return () => {
       clearInterval(slideInterval);
       clearInterval(timeInterval);
     }
   }, []);
+
+  const formatCountdown = (closingTime: string) => {
+    if (!closingTime || !currentTime) return null;
+    const target = new Date(closingTime).getTime();
+    const diff = target - currentTime;
+    
+    if (diff <= 0) return "CLOSED";
+    
+    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
+    const m = Math.floor((diff / 1000 / 60) % 60);
+    const s = Math.floor((diff / 1000) % 60);
+    
+    if (d > 0) return `${d}D ${h}H`;
+    return `${h.toString().padStart(2, '0')}H ${m.toString().padStart(2, '0')}M ${s.toString().padStart(2, '0')}S`;
+  };
 
   return (
     <main className="bg-[#050505] text-white font-sans selection:bg-orange-500 selection:text-white overflow-x-hidden">
@@ -83,7 +99,6 @@ export default function Home() {
             style={{ backgroundImage: `url(${img})` }}
           />
         ))}
-        {/* Multi-layer Cinematic Gradient Overlays */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
         <div className="absolute inset-0 bg-radial-at-c from-transparent via-[#050505]/40 to-[#050505]" />
         
@@ -123,7 +138,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* --- PHASE 2: MY UPCOMING TOURNAMENTS WIDGET --- */}
+      {/* --- MY UPCOMING TOURNAMENTS WIDGET --- */}
       {user && (
         <section className="py-12 px-4 max-w-7xl mx-auto border-b border-zinc-900/80">
           <div className="flex flex-col items-center text-center mb-8 md:mb-10">
@@ -183,10 +198,11 @@ export default function Home() {
               
             const totalPrizePool = activePrizes.reduce((a: number, b: number) => a + Number(b), 0);
 
-            // --- STRICT STATUS ENGINE ---
+            // --- STRICT STATUS & COUNTDOWN ENGINE ---
             const isTimePassed = t.registration_closing_time && currentTime > new Date(t.registration_closing_time).getTime();
             const computedStatus = (isTimePassed && t.status === 'OPEN') ? 'CLOSED' : (t.status || 'OPEN');
             const isJoinDisabled = isTimePassed || t.status === 'FULL' || t.status === 'COMPLETED' || t.status === 'CANCELLED';
+            const countdown = formatCountdown(t.registration_closing_time);
 
             return (
               <div key={t.id} className="bg-zinc-900/80 border border-zinc-800 rounded-2xl overflow-hidden group hover:border-orange-500/80 transition-all duration-300 hover:shadow-[0_0_25px_rgba(249,115,22,0.15)] flex flex-col h-full backdrop-blur-sm">
@@ -203,37 +219,48 @@ export default function Home() {
                 
                 <div className="p-4 md:p-5 space-y-4 flex-1 flex flex-col justify-between">
                   <div className="space-y-3">
-                    <div className="flex gap-2 text-[10px] md:text-xs font-bold">
-                      <span className="border border-orange-500/30 bg-orange-500/10 text-orange-500 px-2 py-1 md:px-2.5 rounded-md flex items-center gap-1"><Users className="w-3 h-3 shrink-0" /> {t.type}</span>
-                      <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2 py-1 md:px-2.5 rounded-md">{t.perspective}</span>
-                    </div>
-
-                    <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80 space-y-1.5 text-[10px] md:text-xs">
-                      <div className="flex items-center gap-1.5 text-zinc-300 font-bold">
-                        <Clock className="w-3 h-3 md:w-3.5 md:h-3.5 text-orange-500 shrink-0" />
-                        <span>{t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}</span>
+                    
+                    {/* 1. PRIZE POOL (PROMINENT HIGHLIGHT) */}
+                    <div className="bg-gradient-to-r from-orange-500/15 via-zinc-950 to-zinc-950 border border-orange-500/30 p-3 rounded-xl flex justify-between items-center shadow-inner">
+                      <div>
+                        <p className="text-[9px] font-black uppercase text-orange-400 tracking-wider">Total Prize Pool</p>
+                        <p className="text-xl font-black text-emerald-400">₹{totalPrizePool}</p>
                       </div>
-                      <div className="flex justify-between items-center pt-1 border-t border-zinc-900">
-                        <span className="text-zinc-400">Total Pool: <strong className="text-emerald-400 font-black">₹{totalPrizePool}</strong></span>
-                        <span className="text-orange-400">
-                          1st: ₹{activePrizes[0] || 0} 
-                          {winnerCount >= 2 && activePrizes[1] ? ` | 2nd: ₹${activePrizes[1]}` : ''}
-                        </span>
+                      <div className="text-right">
+                        <p className="text-[9px] font-black uppercase text-zinc-400 tracking-wider">1st Place</p>
+                        <p className="text-sm font-black text-amber-400">₹{activePrizes[0] || 0}</p>
                       </div>
                     </div>
 
-                    <div>
-                      <p className="text-zinc-500 text-[9px] md:text-[10px] font-bold uppercase tracking-wider mb-0.5">Entry Fee</p>
-                      <p className="text-2xl md:text-3xl font-black text-orange-500">{t.fee === 0 ? 'FREE' : `₹${t.fee}`}</p>
+                    {/* 2. ENTRY FEE & 3. COUNTDOWN GRID */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80">
+                        <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Entry Fee</p>
+                        <p className="text-lg font-black text-orange-500">{t.fee === 0 ? 'FREE' : `₹${t.fee}`}</p>
+                      </div>
+                      <div className={`p-2.5 rounded-lg border flex flex-col justify-center ${isJoinDisabled ? 'bg-red-950/20 border-red-900/40 text-red-400' : 'bg-zinc-950 border-zinc-800 text-orange-400'}`}>
+                        <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-1"><Timer className="w-2.5 h-2.5"/> Closes In</p>
+                        <p className="text-xs font-black uppercase tracking-tight">{isJoinDisabled ? 'CLOSED' : (countdown || 'OPEN')}</p>
+                      </div>
+                    </div>
+
+                    {/* 4. MATCH DETAILS */}
+                    <div className="flex flex-wrap gap-2 text-[10px] md:text-xs font-bold pt-1">
+                      <span className="border border-orange-500/30 bg-orange-500/10 text-orange-500 px-2 py-1 rounded-md flex items-center gap-1"><Users className="w-3 h-3 shrink-0" /> {t.type}</span>
+                      <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2 py-1 rounded-md">{t.perspective}</span>
+                      <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2 py-1 rounded-md flex items-center gap-1 ml-auto">
+                        <Clock className="w-3 h-3 text-orange-500 shrink-0" />
+                        {t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' }) : 'TBA'}
+                      </span>
                     </div>
                   </div>
 
+                  {/* 5. ACTIONS */}
                   <div className="grid grid-cols-2 gap-2 pt-2 border-t border-zinc-800/80">
                     <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-2.5 md:py-3 rounded-xl text-[10px] md:text-xs transition-colors border border-zinc-700 flex items-center justify-center">
                       View Details
                     </Link>
                     
-                    {/* DISABLED JOIN MATCH BUTTON ENGINE */}
                     {isJoinDisabled ? (
                       <button disabled className="text-center bg-zinc-800 text-zinc-500 font-black uppercase tracking-wider py-2.5 md:py-3 rounded-xl text-[10px] md:text-xs cursor-not-allowed border border-zinc-700 flex items-center justify-center">
                         CLOSED
@@ -257,7 +284,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* --- TOURNAMENT RULES SECTION --- */}
+      {/* --- RULES SECTION --- */}
       <section className="py-16 md:py-24 px-4 max-w-7xl mx-auto border-t border-zinc-900/80">
         <div className="text-center mb-10 md:mb-16">
           <span className="text-orange-500 text-[10px] md:text-xs font-black uppercase tracking-widest mb-2">Fair Play Guaranteed</span>
