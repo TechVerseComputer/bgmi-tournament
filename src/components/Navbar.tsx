@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Gamepad, Wallet, LogIn, Download, BellRing, BellOff, Bell, Home, Crosshair, LayoutDashboard, Trophy, ShieldAlert } from 'lucide-react';
+import { Gamepad, Wallet, LogIn, Download, BellRing, BellOff, Bell, Home, Crosshair, User, Trophy, ShieldAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { usePathname } from 'next/navigation';
@@ -249,14 +249,14 @@ export default function Navbar() {
             <span className="text-[9px] font-black uppercase tracking-wider">Matches</span>
           </Link>
 
-          {/* ELEVATED CENTER DASHBOARD BUTTON */}
+          {/* ELEVATED CENTER DASHBOARD BUTTON - Changed to User Icon */}
           <div className="relative w-16 flex justify-center">
             <Link href="/dashboard" className="absolute -top-7 flex flex-col items-center group">
               <div className={`w-14 h-14 rounded-full flex items-center justify-center border-[4px] border-[#0a0a0a] shadow-lg transition-transform active:scale-95 ${pathname === '/dashboard' ? 'bg-orange-500 text-black shadow-[0_0_15px_rgba(249,115,22,0.5)]' : 'bg-zinc-800 text-zinc-300 border-zinc-900'}`}>
-                {user ? <LayoutDashboard className="w-6 h-6" /> : <LogIn className="w-6 h-6 ml-0.5" />}
+                {user ? <User className="w-6 h-6" /> : <LogIn className="w-6 h-6 ml-0.5" />}
               </div>
               <span className={`text-[10px] font-black uppercase tracking-wider mt-1 ${pathname === '/dashboard' ? 'text-orange-500' : 'text-zinc-400'}`}>
-                {user ? 'Hub' : 'Login'}
+                {user ? 'Account' : 'Login'}
               </span>
             </Link>
           </div>
