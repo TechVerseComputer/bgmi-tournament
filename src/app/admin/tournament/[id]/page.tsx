@@ -16,7 +16,7 @@ export default function AdminTournamentControlCenter() {
 
   const [tournament, setTournament] = useState<any>(null);
   const [registrations, setRegistrations] = useState<any[]>([]);
-  const [matchResults, setMatchResults] = useState<any[]>([]); // NEW: Holds submitted evidence
+  const [matchResults, setMatchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [payoutLoading, setPayoutLoading] = useState<string | null>(null);
@@ -26,6 +26,9 @@ export default function AdminTournamentControlCenter() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [rejectModalObj, setRejectModalObj] = useState<any>(null);
   const [rejectNote, setRejectNote] = useState('');
+
+  // NEW: Track selected dropdown prize index for each registration
+  const [selectedPayouts, setSelectedPayouts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const checkAuthAndFetch = async () => {
@@ -48,7 +51,7 @@ export default function AdminTournamentControlCenter() {
     const [tourneyRes, regRes, resultsRes] = await Promise.all([
       supabase.from('tournaments').select('*').eq('id', id).single(),
       supabase.from('registrations').select('*').eq('tournament_id', id).order('slot_number', { ascending: true }),
-      supabase.from('match_results').select('*').eq('tournament_id', id) // Fetch evidence
+      supabase.from('match_results').select('*').eq('tournament_id', id)
     ]);
 
     if (tourneyRes.data) setTournament(tourneyRes.data);
@@ -64,19 +67,27 @@ export default function AdminTournamentControlCenter() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // UPGRADED: Secure Payout Logic with Database Lock
   const handlePayoutWinner = async (regId: string, targetUserId: string, squadName: string, prizeAmount: number, positionLabel: string) => {
     if (!confirm(`Are you sure you want to payout ₹${prizeAmount} (${positionLabel}) to ${squadName}?`)) return;
 
     setPayoutLoading(regId);
     try {
+      // 1. Verify not already paid in DB to prevent race conditions
+      const { data: checkReg } = await supabase.from('registrations').select('awarded_prize').eq('id', regId).single();
+      if (checkReg?.awarded_prize) throw new Error("This squad has already been awarded a prize.");
+
+      // 2. Fetch Winner's Wallet
       const { data: wallet, error: walletErr } = await supabase.from('wallets').select('*').eq('user_id', targetUserId).single();
       if (walletErr || !wallet) throw new Error("Winner wallet not found.");
 
       const newBalance = Number(wallet.balance) + Number(prizeAmount);
 
+      // 3. Credit Wallet
       const { error: updateErr } = await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', targetUserId);
       if (updateErr) throw updateErr;
 
+      // 4. Record Transaction Ledger
       const { error: txErr } = await supabase.from('transactions').insert([{
         user_id: targetUserId,
         type: 'PRIZE_WIN',
@@ -86,7 +97,18 @@ export default function AdminTournamentControlCenter() {
       }]);
       if (txErr) throw txErr;
 
+      // 5. SECURE LOCK: Update Registration so they cannot be paid again
+      const { error: regUpdateErr } = await supabase.from('registrations').update({ awarded_prize: positionLabel }).eq('id', regId);
+      if (regUpdateErr) throw regUpdateErr;
+
       alert(`Successfully credited ₹${prizeAmount} to ${squadName}'s wallet!`);
+      
+      // Clear the local selection state for this row
+      const newSelections = { ...selectedPayouts };
+      delete newSelections[regId];
+      setSelectedPayouts(newSelections);
+
+      // Refresh Data to reflect the lock
       fetchMatchData();
     } catch (err: any) {
       alert(`Payout failed: ${err.message}`);
@@ -183,6 +205,17 @@ export default function AdminTournamentControlCenter() {
       : [tournament.first_prize || 0, tournament.second_prize || 0].slice(0, winnerCount);
   }
 
+  // Generate dynamic labels (1st Place, 2nd Place, etc.)
+  const posLabels = activePrizes.map((_, idx) => {
+    if (idx === 0) return '1st Place';
+    if (idx === 1) return '2nd Place';
+    if (idx === 2) return '3rd Place';
+    return `${idx + 1}th Place`;
+  });
+
+  // Extract which prizes have already been globally paid out for this tournament
+  const takenPrizes = registrations.map(r => r.awarded_prize).filter(Boolean);
+
   return (
     <main className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans pb-24">
       <div className="max-w-7xl mx-auto space-y-8">
@@ -260,6 +293,7 @@ export default function AdminTournamentControlCenter() {
                 <tbody className="divide-y divide-zinc-800">
                   {registrations.map((reg) => {
                     const result = matchResults.find(r => r.registration_id === reg.id);
+                    const isPaid = !!reg.awarded_prize;
 
                     return (
                       <tr key={reg.id} className={`hover:bg-zinc-800/40 transition-colors ${isArchived ? 'opacity-50' : ''}`}>
@@ -308,26 +342,44 @@ export default function AdminTournamentControlCenter() {
                           )}
                         </td>
 
-                        <td className="p-4 text-right space-x-2 whitespace-nowrap">
+                        {/* PAYOUT CONTROLS */}
+                        <td className="p-4 text-right whitespace-nowrap">
                           {isArchived ? (
                             <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Match Locked</span>
+                          ) : isPaid ? (
+                            <div className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider">
+                              <Check className="w-3.5 h-3.5" /> Paid: {reg.awarded_prize}
+                            </div>
                           ) : (
-                            activePrizes.map((prize: number, pIdx: number) => {
-                              if (!prize || prize === 0) return null;
-                              const posLabels = ['1st Place', '2nd Place', '3rd Place', '4th Place', '5th Place', '6th Place'];
-                              const badgeColors = ['bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500 hover:text-black', 'bg-zinc-700/30 text-zinc-300 border-zinc-600 hover:bg-zinc-600 hover:text-white', 'bg-orange-900/20 text-orange-400 border-orange-700/30 hover:bg-orange-800 hover:text-white'];
-                              
-                              return (
-                                <button
-                                  key={pIdx}
-                                  disabled={payoutLoading === reg.id}
-                                  onClick={() => handlePayoutWinner(reg.id, reg.user_id, reg.squad_name, prize, posLabels[pIdx])}
-                                  className={`px-3 py-1.5 rounded text-xs font-black uppercase tracking-wider border transition-all ${badgeColors[pIdx] || 'bg-zinc-800 text-zinc-300 border-zinc-700'}`}
-                                >
-                                  Payout {posLabels[pIdx]} (₹{prize})
-                                </button>
-                              );
-                            })
+                            <div className="flex items-center justify-end gap-2">
+                              <select
+                                className="bg-zinc-950 border border-zinc-800 rounded p-1.5 text-xs font-bold text-zinc-300 focus:border-orange-500 outline-none"
+                                value={selectedPayouts[reg.id] !== undefined ? selectedPayouts[reg.id] : ""}
+                                onChange={(e) => setSelectedPayouts({...selectedPayouts, [reg.id]: Number(e.target.value)})}
+                              >
+                                <option value="" disabled>Select Prize</option>
+                                {activePrizes.map((prize: number, pIdx: number) => {
+                                  if (!prize || prize === 0) return null;
+                                  const posLabel = posLabels[pIdx];
+                                  const isTaken = takenPrizes.includes(posLabel);
+                                  return (
+                                    <option key={pIdx} value={pIdx} disabled={isTaken}>
+                                      {posLabel} (₹{prize}) {isTaken ? ' - PAID' : ''}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                              <button
+                                disabled={payoutLoading === reg.id || selectedPayouts[reg.id] === undefined}
+                                onClick={() => {
+                                  const pIdx = selectedPayouts[reg.id];
+                                  handlePayoutWinner(reg.id, reg.user_id, reg.squad_name, activePrizes[pIdx], posLabels[pIdx]);
+                                }}
+                                className="bg-orange-500 hover:bg-orange-400 text-black px-4 py-1.5 rounded text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50 disabled:bg-zinc-800 disabled:text-zinc-500"
+                              >
+                                {payoutLoading === reg.id ? 'Processing...' : 'Payout'}
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>
