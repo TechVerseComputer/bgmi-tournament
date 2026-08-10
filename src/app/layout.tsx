@@ -35,7 +35,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} min-h-screen flex flex-col bg-[#0a0a0a]`}>
+      {/* Added pb-24 on mobile to prevent content from hiding under the bottom nav */}
+      <body className={`${inter.className} min-h-screen flex flex-col bg-[#0a0a0a] pb-24 md:pb-0`}>
         <Navbar />
         <div className="flex-1">
           {children}
