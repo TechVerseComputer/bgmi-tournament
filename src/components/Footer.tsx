@@ -36,24 +36,34 @@ export default function Footer() {
           </ul>
         </div>
 
-        {/* Col 3: Support */}
+        {/* Col 3: Support (FIXED ROUTES) */}
         <div>
           <h4 className="text-white font-black uppercase tracking-wider text-sm mb-4">Support</h4>
           <ul className="space-y-2 text-sm font-medium">
-            <li><Link href="/rules" className="hover:text-orange-500 transition-colors">Help Center</Link></li>
-            <li><Link href="/rules" className="hover:text-orange-500 transition-colors">How to Play</Link></li>
-            <li><Link href="/rules" className="hover:text-orange-500 transition-colors">Terms & Conditions</Link></li>
-            <li><Link href="/rules" className="hover:text-orange-500 transition-colors">Privacy Policy</Link></li>
+            <li><Link href="/help" className="hover:text-orange-500 transition-colors">Help Center</Link></li>
+            <li><Link href="/how-to-play" className="hover:text-orange-500 transition-colors">How to Play</Link></li>
+            <li><Link href="/terms" className="hover:text-orange-500 transition-colors">Terms & Conditions</Link></li>
+            <li><Link href="/privacy" className="hover:text-orange-500 transition-colors">Privacy Policy</Link></li>
           </ul>
         </div>
 
-        {/* Col 4: Contact Us */}
+        {/* Col 4: Contact Us (FIXED CLICKABLE LINKS) */}
         <div>
           <h4 className="text-white font-black uppercase tracking-wider text-sm mb-4">Contact Us</h4>
           <ul className="space-y-3 text-sm font-medium">
-            <li className="flex items-center gap-2"><Mail className="w-4 h-4 text-orange-500"/> support@bgmiarena.in</li>
-            <li className="flex items-center gap-2"><Phone className="w-4 h-4 text-orange-500"/> +91 98765 43210</li>
-            <li className="flex items-center gap-2"><MapPin className="w-4 h-4 text-orange-500"/> Navi Mumbai, India</li>
+            <li>
+              <a href="mailto:mail.bgmighost@gmail.com" className="flex items-center gap-2 hover:text-orange-500 transition-colors">
+                <Mail className="w-4 h-4 text-orange-500"/> mail.bgmighost@gmail.com
+              </a>
+            </li>
+            <li>
+              <a href="tel:+919967566736" className="flex items-center gap-2 hover:text-orange-500 transition-colors">
+                <Phone className="w-4 h-4 text-orange-500"/> +91 99675 66736
+              </a>
+            </li>
+            <li className="flex items-center gap-2 cursor-default">
+              <MapPin className="w-4 h-4 text-orange-500"/> Navi Mumbai, India
+            </li>
           </ul>
         </div>
 
