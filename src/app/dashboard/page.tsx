@@ -6,6 +6,12 @@ import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, ShieldCheck,
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+// --- TRANSACTION CONFIGURATION ---
+const MIN_DEPOSIT = 50;
+const MAX_DEPOSIT = 50000;
+const MIN_WITHDRAWAL = 100;
+const MAX_WITHDRAWAL = 20000;
+
 export default function PlayerDashboard() {
   const supabase = createClient();
   const router = useRouter();
@@ -79,15 +85,31 @@ export default function PlayerDashboard() {
     router.push('/');
   };
 
+  // --- NEW: VALIDATE BEFORE SHOWING QR CODE ---
+  const handleProceedToDeposit = () => {
+    const amount = Number(depositAmount);
+    if (!amount || amount <= 0) return alert("Please enter a valid amount.");
+    if (amount < MIN_DEPOSIT) return alert(`Minimum deposit amount is ₹${MIN_DEPOSIT}.`);
+    if (amount > MAX_DEPOSIT) return alert(`Maximum deposit amount is ₹${MAX_DEPOSIT}.`);
+    
+    setShowQRModal(true);
+  };
+
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Final safety check just in case
+    const amount = Number(depositAmount);
+    if (amount < MIN_DEPOSIT) return alert(`Minimum deposit amount is ₹${MIN_DEPOSIT}.`);
+    if (amount > MAX_DEPOSIT) return alert(`Maximum deposit amount is ₹${MAX_DEPOSIT}.`);
+    
     if (!utrNumber || utrNumber.length < 12) return alert("Please enter a valid 12-digit UTR number.");
     setIsSubmitting(true);
     
     const { error } = await supabase.from('transactions').insert([{
       user_id: user.id,
       type: 'DEPOSIT',
-      amount: depositAmount,
+      amount: amount,
       reference_id: utrNumber,
       description: 'Wallet Deposit via UPI'
     }]);
@@ -107,14 +129,27 @@ export default function PlayerDashboard() {
 
   const handleWithdrawSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (Number(withdrawAmount) > wallet.balance) return alert("Insufficient balance.");
-    if (Number(withdrawAmount) < 100) return alert("Minimum withdrawal is ₹100.");
+    
+    // 1. Check if their overall balance is too low to even make a withdrawal
+    if (wallet.balance < MIN_WITHDRAWAL) {
+      return alert(`Minimum withdrawal amount is ₹${MIN_WITHDRAWAL}. Your current balance is below the minimum withdrawal limit.`);
+    }
+
+    const amount = Number(withdrawAmount);
+    
+    // 2. Validate the specific input amount
+    if (!amount || amount <= 0) return alert("Please enter a valid amount.");
+    if (amount < MIN_WITHDRAWAL) return alert(`Minimum withdrawal amount is ₹${MIN_WITHDRAWAL}.`);
+    if (amount > MAX_WITHDRAWAL) return alert(`Maximum withdrawal amount is ₹${MAX_WITHDRAWAL}.`);
+    
+    // 3. Existing logic: Ensure they don't withdraw more than they have
+    if (amount > wallet.balance) return alert("Insufficient balance.");
     
     setIsSubmitting(true);
     const { error } = await supabase.from('transactions').insert([{
       user_id: user.id,
       type: 'WITHDRAWAL',
-      amount: withdrawAmount,
+      amount: amount,
       upi_id: upiId,
       description: 'Withdrawal to UPI'
     }]);
@@ -541,7 +576,7 @@ export default function PlayerDashboard() {
               <p className="text-[10px] md:text-xs text-zinc-400 font-bold uppercase tracking-wider mb-3">Or enter custom amount</p>
               <input type="number" value={depositAmount} onChange={(e) => setDepositAmount(Number(e.target.value))} placeholder="Enter amount" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 font-black text-xl md:text-2xl focus:border-emerald-500 outline-none text-white" />
               <div className="flex justify-between text-[9px] md:text-[10px] text-zinc-500 font-bold uppercase mt-2">
-                <span>Min ₹10</span><span>Max ₹50,000</span>
+                <span>Min ₹{MIN_DEPOSIT}</span><span>Max ₹{MAX_DEPOSIT.toLocaleString()}</span>
               </div>
             </div>
 
@@ -551,7 +586,7 @@ export default function PlayerDashboard() {
               <div className="flex justify-between text-base md:text-lg text-white border-t border-zinc-800 pt-3"><p>Total to Pay</p><p>₹{depositAmount || 0}</p></div>
             </div>
 
-            <button disabled={!depositAmount || depositAmount < 10} onClick={() => setShowQRModal(true)} className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:hover:bg-emerald-500 text-black font-black uppercase tracking-widest py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg">
+            <button onClick={handleProceedToDeposit} className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-widest py-4 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-lg">
               ⚡ Pay ₹{depositAmount || 0} via UPI
             </button>
           </div>
@@ -576,13 +611,16 @@ export default function PlayerDashboard() {
              <form onSubmit={handleWithdrawSubmit} className="space-y-6">
                <div>
                  <label className="text-[10px] md:text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-2">Amount to Withdraw</label>
-                 <input required type="number" min="100" max={wallet.balance} value={withdrawAmount} onChange={(e) => setWithdrawAmount(Number(e.target.value))} placeholder="Min ₹100" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 font-black text-xl focus:border-emerald-500 outline-none text-white" />
+                 <input required type="number" min={MIN_WITHDRAWAL} max={wallet.balance} value={withdrawAmount} onChange={(e) => setWithdrawAmount(Number(e.target.value))} placeholder={`Min ₹${MIN_WITHDRAWAL}`} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 font-black text-xl focus:border-emerald-500 outline-none text-white" />
+                 <div className="flex justify-between text-[9px] md:text-[10px] text-zinc-500 font-bold uppercase mt-2">
+                    <span>Min ₹{MIN_WITHDRAWAL}</span><span>Max ₹{MAX_WITHDRAWAL.toLocaleString()}</span>
+                  </div>
                </div>
                <div>
                  <label className="text-[10px] md:text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-2">Your UPI ID</label>
                  <input required type="text" placeholder="e.g. 9876543210@ybl" value={upiId} onChange={(e) => setUpiId(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-4 font-bold text-sm md:text-base focus:border-emerald-500 outline-none text-white" />
                </div>
-               <button type="submit" disabled={isSubmitting || wallet.balance < 100} className="w-full bg-white hover:bg-zinc-200 text-black font-black uppercase tracking-widest py-4 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-colors shadow-lg">
+               <button type="submit" disabled={isSubmitting} className="w-full bg-white hover:bg-zinc-200 text-black font-black uppercase tracking-widest py-4 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50 transition-colors shadow-lg">
                  {isSubmitting ? 'Processing...' : 'Request Withdrawal'}
                </button>
              </form>
