@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Crosshair, Users, Trophy, X, AlertCircle, Search, Clock, SlidersHorizontal, RotateCcw, Timer } from 'lucide-react';
+import { Crosshair, Users, Trophy, X, AlertCircle, Search, Clock, SlidersHorizontal, RotateCcw, Timer, CheckCircle2 } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 
 const getServerTime = async () => {
@@ -47,9 +47,10 @@ export default function TournamentsPage() {
 
   useEffect(() => {
     const initPage = async () => {
+      // UPGRADED FETCH: Include registrations(id) so we can count booked slots live on the cards
       const { data: tourneyData } = await supabase
         .from('tournaments')
-        .select('*')
+        .select('*, registrations(id)')
         .neq('status', 'CANCELLED')
         .neq('status', 'COMPLETED')
         .order('created_at', { ascending: false });
@@ -99,14 +100,20 @@ export default function TournamentsPage() {
     if (regs) setBookedSlots(regs.map(r => r.slot_number).filter(s => s !== null));
   };
 
+  // --- UPGRADED QUICK BOOKING LOGIC FOR FREE ENTRY ---
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSlot) return alert("Please select a drop slot!");
-    if (walletBalance < selectedMatch.fee) return alert("Insufficient balance! Please add funds to your wallet.");
+    
+    const isFreeMatch = selectedMatch.entry_type === 'FREE' || selectedMatch.fee === 0;
+
+    if (!isFreeMatch && walletBalance < selectedMatch.fee) {
+      return alert("Insufficient balance! Please add funds to your wallet.");
+    }
     
     setIsSubmitting(true);
     try {
-      if (selectedMatch.status === 'FULL' || selectedMatch.status === 'COMPLETED' || selectedMatch.status === 'CANCELLED') {
+      if (selectedMatch.status === 'FULL' || selectedMatch.status === 'COMPLETED' || selectedMatch.status === 'CANCELLED' || selectedMatch.status === 'UNDER REVIEW') {
         alert(`REGISTRATION FAILED: This match is currently ${selectedMatch.status}.`);
         setIsSubmitting(false);
         setSelectedMatch(null);
@@ -141,33 +148,44 @@ export default function TournamentsPage() {
         player_3_ign: playerCount >= 4 ? team.p3_ign : null,
         player_4_id: playerCount >= 4 ? team.p4_id : null, 
         player_4_ign: playerCount >= 4 ? team.p4_ign : null,
-        utr_number: uniqueWalletTxId, 
+        utr_number: isFreeMatch ? `FREE_ENTRY_${Date.now()}` : uniqueWalletTxId, 
         payment_status: 'Verified', 
         slot_number: selectedSlot
       }]);
 
       if (regError) throw regError;
 
-      const newBalance = walletBalance - selectedMatch.fee;
-      const { error: walletError } = await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', user.id);
-      
-      if (walletError) {
-        await supabase.from('registrations').delete().eq('tournament_id', selectedMatch.id).eq('slot_number', selectedSlot);
-        throw new Error("Wallet deduction failed. Registration cancelled.");
+      // Only deduct wallet if it is a paid tournament
+      if (!isFreeMatch) {
+        const newBalance = walletBalance - selectedMatch.fee;
+        const { error: walletError } = await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', user.id);
+        
+        if (walletError) {
+          await supabase.from('registrations').delete().eq('tournament_id', selectedMatch.id).eq('slot_number', selectedSlot);
+          throw new Error("Wallet deduction failed. Registration cancelled.");
+        }
+
+        await supabase.from('transactions').insert([{
+          user_id: user.id, 
+          type: 'TOURNAMENT_FEE', 
+          amount: selectedMatch.fee, 
+          status: 'SUCCESS', 
+          description: `Entry fee for ${selectedMatch.name} (Slot ${selectedSlot})`
+        }]);
+
+        setWalletBalance(newBalance);
       }
 
-      await supabase.from('transactions').insert([{
-        user_id: user.id, 
-        type: 'TOURNAMENT_FEE', 
-        amount: selectedMatch.fee, 
-        status: 'SUCCESS', 
-        description: `Entry fee for ${selectedMatch.name} (Slot ${selectedSlot})`
-      }]);
-
       alert("Slot Booked Successfully!");
-      setWalletBalance(newBalance);
       setSelectedMatch(null);
       setTeam({ p1_ign: '', p1_id: '', p2_ign: '', p2_id: '', p3_ign: '', p3_id: '', p4_ign: '', p4_id: '' });
+      
+      // Refresh the specific tournament card count smoothly
+      const { data: updatedTourney } = await supabase.from('tournaments').select('*, registrations(id)').eq('id', selectedMatch.id).single();
+      if (updatedTourney) {
+        setTournaments(prev => prev.map(t => t.id === updatedTourney.id ? updatedTourney : t));
+      }
+
     } catch (error: any) { 
       alert("Error booking slot: " + error.message); 
     } finally { 
@@ -289,6 +307,12 @@ export default function TournamentsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredTournaments.map((t) => {
+              const isFree = t.entry_type === 'FREE' || t.fee === 0;
+              const bookedCount = t.registrations?.length || 0;
+              const maxSlots = Number(t.total_slots || 25);
+              const minSlots = Number(t.minimum_slots_required || maxSlots);
+              const isMinReached = bookedCount >= minSlots;
+
               const winnerCount = t.total_winners || (t.prize_breakdown?.length > 0 ? t.prize_breakdown.length : 2);
               const activePrizes = t.prize_breakdown?.length > 0 
                 ? t.prize_breakdown.slice(0, winnerCount) 
@@ -298,8 +322,18 @@ export default function TournamentsPage() {
               
               // --- STRICT STATUS & COUNTDOWN ENGINE ---
               const isTimePassed = t.registration_closing_time && currentTime ? currentTime > new Date(t.registration_closing_time).getTime() : false;
-              const isClosed = isTimePassed || t.status === 'FULL' || t.status === 'COMPLETED' || t.status === 'CANCELLED';
-              const displayStatus = (isTimePassed && t.status === 'OPEN') ? 'REGISTRATION CLOSED' : t.status;
+              const isUnderReview = t.status === 'UNDER REVIEW';
+              const isMinFailed = isFree && isTimePassed && !isMinReached;
+              
+              const isClosed = isTimePassed || t.status === 'FULL' || t.status === 'COMPLETED' || t.status === 'CANCELLED' || isUnderReview || isMinFailed;
+              
+              let displayStatus = t.status || 'OPEN';
+              if (isTimePassed && t.status === 'OPEN') {
+                displayStatus = isMinFailed ? 'MIN NOT REACHED' : 'REGISTRATION CLOSED';
+              } else if (isFree && t.status === 'OPEN') {
+                displayStatus = isMinReached ? 'MATCH CONFIRMED' : 'WAITING FOR PLAYERS';
+              }
+
               const countdown = formatCountdown(t.registration_closing_time);
 
               return (
@@ -308,8 +342,19 @@ export default function TournamentsPage() {
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent z-10" />
                     <img src={t.map_img} alt={t.name} className={`w-full h-full object-cover transition-transform duration-500 ${isClosed ? 'grayscale opacity-50' : 'group-hover:scale-110'}`} />
                     
-                    <span className={`absolute top-3 right-3 z-20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase border ${isClosed ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-black/70 text-orange-400 border-orange-500/30'}`}>
-                      {isClosed ? 'CLOSED' : (displayStatus || 'OPEN')}
+                    {/* FREE ENTRY BADGE */}
+                    {isFree && (
+                      <span className="absolute top-3 left-3 z-20 bg-emerald-500 text-black font-black text-[10px] uppercase px-3 py-1 rounded-full shadow-lg">
+                        FREE ENTRY
+                      </span>
+                    )}
+
+                    <span className={`absolute top-3 right-3 z-20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase border ${
+                       displayStatus === 'MATCH CONFIRMED' ? 'bg-emerald-500/80 text-black border-emerald-400' :
+                       (displayStatus === 'MIN NOT REACHED' || (isClosed && !isFree)) ? 'bg-red-500/90 text-white border-red-400' :
+                       'bg-black/70 text-orange-400 border-orange-500/30'
+                    }`}>
+                      {displayStatus}
                     </span>
                     <h3 className="absolute bottom-3 left-4 z-20 font-black italic text-xl tracking-wider">{t.name}</h3>
                   </div>
@@ -317,7 +362,7 @@ export default function TournamentsPage() {
                   <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
                     <div className="space-y-3">
                       
-                      {/* 1. MATCH DETAILS (MOVED UP) */}
+                      {/* 1. MATCH DETAILS */}
                       <div className="flex flex-wrap gap-2 text-[10px] md:text-xs font-bold pb-1">
                         <span className="border border-orange-500/30 bg-orange-500/10 text-orange-500 px-2.5 py-1 rounded-md flex items-center gap-1"><Users className="w-3 h-3 shrink-0" /> {t.type}</span>
                         <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2.5 py-1 rounded-md">{t.perspective}</span>
@@ -327,7 +372,7 @@ export default function TournamentsPage() {
                         </span>
                       </div>
 
-                      {/* 2. PRIZE POOL (PROMINENT HIGHLIGHT) */}
+                      {/* 2. PRIZE POOL */}
                       <div className="bg-gradient-to-r from-orange-500/15 via-zinc-950 to-zinc-950 border border-orange-500/30 p-3 rounded-xl flex justify-between items-center shadow-inner">
                         <div>
                           <p className="text-[9px] font-black uppercase text-orange-400 tracking-wider">Total Prize Pool</p>
@@ -341,24 +386,41 @@ export default function TournamentsPage() {
 
                       {/* 3. ENTRY FEE & COUNTDOWN GRID */}
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80">
+                        <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80 flex flex-col justify-center">
                           <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Entry Fee</p>
-                          <p className="text-lg font-black text-orange-500">{t.fee === 0 ? 'FREE' : `₹${t.fee}`}</p>
+                          <p className={`text-lg font-black ${isFree ? 'text-emerald-500' : 'text-orange-500'}`}>{isFree ? 'FREE' : `₹${t.fee}`}</p>
                         </div>
                         <div className={`p-2.5 rounded-lg border flex flex-col justify-center ${isClosed ? 'bg-red-950/20 border-red-900/40 text-red-400' : 'bg-zinc-950 border-zinc-800 text-orange-400'}`}>
                           <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-1"><Timer className="w-2.5 h-2.5"/> Closes In</p>
                           <p className="text-xs font-black uppercase tracking-tight">{isClosed ? 'CLOSED' : (countdown || 'OPEN')}</p>
                         </div>
                       </div>
+
+                      {/* 4. FREE ENTRY MINIMUM SLOTS TRACKER */}
+                      {isFree && (
+                        <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80 flex justify-between items-center mt-2">
+                           <div>
+                             <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Slots Booked</p>
+                             <p className="text-sm font-black text-white">{bookedCount} <span className="text-zinc-500 text-xs">/ {t.total_slots}</span></p>
+                           </div>
+                           <div className="text-right flex flex-col items-end">
+                             <p className={`text-[10px] font-black uppercase flex items-center gap-1 ${isMinReached ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                {isMinReached ? <CheckCircle2 className="w-3 h-3"/> : <AlertCircle className="w-3 h-3"/>}
+                                {isMinReached ? 'Confirmed' : `Min ${minSlots} Reqd.`}
+                             </p>
+                           </div>
+                        </div>
+                      )}
+
                     </div>
 
-                    {/* 4. ACTIONS */}
+                    {/* 5. ACTIONS */}
                     <div className="grid grid-cols-2 gap-3 pt-2">
                       <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-3 rounded text-xs transition-colors border border-zinc-700 flex items-center justify-center">
                         View Details
                       </Link>
-                      <button disabled={isClosed} onClick={() => handleJoinClick(t)} className={`font-black uppercase tracking-wider py-3 rounded text-xs transition-all flex items-center justify-center ${isClosed ? 'bg-zinc-900 text-zinc-600 border border-zinc-800 cursor-not-allowed' : 'bg-orange-500 hover:bg-orange-400 text-black shadow-[0_0_10px_rgba(249,115,22,0.3)]'}`}>
-                        {isClosed ? 'Closed' : 'Join Match'}
+                      <button disabled={isClosed} onClick={() => handleJoinClick(t)} className={`font-black uppercase tracking-wider py-3 rounded text-xs transition-all flex items-center justify-center ${isClosed ? 'bg-zinc-900 text-zinc-600 border border-zinc-800 cursor-not-allowed' : isFree ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-orange-500 hover:bg-orange-400 text-black shadow-[0_0_10px_rgba(249,115,22,0.3)]'}`}>
+                        {isClosed ? 'Closed' : isFree ? 'Join Free' : 'Join Match'}
                       </button>
                     </div>
                   </div>
@@ -380,16 +442,21 @@ export default function TournamentsPage() {
                 <p className="text-zinc-500 text-xs font-bold">{selectedMatch.type} • {selectedMatch.perspective}</p>
               </div>
               <div className="text-right">
-                <p className="text-orange-500 font-black text-xl">₹{selectedMatch.fee}</p>
+                <p className={`font-black text-xl ${selectedMatch.entry_type === 'FREE' || selectedMatch.fee === 0 ? 'text-emerald-500' : 'text-orange-500'}`}>
+                  {selectedMatch.entry_type === 'FREE' || selectedMatch.fee === 0 ? 'FREE' : `₹${selectedMatch.fee}`}
+                </p>
                 <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Entry Fee</p>
               </div>
             </div>
-            {walletBalance < selectedMatch.fee && (
+            
+            {/* Hide Balance warning for Free entry */}
+            {selectedMatch.entry_type !== 'FREE' && selectedMatch.fee > 0 && walletBalance < selectedMatch.fee && (
               <div className="bg-red-500/10 border-b border-red-500/20 p-4 flex items-center justify-between">
                 <div className="flex items-center gap-2 text-red-500 text-sm font-bold"><AlertCircle className="w-5 h-5" /> Insufficient Wallet Balance (₹{walletBalance})</div>
                 <button onClick={() => router.push('/dashboard')} className="bg-red-500 text-white text-xs font-black uppercase px-4 py-2 rounded hover:bg-red-600 transition-colors">Add Funds</button>
               </div>
             )}
+            
             <form onSubmit={handleConfirmBooking} className="p-6 space-y-6">
               <div>
                 <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-4">Squad Details</h3>
@@ -423,8 +490,12 @@ export default function TournamentsPage() {
               </div>
               <div className="pt-4 border-t border-zinc-800 flex gap-4">
                 <button type="button" onClick={() => setSelectedMatch(null)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors">Cancel</button>
-                <button type="submit" disabled={isSubmitting || !selectedSlot} className="flex-[2] bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest py-4 rounded transition-colors disabled:opacity-50">
-                  {isSubmitting ? 'Processing...' : `Confirm & Pay ₹${selectedMatch.fee}`}
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting || !selectedSlot || (selectedMatch.entry_type !== 'FREE' && selectedMatch.fee > 0 && walletBalance < selectedMatch.fee)} 
+                  className={`flex-[2] font-black uppercase tracking-widest py-4 rounded transition-colors disabled:opacity-50 ${selectedMatch.entry_type === 'FREE' || selectedMatch.fee === 0 ? 'bg-emerald-500 hover:bg-emerald-400 text-black' : 'bg-orange-500 hover:bg-orange-400 text-black'}`}
+                >
+                  {isSubmitting ? 'Processing...' : (selectedMatch.entry_type === 'FREE' || selectedMatch.fee === 0) ? 'Confirm Registration' : `Confirm & Pay ₹${selectedMatch.fee}`}
                 </button>
               </div>
             </form>
