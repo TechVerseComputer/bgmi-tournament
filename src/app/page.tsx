@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones, Flame, Timer, Gamepad2, FileText, Lock } from 'lucide-react';
+import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, Headphones, Flame, Timer, Gamepad2, FileText, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
@@ -24,9 +24,10 @@ export default function Home() {
   useEffect(() => {
     const initPage = async () => {
       // 1. Fetch Latest Tournaments (EXCLUDING CANCELLED & COMPLETED)
+      // UPGRADED FETCH: Include registrations(id) so we can count booked slots live
       const { data: tourneyData } = await supabase
         .from('tournaments')
-        .select('*')
+        .select('*, registrations(id)')
         .neq('status', 'CANCELLED')
         .neq('status', 'COMPLETED')
         .order('created_at', { ascending: false })
@@ -191,6 +192,13 @@ export default function Home() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {latestTournaments.map((t) => {
+            // --- FREE ENTRY VARIABLES ---
+            const isFree = t.entry_type === 'FREE' || t.fee === 0;
+            const bookedCount = t.registrations?.length || 0;
+            const maxSlots = Number(t.total_slots || 25);
+            const minSlots = Number(t.minimum_slots_required || maxSlots);
+            const isMinReached = bookedCount >= minSlots;
+
             const winnerCount = t.total_winners || (t.prize_breakdown?.length > 0 ? t.prize_breakdown.length : 2);
             const activePrizes = t.prize_breakdown?.length > 0 
               ? t.prize_breakdown.slice(0, winnerCount) 
@@ -200,18 +208,39 @@ export default function Home() {
 
             // --- STRICT STATUS & COUNTDOWN ENGINE ---
             const isTimePassed = t.registration_closing_time && currentTime > new Date(t.registration_closing_time).getTime();
-            const computedStatus = (isTimePassed && t.status === 'OPEN') ? 'CLOSED' : (t.status || 'OPEN');
-            const isJoinDisabled = isTimePassed || t.status === 'FULL' || t.status === 'COMPLETED' || t.status === 'CANCELLED';
+            const isUnderReview = t.status === 'UNDER REVIEW';
+            const isMinFailed = isFree && isTimePassed && !isMinReached;
+            
+            const isClosed = isTimePassed || t.status === 'FULL' || t.status === 'COMPLETED' || t.status === 'CANCELLED' || isUnderReview || isMinFailed;
+            
+            let displayStatus = t.status || 'OPEN';
+            if (isTimePassed && t.status === 'OPEN') {
+              displayStatus = isMinFailed ? 'MIN NOT REACHED' : 'REGISTRATION CLOSED';
+            } else if (isFree && t.status === 'OPEN') {
+              displayStatus = isMinReached ? 'MATCH CONFIRMED' : 'WAITING FOR PLAYERS';
+            }
+
             const countdown = formatCountdown(t.registration_closing_time);
 
             return (
-              <div key={t.id} className="bg-zinc-900/80 border border-zinc-800 rounded-2xl overflow-hidden group hover:border-orange-500/80 transition-all duration-300 hover:shadow-[0_0_25px_rgba(249,115,22,0.15)] flex flex-col h-full backdrop-blur-sm">
+              <div key={t.id} className={`bg-zinc-900/80 border ${isClosed ? 'border-red-900/30' : 'border-zinc-800'} rounded-2xl overflow-hidden group hover:border-orange-500/80 transition-all duration-300 hover:shadow-[0_0_25px_rgba(249,115,22,0.15)] flex flex-col h-full backdrop-blur-sm`}>
                 <div className="h-44 md:h-48 overflow-hidden relative shrink-0">
                   <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent z-10" />
-                  <img src={t.map_img} alt={t.name} className={`w-full h-full object-cover transition-transform duration-700 ${isJoinDisabled ? 'grayscale opacity-75' : 'group-hover:scale-110'}`} />
+                  <img src={t.map_img} alt={t.name} className={`w-full h-full object-cover transition-transform duration-700 ${isClosed ? 'grayscale opacity-75' : 'group-hover:scale-110'}`} />
                   
-                  <span className={`absolute top-3 right-3 z-20 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[9px] md:text-[10px] font-black uppercase border ${computedStatus === 'OPEN' ? 'text-orange-400 border-orange-500/30' : 'text-red-500 border-red-500/30'}`}>
-                    {computedStatus}
+                  {/* FREE ENTRY BADGE */}
+                  {isFree && (
+                    <span className="absolute top-3 left-3 z-20 bg-emerald-500 text-black font-black text-[10px] uppercase px-3 py-1 rounded-full shadow-lg">
+                      FREE ENTRY
+                    </span>
+                  )}
+
+                  <span className={`absolute top-3 right-3 z-20 backdrop-blur-md px-3 py-1 rounded-full text-[9px] md:text-[10px] font-black uppercase border ${
+                     displayStatus === 'MATCH CONFIRMED' ? 'bg-emerald-500/80 text-black border-emerald-400' :
+                     (displayStatus === 'MIN NOT REACHED' || (isClosed && !isFree)) ? 'bg-red-500/90 text-white border-red-400' :
+                     'bg-black/60 text-orange-400 border-orange-500/30'
+                  }`}>
+                    {displayStatus}
                   </span>
                   
                   <h3 className="absolute bottom-3 left-4 z-20 font-black italic text-lg md:text-xl tracking-wider text-white drop-shadow-md">{t.name}</h3>
@@ -220,7 +249,7 @@ export default function Home() {
                 <div className="p-4 md:p-5 space-y-4 flex-1 flex flex-col justify-between">
                   <div className="space-y-3">
                     
-                    {/* 1. MATCH DETAILS (MOVED UP) */}
+                    {/* 1. MATCH DETAILS */}
                     <div className="flex flex-wrap gap-2 text-[10px] md:text-xs font-bold pb-1">
                       <span className="border border-orange-500/30 bg-orange-500/10 text-orange-500 px-2 py-1 rounded-md flex items-center gap-1"><Users className="w-3 h-3 shrink-0" /> {t.type}</span>
                       <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-2 py-1 rounded-md">{t.perspective}</span>
@@ -230,7 +259,7 @@ export default function Home() {
                       </span>
                     </div>
 
-                    {/* 2. PRIZE POOL (PROMINENT HIGHLIGHT) */}
+                    {/* 2. PRIZE POOL */}
                     <div className="bg-gradient-to-r from-orange-500/15 via-zinc-950 to-zinc-950 border border-orange-500/30 p-3 rounded-xl flex justify-between items-center shadow-inner">
                       <div>
                         <p className="text-[9px] font-black uppercase text-orange-400 tracking-wider">Total Prize Pool</p>
@@ -246,28 +275,44 @@ export default function Home() {
                     <div className="grid grid-cols-2 gap-2">
                       <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80">
                         <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Entry Fee</p>
-                        <p className="text-lg font-black text-orange-500">{t.fee === 0 ? 'FREE' : `₹${t.fee}`}</p>
+                        <p className={`text-lg font-black ${isFree ? 'text-emerald-500' : 'text-orange-500'}`}>{isFree ? 'FREE' : `₹${t.fee}`}</p>
                       </div>
-                      <div className={`p-2.5 rounded-lg border flex flex-col justify-center ${isJoinDisabled ? 'bg-red-950/20 border-red-900/40 text-red-400' : 'bg-zinc-950 border-zinc-800 text-orange-400'}`}>
+                      <div className={`p-2.5 rounded-lg border flex flex-col justify-center ${isClosed ? 'bg-red-950/20 border-red-900/40 text-red-400' : 'bg-zinc-950 border-zinc-800 text-orange-400'}`}>
                         <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-1"><Timer className="w-2.5 h-2.5"/> Closes In</p>
-                        <p className="text-xs font-black uppercase tracking-tight">{isJoinDisabled ? 'CLOSED' : (countdown || 'OPEN')}</p>
+                        <p className="text-xs font-black uppercase tracking-tight">{isClosed ? 'CLOSED' : (countdown || 'OPEN')}</p>
                       </div>
                     </div>
+
+                    {/* 4. FREE ENTRY MINIMUM SLOTS TRACKER */}
+                    {isFree && (
+                      <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80 flex justify-between items-center mt-2">
+                         <div>
+                           <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Slots Booked</p>
+                           <p className="text-sm font-black text-white">{bookedCount} <span className="text-zinc-500 text-xs">/ {t.total_slots}</span></p>
+                         </div>
+                         <div className="text-right flex flex-col items-end">
+                           <p className={`text-[10px] font-black uppercase flex items-center gap-1 ${isMinReached ? 'text-emerald-500' : 'text-amber-500'}`}>
+                              {isMinReached ? <CheckCircle2 className="w-3 h-3"/> : <AlertCircle className="w-3 h-3"/>}
+                              {isMinReached ? 'Confirmed' : `Min ${minSlots} Reqd.`}
+                           </p>
+                         </div>
+                      </div>
+                    )}
                   </div>
 
-                  {/* 4. ACTIONS */}
+                  {/* 5. ACTIONS */}
                   <div className="grid grid-cols-2 gap-2 pt-2 border-t border-zinc-800/80">
                     <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-2.5 md:py-3 rounded-xl text-[10px] md:text-xs transition-colors border border-zinc-700 flex items-center justify-center">
                       View Details
                     </Link>
                     
-                    {isJoinDisabled ? (
+                    {isClosed ? (
                       <button disabled className="text-center bg-zinc-800 text-zinc-500 font-black uppercase tracking-wider py-2.5 md:py-3 rounded-xl text-[10px] md:text-xs cursor-not-allowed border border-zinc-700 flex items-center justify-center">
                         CLOSED
                       </button>
                     ) : (
-                      <Link href={`/tournaments/${t.id}`} className="text-center bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-wider py-2.5 md:py-3 rounded-xl text-[10px] md:text-xs transition-colors shadow-[0_0_15px_rgba(249,115,22,0.3)] flex items-center justify-center">
-                        Join Match
+                      <Link href={`/tournaments/${t.id}`} className={`text-center font-black uppercase tracking-wider py-2.5 md:py-3 rounded-xl text-[10px] md:text-xs transition-colors flex items-center justify-center ${isFree ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-orange-500 hover:bg-orange-400 text-black shadow-[0_0_15px_rgba(249,115,22,0.3)]'}`}>
+                        {isFree ? 'Join Free' : 'Join Match'}
                       </Link>
                     )}
                   </div>
@@ -284,7 +329,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* --- NEW: SUPPORT & INFORMATION SECTION --- */}
+      {/* --- SUPPORT & INFORMATION SECTION --- */}
       <section className="py-16 md:py-24 px-4 max-w-7xl mx-auto border-t border-zinc-900/80">
         <div className="text-center mb-10 md:mb-16">
           <span className="text-orange-500 text-[10px] md:text-xs font-black uppercase tracking-widest mb-2">Need Assistance?</span>
