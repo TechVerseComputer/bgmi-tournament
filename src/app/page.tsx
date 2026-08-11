@@ -24,13 +24,13 @@ export default function Home() {
   useEffect(() => {
     const initPage = async () => {
       // 1. Fetch Latest Tournaments (EXCLUDING CANCELLED & COMPLETED)
-      // UPGRADED FETCH: Include registrations(id) so we can count booked slots live
+      // UPGRADED SORTING: Order by match_time ascending so the nearest upcoming match is first.
       const { data: tourneyData } = await supabase
         .from('tournaments')
         .select('*, registrations(id)')
         .neq('status', 'CANCELLED')
         .neq('status', 'COMPLETED')
-        .order('created_at', { ascending: false })
+        .order('match_time', { ascending: true })
         .limit(4);
       if (tourneyData) setLatestTournaments(tourneyData);
 
@@ -49,6 +49,16 @@ export default function Home() {
             // Hide if match is completed or cancelled
             return t && t.status !== 'COMPLETED' && t.status !== 'CANCELLED';
           });
+          
+          // Optionally, sort My Matches by match_time ascending as well
+          activeMatches.sort((a, b) => {
+             const tA = Array.isArray(a.tournaments) ? a.tournaments[0] : a.tournaments;
+             const tB = Array.isArray(b.tournaments) ? b.tournaments[0] : b.tournaments;
+             if (!tA.match_time) return 1;
+             if (!tB.match_time) return -1;
+             return new Date(tA.match_time).getTime() - new Date(tB.match_time).getTime();
+          });
+
           setMyMatches(activeMatches);
         }
       }
