@@ -47,15 +47,23 @@ export default function TournamentsPage() {
 
   useEffect(() => {
     const initPage = async () => {
-      // UPGRADED FETCH: Include registrations(id) so we can count booked slots live on the cards
+      // UPGRADED SORTING: Order by match_time ascending (Nearest upcoming first)
       const { data: tourneyData } = await supabase
         .from('tournaments')
         .select('*, registrations(id)')
         .neq('status', 'CANCELLED')
         .neq('status', 'COMPLETED')
-        .order('created_at', { ascending: false });
+        .order('match_time', { ascending: true, nullsFirst: false });
         
-      if (tourneyData) setTournaments(tourneyData);
+      if (tourneyData) {
+        // Strict client-side chronological sort + push TBA to bottom
+        const sortedTourneys = tourneyData.sort((a, b) => {
+          if (!a.match_time) return 1;
+          if (!b.match_time) return -1;
+          return new Date(a.match_time).getTime() - new Date(b.match_time).getTime();
+        });
+        setTournaments(sortedTourneys);
+      }
 
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
@@ -100,7 +108,6 @@ export default function TournamentsPage() {
     if (regs) setBookedSlots(regs.map(r => r.slot_number).filter(s => s !== null));
   };
 
-  // --- UPGRADED QUICK BOOKING LOGIC FOR FREE ENTRY ---
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSlot) return alert("Please select a drop slot!");
@@ -180,10 +187,17 @@ export default function TournamentsPage() {
       setSelectedMatch(null);
       setTeam({ p1_ign: '', p1_id: '', p2_ign: '', p2_id: '', p3_ign: '', p3_id: '', p4_ign: '', p4_id: '' });
       
-      // Refresh the specific tournament card count smoothly
+      // Refresh the specific tournament card count smoothly AND keep it sorted
       const { data: updatedTourney } = await supabase.from('tournaments').select('*, registrations(id)').eq('id', selectedMatch.id).single();
       if (updatedTourney) {
-        setTournaments(prev => prev.map(t => t.id === updatedTourney.id ? updatedTourney : t));
+        setTournaments(prev => {
+          const newArray = prev.map(t => t.id === updatedTourney.id ? updatedTourney : t);
+          return newArray.sort((a, b) => {
+            if (!a.match_time) return 1;
+            if (!b.match_time) return -1;
+            return new Date(a.match_time).getTime() - new Date(b.match_time).getTime();
+          });
+        });
       }
 
     } catch (error: any) { 
