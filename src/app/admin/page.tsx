@@ -29,8 +29,10 @@ export default function AdminDashboard() {
     name: '', 
     type: 'SQUAD', 
     perspective: 'TPP', 
+    entry_type: 'PAID', // NEW
     fee: 100, 
-    total_slots: 25, 
+    total_slots: 25,
+    minimum_slots_required: 25, // NEW 
     status: 'OPEN', 
     match_time: '',
     registration_closing_time: '',
@@ -43,7 +45,7 @@ export default function AdminDashboard() {
   const [newTourney, setNewTourney] = useState(defaultTourney);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // UPGRADED: Leaderboard States
+  // Leaderboard States
   const defaultLeaderboard = { 
     match_date: '', 
     tournament_name: '', 
@@ -96,6 +98,8 @@ export default function AdminDashboard() {
     if (tourneyRes.data) {
       const mappedTourneys = tourneyRes.data.map(t => ({
         ...t,
+        entry_type: t.entry_type || 'PAID',
+        minimum_slots_required: t.minimum_slots_required || t.total_slots,
         total_winners: t.total_winners || 2,
         prizes: t.prize_breakdown?.length > 0 ? t.prize_breakdown : [t.first_prize || 0, t.second_prize || 0, 0, 0, 0, 0]
       }));
@@ -107,7 +111,6 @@ export default function AdminDashboard() {
     setLoading(false);
   };
 
-  // --- DISPATCH HELPER ---
   const sendPushNotification = async (userIds: string[], title: string, body: string, url: string = '/dashboard') => {
     try {
       await fetch('/api/notifications', {
@@ -141,8 +144,6 @@ export default function AdminDashboard() {
         return;
       }
       await supabase.from('transactions').update({ status: 'SUCCESS' }).eq('id', txId);
-      
-      // DISPATCH PUSH NOTIFICATION
       await sendPushNotification([userId], 'Deposit Approved! 💰', `Your deposit of ₹${amount} has been successfully credited to your wallet.`, '/dashboard');
     }
     fetchAllData();
@@ -152,15 +153,18 @@ export default function AdminDashboard() {
   const handleRejectDeposit = async (txId: string, userId: string) => {
     setActionLoading(txId);
     await supabase.from('transactions').update({ status: 'REJECTED' }).eq('id', txId);
-    
-    // DISPATCH PUSH NOTIFICATION
     await sendPushNotification([userId], 'Deposit Rejected ❌', 'Your recent deposit request was rejected. Please check your transaction details or contact support.', '/dashboard');
-    
     fetchAllData();
     setActionLoading(null);
   };
 
   const handleAutoCalculatePrizes = () => {
+    // Prevent auto-calculation if it's a free entry tournament
+    if (newTourney.entry_type === 'FREE') {
+      alert("Auto-calculate is disabled for Free Entry tournaments. Please manually enter the prize amounts.");
+      return;
+    }
+
     const totalPool = Number(newTourney.fee) * Number(newTourney.total_slots);
     const prizePool = Math.floor(totalPool * 0.85);
     const count = Number(newTourney.total_winners);
@@ -198,6 +202,8 @@ export default function AdminDashboard() {
     setEditingId(tourney.id);
     setNewTourney({
       ...tourney,
+      entry_type: tourney.entry_type || 'PAID',
+      minimum_slots_required: tourney.minimum_slots_required || tourney.total_slots,
       match_time: tourney.match_time ? tourney.match_time.slice(0, 16) : '',
       registration_closing_time: tourney.registration_closing_time ? tourney.registration_closing_time.slice(0, 16) : '',
       total_winners: tourney.total_winners || 3,
@@ -216,6 +222,15 @@ export default function AdminDashboard() {
 
   const handleSaveTournament = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Strict validation for FREE ENTRY minimum slots
+    if (newTourney.entry_type === 'FREE') {
+      if (newTourney.minimum_slots_required <= 0 || newTourney.minimum_slots_required > newTourney.total_slots) {
+        alert(`Minimum Slots Required must be between 1 and ${newTourney.total_slots}.`);
+        return;
+      }
+    }
+
     setUploading(true);
     try {
       let publicUrl = newTourney.map_img;
@@ -238,7 +253,9 @@ export default function AdminDashboard() {
         name: String(newTourney.name),
         type: String(newTourney.type),
         perspective: String(newTourney.perspective),
-        fee: Number(newTourney.fee),
+        entry_type: String(newTourney.entry_type),
+        fee: newTourney.entry_type === 'FREE' ? 0 : Number(newTourney.fee),
+        minimum_slots_required: newTourney.entry_type === 'FREE' ? Number(newTourney.minimum_slots_required) : Number(newTourney.total_slots),
         first_prize: Number(newTourney.prizes[0] || 0),
         second_prize: Number(newTourney.prizes[1] || 0),
         total_winners: Number(newTourney.total_winners),
@@ -272,7 +289,12 @@ export default function AdminDashboard() {
   };
 
   const handleCancelMatch = async (tourney: any) => {
-    if (!confirm(`WARNING: Are you sure you want to CANCEL "${tourney.name}"? This will immediately refund ₹${tourney.fee} to all registered players.`)) return;
+    const isFree = tourney.entry_type === 'FREE' || tourney.fee === 0;
+    const warningMsg = isFree 
+      ? `WARNING: Are you sure you want to CANCEL "${tourney.name}"? This is a free match.`
+      : `WARNING: Are you sure you want to CANCEL "${tourney.name}"? This will immediately refund ₹${tourney.fee} to all registered players.`;
+
+    if (!confirm(warningMsg)) return;
     
     setActionLoading(tourney.id);
     try {
@@ -281,6 +303,7 @@ export default function AdminDashboard() {
 
       let refundedUserIds: string[] = [];
 
+      // Only process refunds if there was an actual fee paid
       if (regs && regs.length > 0 && tourney.fee > 0) {
         for (const reg of regs) {
           const { data: wallet } = await supabase.from('wallets').select('*').eq('user_id', reg.user_id).single();
@@ -297,20 +320,41 @@ export default function AdminDashboard() {
             refundedUserIds.push(reg.user_id);
           }
         }
+      } else if (regs && regs.length > 0 && isFree) {
+        // Collect IDs for notification even if no refund is needed
+        for (const reg of regs) {
+          refundedUserIds.push(reg.user_id);
+        }
       }
 
       const { error: updateErr } = await supabase.from('tournaments').update({ status: 'CANCELLED' }).eq('id', tourney.id);
       if (updateErr) throw updateErr;
 
-      // DISPATCH BULK PUSH NOTIFICATION TO REFUNDED PLAYERS
       if (refundedUserIds.length > 0) {
-        await sendPushNotification(refundedUserIds, 'Match Cancelled & Refunded 🚫', `"${tourney.name}" has been cancelled. Your entry fee of ₹${tourney.fee} has been returned to your wallet.`, '/dashboard');
+        const notifMsg = isFree 
+          ? `"${tourney.name}" has been cancelled by administrators.`
+          : `"${tourney.name}" has been cancelled. Your entry fee of ₹${tourney.fee} has been returned to your wallet.`;
+        await sendPushNotification(refundedUserIds, 'Match Cancelled 🚫', notifMsg, '/dashboard');
       }
 
-      alert(`Match Cancelled successfully! ${regs?.length || 0} players were refunded.`);
+      alert(`Match Cancelled successfully! ${regs?.length || 0} players notified${!isFree ? ' and refunded' : ''}.`);
       fetchAllData();
     } catch (err: any) {
       alert("Error cancelling match: " + err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleMarkCompleted = async (tourney: any) => {
+    if (!confirm(`Mark "${tourney.name}" as COMPLETED? It will be moved to Old Match History.`)) return;
+    setActionLoading(tourney.id);
+    try {
+      const { error } = await supabase.from('tournaments').update({ status: 'COMPLETED' }).eq('id', tourney.id);
+      if (error) throw error;
+      fetchAllData();
+    } catch (err: any) {
+      alert("Error completing match: " + err.message);
     } finally {
       setActionLoading(null);
     }
@@ -338,13 +382,12 @@ export default function AdminDashboard() {
     }
   };
 
-  // --- UPGRADED LEADERBOARD HANDLERS ---
   const handleEditLeaderboard = (item: any) => {
     setEditingLeaderboardId(item.id);
     setNewLeaderboard({
       match_date: item.match_date || '',
       tournament_name: item.tournament_name || '',
-      team_name: item.team_name || item.winner_1_team || '', // Fallback to old schema if needed
+      team_name: item.team_name || item.winner_1_team || '', 
       team_id: item.team_id || '',
       prize_won: item.prize_won || '',
       status: item.status || 'Draft',
@@ -389,7 +432,7 @@ export default function AdminDashboard() {
         prize_won: Number(newLeaderboard.prize_won),
         status: newLeaderboard.status,
         screenshot_url: finalScreenshotUrl,
-        winner_1_team: newLeaderboard.team_name // Backwards compatibility just in case
+        winner_1_team: newLeaderboard.team_name 
       };
 
       if (editingLeaderboardId) {
@@ -529,6 +572,29 @@ export default function AdminDashboard() {
               )}
               
               <form onSubmit={handleSaveTournament} className="space-y-4">
+                
+                {/* --- NEW: ENTRY TYPE TOGGLE --- */}
+                <div className="flex gap-2 bg-zinc-950 p-1.5 rounded-lg border border-zinc-800">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setNewTourney({ ...newTourney, entry_type: 'PAID' });
+                    }}
+                    className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded transition-colors ${newTourney.entry_type === 'PAID' ? 'bg-orange-500 text-black' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  >
+                    Paid Entry
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setNewTourney({ ...newTourney, entry_type: 'FREE', fee: 0 });
+                    }}
+                    className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded transition-colors ${newTourney.entry_type === 'FREE' ? 'bg-emerald-500 text-black' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  >
+                    Free Entry
+                  </button>
+                </div>
+
                 <div>
                   <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Match Title</label>
                   <input required type="text" value={newTourney.name} onChange={e => setNewTourney({...newTourney, name: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none text-white" />
@@ -547,6 +613,7 @@ export default function AdminDashboard() {
                     <label className="text-xs font-bold text-red-400 uppercase tracking-wider block mb-1">Registration Closes At (IST)</label>
                     <input type="datetime-local" required value={newTourney.registration_closing_time} onChange={e => setNewTourney({...newTourney, registration_closing_time: e.target.value})} className="w-full bg-red-950/20 border border-red-900/50 rounded p-2 text-sm focus:border-red-500 outline-none text-red-200 [color-scheme:dark]" />
                   </div>
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="text-xs font-bold text-orange-500 uppercase tracking-wider block mb-1">Total Slots</label>
@@ -560,6 +627,16 @@ export default function AdminDashboard() {
                       </select>
                     </div>
                   </div>
+
+                  {/* --- NEW: MINIMUM SLOTS FOR FREE ENTRY --- */}
+                  {newTourney.entry_type === 'FREE' && (
+                    <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded mt-2">
+                      <label className="text-xs font-bold text-emerald-500 uppercase tracking-wider block mb-1">Min. Slots Required to Start</label>
+                      <input required type="number" min="1" max={newTourney.total_slots || 25} value={newTourney.minimum_slots_required} onChange={e => setNewTourney({...newTourney, minimum_slots_required: Number(e.target.value)})} className="w-full bg-zinc-950 border border-emerald-500/50 rounded p-2 text-sm focus:border-emerald-500 outline-none text-emerald-400 font-bold" />
+                      <p className="text-[10px] font-bold text-emerald-500/70 mt-1 uppercase tracking-wider">Tournament cancels if minimum is not reached.</p>
+                    </div>
+                  )}
+
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -573,10 +650,12 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Entry Fee (₹)</label>
-                  <input required type="number" value={newTourney.fee} onChange={e => setNewTourney({...newTourney, fee: Number(e.target.value)})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none text-white" />
-                </div>
+                {newTourney.entry_type === 'PAID' && (
+                  <div>
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-1">Entry Fee (₹)</label>
+                    <input required type="number" value={newTourney.fee} onChange={e => setNewTourney({...newTourney, fee: Number(e.target.value)})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-2.5 text-sm focus:border-orange-500 outline-none text-white" />
+                  </div>
+                )}
 
                 <div className="bg-zinc-950 p-4 rounded border border-zinc-800 space-y-4">
                   <div className="flex justify-between items-center">
@@ -595,13 +674,21 @@ export default function AdminDashboard() {
                     </select>
                   </div>
 
-                  <button 
-                    type="button" 
-                    onClick={handleAutoCalculatePrizes} 
-                    className="w-full bg-zinc-800 hover:bg-zinc-700 text-orange-400 border border-orange-500/30 text-xs font-black uppercase py-2 rounded flex items-center justify-center gap-2 transition-all"
-                  >
-                    <Calculator className="w-4 h-4" /> Auto-Calculate Prizes (85% Pool)
-                  </button>
+                  {/* Disable Auto Calc for Free Tournaments */}
+                  {newTourney.entry_type === 'PAID' ? (
+                    <button 
+                      type="button" 
+                      onClick={handleAutoCalculatePrizes} 
+                      className="w-full bg-zinc-800 hover:bg-zinc-700 text-orange-400 border border-orange-500/30 text-xs font-black uppercase py-2 rounded flex items-center justify-center gap-2 transition-all"
+                    >
+                      <Calculator className="w-4 h-4" /> Auto-Calculate Prizes (85% Pool)
+                    </button>
+                  ) : (
+                    <div className="w-full bg-zinc-900 border border-zinc-800 text-zinc-500 text-[10px] font-black uppercase py-2 rounded flex flex-col items-center justify-center text-center">
+                      <span>Manual Prizes Only</span>
+                      <span>(Free Tournaments do not have an entry pool)</span>
+                    </div>
+                  )}
 
                   <div className="space-y-2 pt-2">
                     {Array.from({ length: newTourney.total_winners }, (_, idx) => (
@@ -663,14 +750,12 @@ export default function AdminDashboard() {
                           <div>
                             <div className="flex items-center gap-2">
                               <h3 className="font-black italic text-lg uppercase tracking-wide">{t.name}</h3>
-                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${
-                                t.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 
-                                t.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 
-                                t.status === 'UNDER REVIEW' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse' : 
-                                'bg-zinc-800 text-zinc-500 border-zinc-700'
-                              }`}>
-                                {t.status}
-                              </span>
+                              {t.entry_type === 'FREE' ? (
+                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded border bg-emerald-500/10 text-emerald-500 border-emerald-500/20">FREE ENTRY</span>
+                              ) : (
+                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded border bg-orange-500/10 text-orange-500 border-orange-500/20">₹{t.fee} ENTRY</span>
+                              )}
+                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : t.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>{t.status}</span>
                             </div>
                             <div className="flex gap-2 text-xs font-bold text-zinc-400 mt-1">
                               <span className="text-orange-500">
@@ -682,6 +767,7 @@ export default function AdminDashboard() {
                         <div className="flex flex-wrap justify-end gap-2 w-full sm:w-auto">
                           <button onClick={() => router.push(`/admin/tournament/${t.id}`)} className="bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1"><Eye className="w-3 h-3"/> View Control</button>
                           <button onClick={() => handleEditClick(t)} className="bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white border border-blue-500/20 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all"><Edit3 className="w-3 h-3"/></button>
+                          <button disabled={actionLoading === t.id} onClick={() => handleMarkCompleted(t)} className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white border border-emerald-500/20 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 disabled:opacity-50"><CheckSquare className="w-3 h-3"/> Complete</button>
                           <button disabled={actionLoading === t.id} onClick={() => handleCancelMatch(t)} className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 disabled:opacity-50"><Ban className="w-3 h-3"/> Cancel & Refund</button>
                         </div>
                       </div>
