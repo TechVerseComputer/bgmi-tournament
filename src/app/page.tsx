@@ -24,15 +24,24 @@ export default function Home() {
   useEffect(() => {
     const initPage = async () => {
       // 1. Fetch Latest Tournaments (EXCLUDING CANCELLED & COMPLETED)
-      // UPGRADED SORTING: Order by match_time ascending so the nearest upcoming match is first.
+      // UPGRADED SORTING: Order by match_time ascending with nulls at the bottom
       const { data: tourneyData } = await supabase
         .from('tournaments')
         .select('*, registrations(id)')
         .neq('status', 'CANCELLED')
         .neq('status', 'COMPLETED')
-        .order('match_time', { ascending: true })
+        .order('match_time', { ascending: true, nullsFirst: false })
         .limit(4);
-      if (tourneyData) setLatestTournaments(tourneyData);
+        
+      if (tourneyData) {
+        // Strict client-side chronological sort + push TBA to bottom
+        const sortedTourneys = tourneyData.sort((a, b) => {
+          if (!a.match_time) return 1;
+          if (!b.match_time) return -1;
+          return new Date(a.match_time).getTime() - new Date(b.match_time).getTime();
+        });
+        setLatestTournaments(sortedTourneys);
+      }
 
       // 2. Check Auth & Fetch User's Upcoming Matches
       const { data: { session } } = await supabase.auth.getSession();
@@ -283,7 +292,7 @@ export default function Home() {
 
                     {/* 3. ENTRY FEE & COUNTDOWN GRID */}
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80">
+                      <div className="bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/80 flex flex-col justify-center">
                         <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">Entry Fee</p>
                         <p className={`text-lg font-black ${isFree ? 'text-emerald-500' : 'text-orange-500'}`}>{isFree ? 'FREE' : `₹${t.fee}`}</p>
                       </div>
@@ -308,10 +317,11 @@ export default function Home() {
                          </div>
                       </div>
                     )}
+
                   </div>
 
                   {/* 5. ACTIONS */}
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-zinc-800/80">
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-zinc-800/80">
                     <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-2.5 md:py-3 rounded-xl text-[10px] md:text-xs transition-colors border border-zinc-700 flex items-center justify-center">
                       View Details
                     </Link>
