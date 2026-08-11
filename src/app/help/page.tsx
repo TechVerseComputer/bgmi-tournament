@@ -13,7 +13,7 @@ export default function HelpCenterPage() {
         {/* --- EXISTING SUPPORT WIDGET --- */}
         <div className="bg-orange-500/10 border border-orange-500/30 p-8 rounded-2xl text-center flex flex-col items-center">
           <h2 className="text-xl font-black uppercase tracking-wider text-orange-500 mb-4">Need Immediate Support?</h2>
-          <a href="mailto:support@bgmiarena.in" className="bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest px-8 py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(249,115,22,0.4)] flex items-center gap-2">
+          <a href="mailto:mail.bgmighost@gmail.com" className="bg-orange-500 hover:bg-orange-400 text-black font-black uppercase tracking-widest px-8 py-4 rounded-xl transition-all shadow-[0_0_20px_rgba(249,115,22,0.4)] flex items-center gap-2">
             <Mail className="w-5 h-5"/> Email Support
           </a>
           <p className="text-xs text-zinc-400 font-bold mt-4">We actively monitor support requests during operational hours.</p>
