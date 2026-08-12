@@ -206,7 +206,7 @@ export default function Home() {
         {/* CSS GRID REFACTOR: 2 columns mobile, 3 tablet, 4 desktop. Gap tightly controlled */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6 px-1 md:px-0">
           {latestTournaments.map((t) => {
-            // --- VARIABLES & LOGIC (UNTOUCHED) ---
+            // --- VARIABLES & LOGIC (UPDATED TO BE UNIVERSAL) ---
             const isFree = t.entry_type === 'FREE' || t.fee === 0;
             const bookedCount = t.registrations?.length || 0;
             const maxSlots = Number(t.total_slots || 25);
@@ -220,16 +220,18 @@ export default function Home() {
               
             const totalPrizePool = activePrizes.reduce((a: number, b: number) => a + Number(b), 0);
 
+            // --- STRICT STATUS & COUNTDOWN ENGINE (Removed isFree condition) ---
             const isTimePassed = t.registration_closing_time && currentTime > new Date(t.registration_closing_time).getTime();
             const isUnderReview = t.status === 'UNDER REVIEW';
-            const isMinFailed = isFree && isTimePassed && !isMinReached;
+            const isMinFailed = isTimePassed && !isMinReached; // Universally applied
             
             const isClosed = isTimePassed || t.status === 'FULL' || t.status === 'COMPLETED' || t.status === 'CANCELLED' || isUnderReview || isMinFailed;
             
             let displayStatus = t.status || 'OPEN';
             if (isTimePassed && t.status === 'OPEN') {
               displayStatus = isMinFailed ? 'MIN NOT REACHED' : 'REGISTRATION CLOSED';
-            } else if (isFree && t.status === 'OPEN') {
+            } else if (t.status === 'OPEN') {
+              // Universally apply "MATCH CONFIRMED" vs "WAITING FOR PLAYERS"
               displayStatus = isMinReached ? 'MATCH CONFIRMED' : 'WAITING FOR PLAYERS';
             }
 
@@ -243,6 +245,7 @@ export default function Home() {
                   <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent z-10" />
                   <img src={t.map_img} alt={t.name} className={`w-full h-full object-cover transition-transform duration-700 ${isClosed ? 'grayscale opacity-75' : 'group-hover:scale-110'}`} />
                   
+                  {/* FREE ENTRY BADGE */}
                   {isFree && (
                     <span className="absolute top-2 left-2 z-20 bg-emerald-500 text-black font-black text-[8px] md:text-[10px] uppercase px-2 py-0.5 rounded shadow-lg">
                       FREE ENTRY
@@ -298,20 +301,19 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* 4. UNIVERSAL SLOTS BOOKED */}
+                    {/* 4. UNIVERSAL SLOTS BOOKED (Removed isFree condition entirely) */}
                     <div className="bg-zinc-950 p-1.5 md:p-2.5 rounded border border-zinc-800/80 flex justify-between items-center min-w-0">
                        <div className="min-w-0 pr-1">
                          <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider truncate">Slots Booked</p>
                          <p className="text-xs md:text-sm font-black text-white">{bookedCount} <span className="text-zinc-500 text-[10px]">/ {t.total_slots}</span></p>
                        </div>
-                       {isFree && (
-                         <div className="text-right flex flex-col items-end shrink-0">
-                           <p className={`text-[8px] md:text-[9px] font-black uppercase flex items-center gap-0.5 ${isMinReached ? 'text-emerald-500' : 'text-amber-500'}`}>
-                              {isMinReached ? <CheckCircle2 className="w-2.5 h-2.5 shrink-0"/> : <AlertCircle className="w-2.5 h-2.5 shrink-0"/>}
-                              {isMinReached ? 'Confirmed' : `Min ${minSlots}`}
-                           </p>
-                         </div>
-                       )}
+                       
+                       <div className="text-right flex flex-col items-end shrink-0">
+                         <p className={`text-[8px] md:text-[9px] font-black uppercase flex items-center gap-0.5 ${isMinReached ? 'text-emerald-500' : 'text-amber-500'}`}>
+                            {isMinReached ? <CheckCircle2 className="w-2.5 h-2.5 shrink-0"/> : <AlertCircle className="w-2.5 h-2.5 shrink-0"/>}
+                            {isMinReached ? 'Confirmed' : `Min ${minSlots}`}
+                         </p>
+                       </div>
                     </div>
 
                   </div>
