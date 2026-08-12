@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Trophy, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3, PlusCircle, Eye, Calculator, Key, Ban, CheckSquare, FileText, Image as ImageIcon } from 'lucide-react';
+import { Trophy, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3, PlusCircle, Eye, Calculator, Key, Ban, CheckSquare, FileText, Image as ImageIcon, Bell, CheckCheck, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 // --- TIMEZONE HELPERS ---
-// Converts UTC from database into local IST for the Edit Form
 const formatToISTInput = (utcString: string | null) => {
   if (!utcString) return '';
   const d = new Date(utcString);
@@ -16,11 +15,31 @@ const formatToISTInput = (utcString: string | null) => {
   return istDate.toISOString().slice(0, 16);
 };
 
-// Converts the Form's IST time back into UTC for the Database
 const parseISTToUTC = (localString: string) => {
   if (!localString) return null;
   const d = new Date(`${localString}+05:30`);
   return d.toISOString();
+};
+
+// --- TIME AGO HELPER FOR NOTIFICATIONS ---
+const timeAgo = (dateStr: string) => {
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+};
+
+// --- BASE64 HELPER FOR PUSH SUBSCRIPTION ---
+const urlB64ToUint8Array = (base64String: string) => {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
 };
 
 export default function AdminDashboard() {
@@ -39,40 +58,26 @@ export default function AdminDashboard() {
   const [rules, setRules] = useState<any[]>([]);
   const [pendingTransactions, setPendingTransactions] = useState<any[]>([]);
 
+  // --- NEW: NOTIFICATION STATES ---
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+
   // Tournament States
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   
   const defaultTourney = { 
-    name: '', 
-    type: 'SQUAD', 
-    perspective: 'TPP', 
-    entry_type: 'PAID', 
-    fee: 100, 
-    total_slots: 25,
-    minimum_slots_required: 25, 
-    status: 'OPEN', 
-    match_time: '',
-    registration_closing_time: '',
-    map_img: '',
-    total_winners: 3,
-    prizes: [1500, 800, 400, 0, 0, 0],
-    room_id: '',
-    room_password: ''
+    name: '', type: 'SQUAD', perspective: 'TPP', entry_type: 'PAID', fee: 100, 
+    total_slots: 25, minimum_slots_required: 25, status: 'OPEN', match_time: '',
+    registration_closing_time: '', map_img: '', total_winners: 3,
+    prizes: [1500, 800, 400, 0, 0, 0], room_id: '', room_password: ''
   };
   const [newTourney, setNewTourney] = useState(defaultTourney);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Leaderboard States
-  const defaultLeaderboard = { 
-    match_date: '', 
-    tournament_name: '', 
-    team_name: '', 
-    team_id: '', 
-    prize_won: '', 
-    status: 'Draft',
-    screenshot_url: '' 
-  };
+  const defaultLeaderboard = { match_date: '', tournament_name: '', team_name: '', team_id: '', prize_won: '', status: 'Draft', screenshot_url: '' };
   const [newLeaderboard, setNewLeaderboard] = useState(defaultLeaderboard);
   const [editingLeaderboardId, setEditingLeaderboardId] = useState<string | null>(null);
   const [leaderboardImageFile, setLeaderboardImageFile] = useState<File | null>(null);
@@ -91,7 +96,88 @@ export default function AdminDashboard() {
       });
     };
     checkAuth();
+
+    // Check existing push permission
+    if ('Notification' in window) {
+      setPushEnabled(Notification.permission === 'granted');
+    }
   }, []);
+
+  // --- NEW: REALTIME NOTIFICATION LISTENER ---
+  useEffect(() => {
+    if (!isAuthorized) return;
+
+    // Fetch initial history
+    const fetchNotifications = async () => {
+      const { data } = await supabase.from('admin_notifications').select('*').order('created_at', { ascending: false }).limit(50);
+      if (data) setNotifications(data);
+    };
+    fetchNotifications();
+
+    // Subscribe to instant database updates
+    const channel = supabase.channel('admin_alerts')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'admin_notifications' }, (payload) => {
+        setNotifications((prev) => [payload.new, ...prev]);
+        
+        // Trigger local browser popup if tab is open in background
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(payload.new.message, { 
+            body: `${payload.new.player_name} ${payload.new.amount ? '• ₹'+payload.new.amount : ''}`,
+            icon: '/icon-192.png' 
+          });
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [isAuthorized]);
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  const markAsRead = async (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    await supabase.from('admin_notifications').update({ is_read: true }).eq('id', id);
+  };
+
+  const markAllAsRead = async () => {
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    await supabase.from('admin_notifications').update({ is_read: true }).eq('is_read', false);
+  };
+
+  const enablePushNotifications = async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      return alert("Push notifications are not supported by this browser.");
+    }
+    const perm = await Notification.requestPermission();
+    setPushEnabled(perm === 'granted');
+    
+    if (perm === 'granted') {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+        if(!vapidKey) return alert("VAPID Key missing. Please ensure NEXT_PUBLIC_VAPID_PUBLIC_KEY is in your .env file.");
+        
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlB64ToUint8Array(vapidKey)
+        });
+        
+        const subData = JSON.parse(JSON.stringify(sub));
+        
+        // Save as SUPER_ADMIN so backend APIs can universally target the Admin device
+        await supabase.from('push_subscriptions').upsert({
+          user_id: 'SUPER_ADMIN', 
+          endpoint: subData.endpoint,
+          p256dh: subData.keys.p256dh,
+          auth: subData.keys.auth
+        }, { onConflict: 'endpoint' });
+        
+        alert("Push Notifications securely enabled for this Admin device!");
+      } catch (err: any) {
+        alert("Failed to subscribe device: " + err.message);
+      }
+    }
+  };
 
   const verifyAdmin = async (email: string | undefined) => {
     if (!email) return;
@@ -499,9 +585,51 @@ export default function AdminDashboard() {
   const historyMatches = tournaments.filter(t => t.status === 'CANCELLED' || t.status === 'COMPLETED');
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans pb-24">
-      <div className="max-w-7xl mx-auto">
+    <main className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans pb-24 relative overflow-x-hidden">
+      
+      {/* --- NOTIFICATION SLIDE-OUT PANEL --- */}
+      <div className={`fixed inset-y-0 right-0 z-[100] w-full md:w-96 bg-[#0a0a0a] border-l border-zinc-800 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${showNotifPanel ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="p-5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900">
+          <h2 className="font-black italic uppercase tracking-widest flex items-center gap-2 text-white">
+            <Bell className="w-5 h-5 text-orange-500" /> Admin Alerts
+          </h2>
+          <button onClick={() => setShowNotifPanel(false)} className="text-zinc-500 hover:text-white p-1 rounded transition-colors"><X className="w-5 h-5" /></button>
+        </div>
         
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {notifications.length === 0 ? (
+            <div className="text-center py-10 text-zinc-500 font-bold text-sm uppercase tracking-wider">No notifications yet.</div>
+          ) : (
+            notifications.map(n => (
+              <div key={n.id} onClick={() => { if(!n.is_read) markAsRead(n.id); }} className={`p-4 rounded-lg border transition-all cursor-pointer ${n.is_read ? 'bg-zinc-950 border-zinc-800 opacity-70' : 'bg-zinc-900 border-zinc-700 shadow-lg'}`}>
+                <div className="flex justify-between items-start mb-2">
+                  <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${n.type === 'DEPOSIT' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : n.type === 'WITHDRAWAL' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
+                    {n.type}
+                  </span>
+                  <span className="text-[10px] text-zinc-500 font-bold">{timeAgo(n.created_at)}</span>
+                </div>
+                <p className="font-bold text-white text-sm mb-1">{n.message}</p>
+                <div className="flex justify-between items-end">
+                  <p className="text-xs text-zinc-400 truncate pr-2">{n.player_name}</p>
+                  {n.amount > 0 && <p className="font-black text-emerald-500 shrink-0">₹{n.amount}</p>}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="p-4 border-t border-zinc-800 bg-zinc-900 space-y-3">
+          <div className="flex items-center justify-between text-xs font-bold text-zinc-400 bg-zinc-950 p-3 rounded border border-zinc-800">
+            <span>Push Notifications: {pushEnabled ? <span className="text-emerald-500 ml-1">Enabled</span> : <span className="text-red-500 ml-1">Disabled</span>}</span>
+            {!pushEnabled && <button onClick={enablePushNotifications} className="text-blue-400 hover:text-blue-300 uppercase">Enable</button>}
+          </div>
+          <button onClick={markAllAsRead} disabled={unreadCount === 0} className="w-full bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white font-black uppercase tracking-widest py-3 rounded text-xs transition-colors flex justify-center items-center gap-2 border border-zinc-700">
+            <CheckCheck className="w-4 h-4" /> Mark All Read
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 border-b border-zinc-800 pb-6">
           <div>
@@ -509,10 +637,19 @@ export default function AdminDashboard() {
             <p className="text-emerald-500 text-sm mt-1 font-bold flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Authenticated as {user.email}</p>
           </div>
           <div className="flex gap-4 w-full md:w-auto">
+            {/* --- NEW: BELL ICON --- */}
+            <button onClick={() => setShowNotifPanel(true)} className="relative flex-none bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-4 py-2.5 rounded border border-zinc-700 transition-all flex items-center justify-center">
+              <Bell className="w-5 h-5"/>
+              {unreadCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full animate-bounce">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
             <button onClick={() => router.push('/admin/ledger')} className="flex-1 md:flex-none bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold px-4 py-2.5 rounded border border-emerald-500 transition-all flex items-center justify-center gap-2">
               <FileText className="w-4 h-4"/> Financial Ledger
             </button>
-            <button onClick={fetchAllData} className="flex-1 md:flex-none bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-sm font-bold px-4 py-2.5 rounded border border-zinc-700 transition-all">🔄 Refresh Data</button>
+            <button onClick={fetchAllData} className="flex-1 md:flex-none bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-sm font-bold px-4 py-2.5 rounded border border-zinc-700 transition-all">🔄 Refresh</button>
             <button onClick={handleLogout} className="flex-1 md:flex-none bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white text-sm font-bold px-4 py-2.5 rounded border border-red-500/20 transition-all flex items-center justify-center gap-2"><LogOut className="w-4 h-4" /> Logout</button>
           </div>
         </div>
@@ -582,22 +719,17 @@ export default function AdminDashboard() {
               
               <form onSubmit={handleSaveTournament} className="space-y-4">
                 
-                {/* --- NEW: ENTRY TYPE TOGGLE --- */}
                 <div className="flex gap-2 bg-zinc-950 p-1.5 rounded-lg border border-zinc-800">
                   <button 
                     type="button"
-                    onClick={() => {
-                      setNewTourney({ ...newTourney, entry_type: 'PAID' });
-                    }}
+                    onClick={() => { setNewTourney({ ...newTourney, entry_type: 'PAID' }); }}
                     className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded transition-colors ${newTourney.entry_type === 'PAID' ? 'bg-orange-500 text-black' : 'text-zinc-500 hover:text-zinc-300'}`}
                   >
                     Paid Entry
                   </button>
                   <button 
                     type="button"
-                    onClick={() => {
-                      setNewTourney({ ...newTourney, entry_type: 'FREE', fee: 0 });
-                    }}
+                    onClick={() => { setNewTourney({ ...newTourney, entry_type: 'FREE', fee: 0 }); }}
                     className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded transition-colors ${newTourney.entry_type === 'FREE' ? 'bg-emerald-500 text-black' : 'text-zinc-500 hover:text-zinc-300'}`}
                   >
                     Free Entry
@@ -637,7 +769,6 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  {/* --- NEW: MINIMUM SLOTS FOR FREE ENTRY --- */}
                   {newTourney.entry_type === 'FREE' && (
                     <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded mt-2">
                       <label className="text-xs font-bold text-emerald-500 uppercase tracking-wider block mb-1">Min. Slots Required to Start</label>
@@ -683,7 +814,6 @@ export default function AdminDashboard() {
                     </select>
                   </div>
 
-                  {/* Disable Auto Calc for Free Tournaments */}
                   {newTourney.entry_type === 'PAID' ? (
                     <button 
                       type="button" 
