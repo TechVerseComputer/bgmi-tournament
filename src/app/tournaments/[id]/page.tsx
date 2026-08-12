@@ -81,8 +81,8 @@ export default function TournamentDetailPage() {
     const m = Math.floor((diff / 1000 / 60) % 60);
     const s = Math.floor((diff / 1000) % 60);
     
-    if (d > 0) return `Closes in ${d}d ${h}h`;
-    return `Closes in ${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    if (d > 0) return `${d}D ${h}H`;
+    return `${h.toString().padStart(2, '0')}H ${m.toString().padStart(2, '0')}M ${s.toString().padStart(2, '0')}S`;
   };
 
   const handleOpenModal = () => {
@@ -251,7 +251,7 @@ export default function TournamentDetailPage() {
   if (loading) return <div className="min-h-screen bg-[#0a0a0a] text-orange-500 font-bold flex items-center justify-center animate-pulse">Loading Match Details...</div>;
   if (!tournament) return <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-bold">Match not found.</div>;
 
-  // --- FREE ENTRY VARIABLES ---
+  // --- VARIABLES ---
   const isFree = tournament.entry_type === 'FREE' || tournament.fee === 0;
   const bookedSlotNumbers = registrations.map(r => r.slot_number).filter(s => s !== null);
   const bookedCount = registrations.length;
@@ -342,10 +342,10 @@ export default function TournamentDetailPage() {
       : [tournament.first_prize || 0, tournament.second_prize || 0].slice(0, winnerCount);
   }
 
-  // --- STRICT STATUS ENGINE (UPDATED FOR FREE ENTRY) ---
+  // --- STRICT STATUS ENGINE (UPDATED UNIVERSALLY) ---
   const isTimePassed = tournament.registration_closing_time && currentTime ? currentTime > new Date(tournament.registration_closing_time).getTime() : false;
   const isUnderReview = tournament.status === 'UNDER REVIEW';
-  const isMinFailed = isFree && isTimePassed && !isMinReached; // Time passed but didn't reach min
+  const isMinFailed = isTimePassed && !isMinReached; // Removed isFree condition
   
   const isClosed = isTimePassed || tournament.status === 'FULL' || tournament.status === 'COMPLETED' || tournament.status === 'CANCELLED' || isUnderReview || isMinFailed;
   
@@ -353,8 +353,8 @@ export default function TournamentDetailPage() {
   
   if (isTimePassed && tournament.status === 'OPEN') {
     displayStatus = isMinFailed ? 'MIN NOT REACHED' : 'REGISTRATION CLOSED';
-  } else if (isFree && tournament.status === 'OPEN') {
-    displayStatus = isMinReached ? 'MATCH CONFIRMED' : 'WAITING FOR PLAYERS';
+  } else if (tournament.status === 'OPEN') {
+    displayStatus = isMinReached ? 'MATCH CONFIRMED' : 'WAITING FOR PLAYERS'; // Universal check
   }
 
   const countdown = formatCountdown(tournament.registration_closing_time);
@@ -443,16 +443,13 @@ export default function TournamentDetailPage() {
                 {tournament.match_time ? new Date(tournament.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}
               </p>
             </div>
+            {/* UNIVERSAL SLOTS DISPLAY */}
             <div>
               <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Slots: {bookedCount} / {maxSlots}</p>
-              {isFree ? (
-                <p className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${isMinReached ? 'text-emerald-500' : 'text-amber-500'}`}>
-                  {isMinReached ? <CheckCircle2 className="w-3 h-3"/> : <AlertCircle className="w-3 h-3"/>}
-                  {isMinReached ? 'Match Confirmed' : `Min ${minSlots} Reqd.`}
-                </p>
-              ) : (
-                <p className="text-lg font-bold text-white flex items-center gap-1.5"><Users className="w-4 h-4 text-orange-500"/> {maxSlots} Slots</p>
-              )}
+              <p className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 mt-1 ${isMinReached ? 'text-emerald-500' : 'text-amber-500'}`}>
+                {isMinReached ? <CheckCircle2 className="w-3.5 h-3.5"/> : <AlertCircle className="w-3.5 h-3.5"/>}
+                {isMinReached ? 'Match Confirmed' : `Min ${minSlots} Reqd.`}
+              </p>
             </div>
           </div>
 
@@ -603,6 +600,7 @@ export default function TournamentDetailPage() {
               </div>
             </div>
             
+            {/* Hide Balance warning for Free entry */}
             {!isFree && walletBalance < tournament.fee && (
               <div className="bg-red-500/10 border-b border-red-500/20 p-4 flex items-center justify-between">
                 <div className="flex items-center gap-2 text-red-500 text-sm font-bold"><AlertCircle className="w-5 h-5" /> Insufficient Wallet Balance (₹{walletBalance})</div>
