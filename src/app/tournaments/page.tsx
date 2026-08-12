@@ -337,8 +337,8 @@ export default function TournamentsPage() {
         ) : filteredTournaments.length === 0 ? (
           <div className="text-center text-zinc-500 font-bold uppercase tracking-widest py-12">No tournaments found matching your filters.</div>
         ) : (
-          {/* CSS GRID REFACTOR: 2 columns mobile, 3 tablet, 4 desktop */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6 px-1 md:px-0">
+            {/* CSS GRID REFACTOR: 2 columns mobile, 3 tablet, 4 desktop */}
             {filteredTournaments.map((t) => {
               // --- VARIABLES & LOGIC (UNTOUCHED) ---
               const isFree = t.entry_type === 'FREE' || t.fee === 0;
@@ -378,6 +378,7 @@ export default function TournamentsPage() {
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent z-10" />
                     <img src={t.map_img} alt={t.name} className={`w-full h-full object-cover transition-transform duration-500 ${isClosed ? 'grayscale opacity-50' : 'group-hover:scale-110'}`} />
                     
+                    {/* FREE ENTRY BADGE */}
                     {isFree && (
                       <span className="absolute top-2 left-2 z-20 bg-emerald-500 text-black font-black text-[8px] md:text-[10px] uppercase px-2 py-0.5 rounded shadow-lg">
                         FREE ENTRY
