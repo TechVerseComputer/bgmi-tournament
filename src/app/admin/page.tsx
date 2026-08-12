@@ -328,11 +328,10 @@ export default function AdminDashboard() {
   const handleSaveTournament = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (newTourney.entry_type === 'FREE') {
-      if (newTourney.minimum_slots_required <= 0 || newTourney.minimum_slots_required > newTourney.total_slots) {
-        alert(`Minimum Slots Required must be between 1 and ${newTourney.total_slots}.`);
-        return;
-      }
+    // --- UPDATED: Universal Validation for both Free and Paid ---
+    if (newTourney.minimum_slots_required <= 0 || newTourney.minimum_slots_required > newTourney.total_slots) {
+      alert(`Minimum Slots Required must be between 1 and ${newTourney.total_slots}.`);
+      return;
     }
 
     setUploading(true);
@@ -359,7 +358,8 @@ export default function AdminDashboard() {
         perspective: String(newTourney.perspective),
         entry_type: String(newTourney.entry_type),
         fee: newTourney.entry_type === 'FREE' ? 0 : Number(newTourney.fee),
-        minimum_slots_required: newTourney.entry_type === 'FREE' ? Number(newTourney.minimum_slots_required) : Number(newTourney.total_slots),
+        // --- UPDATED: Save min slots universally ---
+        minimum_slots_required: Number(newTourney.minimum_slots_required),
         first_prize: Number(newTourney.prizes[0] || 0),
         second_prize: Number(newTourney.prizes[1] || 0),
         total_winners: Number(newTourney.total_winners),
@@ -403,6 +403,7 @@ export default function AdminDashboard() {
 
       let refundedUserIds: string[] = [];
 
+      // Loop dynamically handles refunds for paid tournaments only
       if (regs && regs.length > 0 && tourney.fee > 0) {
         for (const reg of regs) {
           const { data: wallet } = await supabase.from('wallets').select('*').eq('user_id', reg.user_id).single();
@@ -637,7 +638,6 @@ export default function AdminDashboard() {
             <p className="text-emerald-500 text-sm mt-1 font-bold flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Authenticated as {user.email}</p>
           </div>
           <div className="flex gap-4 w-full md:w-auto">
-            {/* --- NEW: BELL ICON --- */}
             <button onClick={() => setShowNotifPanel(true)} className="relative flex-none bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-4 py-2.5 rounded border border-zinc-700 transition-all flex items-center justify-center">
               <Bell className="w-5 h-5"/>
               {unreadCount > 0 && (
@@ -769,13 +769,12 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  {newTourney.entry_type === 'FREE' && (
-                    <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded mt-2">
-                      <label className="text-xs font-bold text-emerald-500 uppercase tracking-wider block mb-1">Min. Slots Required to Start</label>
-                      <input required type="number" min="1" max={newTourney.total_slots || 25} value={newTourney.minimum_slots_required} onChange={e => setNewTourney({...newTourney, minimum_slots_required: Number(e.target.value)})} className="w-full bg-zinc-950 border border-emerald-500/50 rounded p-2 text-sm focus:border-emerald-500 outline-none text-emerald-400 font-bold" />
-                      <p className="text-[10px] font-bold text-emerald-500/70 mt-1 uppercase tracking-wider">Tournament cancels if minimum is not reached.</p>
-                    </div>
-                  )}
+                  {/* --- UPDATED: MINIMUM SLOTS UNIVERSALLY VISIBLE --- */}
+                  <div className={`p-3 rounded mt-2 border ${newTourney.entry_type === 'FREE' ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-orange-500/10 border-orange-500/30'}`}>
+                    <label className={`text-xs font-bold uppercase tracking-wider block mb-1 ${newTourney.entry_type === 'FREE' ? 'text-emerald-500' : 'text-orange-500'}`}>Min. Slots Required to Start</label>
+                    <input required type="number" min="1" max={newTourney.total_slots || 25} value={newTourney.minimum_slots_required} onChange={e => setNewTourney({...newTourney, minimum_slots_required: Number(e.target.value)})} className={`w-full bg-zinc-950 rounded p-2 text-sm outline-none font-bold border ${newTourney.entry_type === 'FREE' ? 'border-emerald-500/50 focus:border-emerald-500 text-emerald-400' : 'border-orange-500/50 focus:border-orange-500 text-orange-400'}`} />
+                    <p className={`text-[10px] font-bold mt-1 uppercase tracking-wider ${newTourney.entry_type === 'FREE' ? 'text-emerald-500/70' : 'text-orange-500/70'}`}>Tournament cancels if minimum is not reached.</p>
+                  </div>
 
                 </div>
 
@@ -889,6 +888,26 @@ export default function AdminDashboard() {
                   <div className="space-y-4">
                     {activeMatches.map((t) => {
                       const bookedCount = registrations.filter(r => r.tournament_id === t.id).length;
+                      
+                      // --- UPDATED: Universal Status Logic for Active Matches ---
+                      const maxSlots = Number(t.total_slots || 25);
+                      const minSlots = Number(t.minimum_slots_required || maxSlots);
+                      const isMinReached = bookedCount >= minSlots;
+
+                      const isTimePassed = t.registration_closing_time && currentTime ? currentTime > new Date(t.registration_closing_time).getTime() : false;
+                      const isUnderReview = t.status === 'UNDER REVIEW';
+                      
+                      const isMinFailed = isTimePassed && !isMinReached; 
+                      
+                      const isClosed = isTimePassed || t.status === 'FULL' || t.status === 'COMPLETED' || t.status === 'CANCELLED' || isUnderReview || isMinFailed;
+                      
+                      let displayStatus = t.status || 'OPEN';
+                      if (isTimePassed && t.status === 'OPEN') {
+                        displayStatus = isMinFailed ? 'MIN NOT REACHED' : 'REGISTRATION CLOSED';
+                      } else if (t.status === 'OPEN') {
+                        displayStatus = isMinReached ? 'MATCH CONFIRMED' : 'WAITING FOR PLAYERS';
+                      }
+
                       return (
                         <div key={t.id} className="bg-zinc-900 border border-zinc-800 p-4 rounded flex flex-col sm:flex-row justify-between items-center gap-4">
                           <div className="flex items-center gap-4 w-full sm:w-auto">
@@ -901,12 +920,18 @@ export default function AdminDashboard() {
                                 ) : (
                                   <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded border bg-orange-500/10 text-orange-500 border-orange-500/20">₹{t.fee} ENTRY</span>
                                 )}
-                                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : t.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>{t.status}</span>
+                                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${displayStatus === 'MATCH CONFIRMED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : displayStatus === 'WAITING FOR PLAYERS' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
+                                  {displayStatus}
+                                </span>
                               </div>
-                              <div className="flex gap-2 text-xs font-bold text-zinc-400 mt-1">
+                              <div className="flex gap-2 text-xs font-bold text-zinc-400 mt-1 flex-wrap">
                                 <span className="text-orange-500">
                                   {t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'No Time Set'}
-                                </span> • <span>{t.type}</span> • <span className="text-blue-400 font-black">{bookedCount} / {t.total_slots} SLOTS BOOKED</span>
+                                </span> • <span>{t.type}</span> • 
+                                <span className="text-blue-400 font-black">{bookedCount} / {t.total_slots} SLOTS</span> •
+                                <span className={`${isMinReached ? 'text-emerald-500' : 'text-amber-500'} font-black`}>
+                                  {isMinReached ? 'CONFIRMED' : `MIN ${minSlots} REQ.`}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -941,7 +966,11 @@ export default function AdminDashboard() {
                                 <h3 className="font-black italic text-base uppercase tracking-wide text-zinc-400">{t.name}</h3>
                                 <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>{t.status}</span>
                               </div>
-                              <p className="text-xs font-bold text-zinc-500 mt-1">{t.type} • {t.match_time ? new Date(t.match_time).toLocaleDateString() : 'N/A'} • <span className="text-blue-400/70">{bookedCount} / {t.total_slots} SLOTS BOOKED</span></p>
+                              <p className="text-xs font-bold text-zinc-500 mt-1">
+                                {t.type} • {t.match_time ? new Date(t.match_time).toLocaleDateString() : 'N/A'} • 
+                                <span className="text-blue-400/70 ml-1">{bookedCount} / {t.total_slots} SLOTS</span> •
+                                <span className="text-amber-500/70 ml-1">MIN {t.minimum_slots_required || t.total_slots}</span>
+                              </p>
                             </div>
                           </div>
                           <div className="flex gap-2 w-full sm:w-auto">
