@@ -85,7 +85,20 @@ export default function PlayerDashboard() {
     router.push('/');
   };
 
-  // --- NEW: VALIDATE BEFORE SHOWING QR CODE ---
+  // --- NEW: ADMIN NOTIFICATION HELPER ---
+  const notifyAdmin = async (type: string, message: string, amount: number | null = null) => {
+    try {
+      await supabase.from('admin_notifications').insert([{
+        type,
+        message,
+        player_name: user?.email || 'Unknown Player',
+        amount
+      }]);
+    } catch (err) {
+      console.error("Admin notification failed silently", err);
+    }
+  };
+
   const handleProceedToDeposit = () => {
     const amount = Number(depositAmount);
     if (!amount || amount <= 0) return alert("Please enter a valid amount.");
@@ -98,7 +111,6 @@ export default function PlayerDashboard() {
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Final safety check just in case
     const amount = Number(depositAmount);
     if (amount < MIN_DEPOSIT) return alert(`Minimum deposit amount is ₹${MIN_DEPOSIT}.`);
     if (amount > MAX_DEPOSIT) return alert(`Maximum deposit amount is ₹${MAX_DEPOSIT}.`);
@@ -117,6 +129,9 @@ export default function PlayerDashboard() {
     if (error) {
       alert("Database Error: " + error.message);
     } else {
+      // --- NEW: TRIGGER NOTIFICATION ---
+      await notifyAdmin('DEPOSIT', 'New Deposit Request', amount);
+      
       alert("Deposit request submitted! Our team will verify the UTR shortly.");
       setShowQRModal(false);
       setDepositAmount('');
@@ -130,19 +145,16 @@ export default function PlayerDashboard() {
   const handleWithdrawSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // 1. Check if their overall balance is too low to even make a withdrawal
     if (wallet.balance < MIN_WITHDRAWAL) {
       return alert(`Minimum withdrawal amount is ₹${MIN_WITHDRAWAL}. Your current balance is below the minimum withdrawal limit.`);
     }
 
     const amount = Number(withdrawAmount);
     
-    // 2. Validate the specific input amount
     if (!amount || amount <= 0) return alert("Please enter a valid amount.");
     if (amount < MIN_WITHDRAWAL) return alert(`Minimum withdrawal amount is ₹${MIN_WITHDRAWAL}.`);
     if (amount > MAX_WITHDRAWAL) return alert(`Maximum withdrawal amount is ₹${MAX_WITHDRAWAL}.`);
     
-    // 3. Existing logic: Ensure they don't withdraw more than they have
     if (amount > wallet.balance) return alert("Insufficient balance.");
     
     setIsSubmitting(true);
@@ -157,6 +169,9 @@ export default function PlayerDashboard() {
     if (error) {
        alert("Database Error: " + error.message);
     } else {
+      // --- NEW: TRIGGER NOTIFICATION ---
+      await notifyAdmin('WITHDRAWAL', 'New Withdrawal Request', amount);
+      
       alert("Withdrawal request submitted! Funds will be transferred shortly.");
       setWithdrawAmount('');
       setUpiId('');
