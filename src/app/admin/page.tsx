@@ -5,6 +5,24 @@ import { createClient } from '@/utils/supabase/client';
 import { Trophy, ShieldAlert, Gamepad2, UploadCloud, Trash2, LogOut, Wallet, CheckCircle, XCircle, Edit3, PlusCircle, Eye, Calculator, Key, Ban, CheckSquare, FileText, Image as ImageIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
+// --- TIMEZONE HELPERS ---
+// Converts UTC from database into local IST for the Edit Form
+const formatToISTInput = (utcString: string | null) => {
+  if (!utcString) return '';
+  const d = new Date(utcString);
+  if (isNaN(d.getTime())) return '';
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istDate = new Date(d.getTime() + istOffset);
+  return istDate.toISOString().slice(0, 16);
+};
+
+// Converts the Form's IST time back into UTC for the Database
+const parseISTToUTC = (localString: string) => {
+  if (!localString) return null;
+  const d = new Date(`${localString}+05:30`);
+  return d.toISOString();
+};
+
 export default function AdminDashboard() {
   const supabase = createClient();
   const router = useRouter();
@@ -29,10 +47,10 @@ export default function AdminDashboard() {
     name: '', 
     type: 'SQUAD', 
     perspective: 'TPP', 
-    entry_type: 'PAID', // NEW
+    entry_type: 'PAID', 
     fee: 100, 
     total_slots: 25,
-    minimum_slots_required: 25, // NEW 
+    minimum_slots_required: 25, 
     status: 'OPEN', 
     match_time: '',
     registration_closing_time: '',
@@ -159,7 +177,6 @@ export default function AdminDashboard() {
   };
 
   const handleAutoCalculatePrizes = () => {
-    // Prevent auto-calculation if it's a free entry tournament
     if (newTourney.entry_type === 'FREE') {
       alert("Auto-calculate is disabled for Free Entry tournaments. Please manually enter the prize amounts.");
       return;
@@ -204,8 +221,8 @@ export default function AdminDashboard() {
       ...tourney,
       entry_type: tourney.entry_type || 'PAID',
       minimum_slots_required: tourney.minimum_slots_required || tourney.total_slots,
-      match_time: tourney.match_time ? tourney.match_time.slice(0, 16) : '',
-      registration_closing_time: tourney.registration_closing_time ? tourney.registration_closing_time.slice(0, 16) : '',
+      match_time: formatToISTInput(tourney.match_time),
+      registration_closing_time: formatToISTInput(tourney.registration_closing_time),
       total_winners: tourney.total_winners || 3,
       prizes: tourney.prizes || [tourney.first_prize, tourney.second_prize, 0, 0, 0, 0],
       room_id: tourney.room_id || '',
@@ -214,16 +231,17 @@ export default function AdminDashboard() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleCancelEdit = () => {
+  const handleCancelForm = () => {
     setEditingId(null);
     setNewTourney(defaultTourney);
     setImageFile(null);
+    const fileInput = document.getElementById('imageUpload') as HTMLInputElement;
+    if (fileInput) fileInput.value = "";
   };
 
   const handleSaveTournament = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Strict validation for FREE ENTRY minimum slots
     if (newTourney.entry_type === 'FREE') {
       if (newTourney.minimum_slots_required <= 0 || newTourney.minimum_slots_required > newTourney.total_slots) {
         alert(`Minimum Slots Required must be between 1 and ${newTourney.total_slots}.`);
@@ -260,8 +278,8 @@ export default function AdminDashboard() {
         second_prize: Number(newTourney.prizes[1] || 0),
         total_winners: Number(newTourney.total_winners),
         prize_breakdown: activePrizes,
-        match_time: newTourney.match_time ? new Date(newTourney.match_time).toISOString() : '',
-        registration_closing_time: newTourney.registration_closing_time ? new Date(newTourney.registration_closing_time).toISOString() : null,
+        match_time: newTourney.match_time ? parseISTToUTC(newTourney.match_time) : '',
+        registration_closing_time: newTourney.registration_closing_time ? parseISTToUTC(newTourney.registration_closing_time) : null,
         total_slots: Number(newTourney.total_slots || 25),
         status: String(newTourney.status || 'OPEN'),
         map_img: publicUrl,
@@ -279,11 +297,7 @@ export default function AdminDashboard() {
         alert('Match Created Successfully!');
       }
 
-      setNewTourney(defaultTourney);
-      setEditingId(null);
-      setImageFile(null);
-      const fileInput = document.getElementById('imageUpload') as HTMLInputElement;
-      if (fileInput) fileInput.value = "";
+      handleCancelForm(); // Properly resets state
       fetchAllData();
     } catch (err: any) { alert(`Error: ${err.message}`); } finally { setUploading(false); }
   };
@@ -303,7 +317,6 @@ export default function AdminDashboard() {
 
       let refundedUserIds: string[] = [];
 
-      // Only process refunds if there was an actual fee paid
       if (regs && regs.length > 0 && tourney.fee > 0) {
         for (const reg of regs) {
           const { data: wallet } = await supabase.from('wallets').select('*').eq('user_id', reg.user_id).single();
@@ -321,7 +334,6 @@ export default function AdminDashboard() {
           }
         }
       } else if (regs && regs.length > 0 && isFree) {
-        // Collect IDs for notification even if no refund is needed
         for (const reg of regs) {
           refundedUserIds.push(reg.user_id);
         }
@@ -563,9 +575,6 @@ export default function AdminDashboard() {
                   <div className="flex items-center gap-2 text-blue-400 font-black italic tracking-widest uppercase">
                     <Edit3 className="w-5 h-5"/> Editing Mode Active
                   </div>
-                  <button type="button" onClick={handleCancelEdit} className="bg-zinc-950 hover:bg-zinc-800 text-white text-xs font-bold px-4 py-3 rounded uppercase tracking-wider transition-colors border border-zinc-700 flex items-center justify-center gap-2 w-full">
-                    <PlusCircle className="w-4 h-4"/> Create New Match Instead
-                  </button>
                 </div>
               ) : (
                 <h2 className="text-xl font-black italic uppercase tracking-widest mb-6 border-b border-zinc-800 pb-4 text-white">Create New Match</h2>
@@ -727,9 +736,14 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <button type="submit" disabled={uploading} className={`w-full font-black uppercase tracking-widest py-3 rounded mt-4 transition-colors disabled:opacity-50 flex justify-center items-center gap-2 ${editingId ? 'bg-blue-500 hover:bg-blue-400 text-black' : 'bg-orange-500 hover:bg-orange-400 text-black'}`}>
-                  {uploading ? <><UploadCloud className="w-5 h-5 animate-pulse" /> Saving...</> : editingId ? 'Update Tournament' : 'Create Tournament'}
-                </button>
+                <div className="flex gap-2 mt-4">
+                  <button type="button" onClick={handleCancelForm} className="w-1/3 bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase tracking-widest py-3 rounded transition-colors border border-zinc-700">
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={uploading} className={`w-2/3 font-black uppercase tracking-widest py-3 rounded transition-colors disabled:opacity-50 flex justify-center items-center gap-2 ${editingId ? 'bg-blue-500 hover:bg-blue-400 text-black' : 'bg-orange-500 hover:bg-orange-400 text-black'}`}>
+                    {uploading ? <><UploadCloud className="w-5 h-5 animate-pulse" /> Saving...</> : editingId ? 'Update Match' : 'Create Match'}
+                  </button>
+                </div>
               </form>
             </div>
             
@@ -743,35 +757,38 @@ export default function AdminDashboard() {
                   <div className="bg-zinc-900 border border-zinc-800 p-8 text-center rounded text-zinc-500 font-bold uppercase tracking-wider">No active matches.</div>
                 ) : (
                   <div className="space-y-4">
-                    {activeMatches.map((t) => (
-                      <div key={t.id} className="bg-zinc-900 border border-zinc-800 p-4 rounded flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <div className="flex items-center gap-4 w-full sm:w-auto">
-                          <img src={t.map_img} alt="map" className="w-16 h-16 object-cover rounded border border-zinc-700" />
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-black italic text-lg uppercase tracking-wide">{t.name}</h3>
-                              {t.entry_type === 'FREE' ? (
-                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded border bg-emerald-500/10 text-emerald-500 border-emerald-500/20">FREE ENTRY</span>
-                              ) : (
-                                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded border bg-orange-500/10 text-orange-500 border-orange-500/20">₹{t.fee} ENTRY</span>
-                              )}
-                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : t.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>{t.status}</span>
-                            </div>
-                            <div className="flex gap-2 text-xs font-bold text-zinc-400 mt-1">
-                              <span className="text-orange-500">
-                                {t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'No Time Set'}
-                              </span> • <span>{t.type}</span> • <span>Slots: {t.total_slots}</span>
+                    {activeMatches.map((t) => {
+                      const bookedCount = registrations.filter(r => r.tournament_id === t.id).length;
+                      return (
+                        <div key={t.id} className="bg-zinc-900 border border-zinc-800 p-4 rounded flex flex-col sm:flex-row justify-between items-center gap-4">
+                          <div className="flex items-center gap-4 w-full sm:w-auto">
+                            <img src={t.map_img} alt="map" className="w-16 h-16 object-cover rounded border border-zinc-700" />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-black italic text-lg uppercase tracking-wide">{t.name}</h3>
+                                {t.entry_type === 'FREE' ? (
+                                  <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded border bg-emerald-500/10 text-emerald-500 border-emerald-500/20">FREE ENTRY</span>
+                                ) : (
+                                  <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded border bg-orange-500/10 text-orange-500 border-orange-500/20">₹{t.fee} ENTRY</span>
+                                )}
+                                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : t.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>{t.status}</span>
+                              </div>
+                              <div className="flex gap-2 text-xs font-bold text-zinc-400 mt-1">
+                                <span className="text-orange-500">
+                                  {t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'No Time Set'}
+                                </span> • <span>{t.type}</span> • <span className="text-blue-400 font-black">{bookedCount} / {t.total_slots} SLOTS BOOKED</span>
+                              </div>
                             </div>
                           </div>
+                          <div className="flex flex-wrap justify-end gap-2 w-full sm:w-auto">
+                            <button onClick={() => router.push(`/admin/tournament/${t.id}`)} className="bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1"><Eye className="w-3 h-3"/> View Control</button>
+                            <button onClick={() => handleEditClick(t)} className="bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white border border-blue-500/20 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all"><Edit3 className="w-3 h-3"/></button>
+                            <button disabled={actionLoading === t.id} onClick={() => handleMarkCompleted(t)} className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white border border-emerald-500/20 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 disabled:opacity-50"><CheckSquare className="w-3 h-3"/> Complete</button>
+                            <button disabled={actionLoading === t.id} onClick={() => handleCancelMatch(t)} className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 disabled:opacity-50"><Ban className="w-3 h-3"/> Cancel & Refund</button>
+                          </div>
                         </div>
-                        <div className="flex flex-wrap justify-end gap-2 w-full sm:w-auto">
-                          <button onClick={() => router.push(`/admin/tournament/${t.id}`)} className="bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1"><Eye className="w-3 h-3"/> View Control</button>
-                          <button onClick={() => handleEditClick(t)} className="bg-blue-500/10 text-blue-500 hover:bg-blue-500 hover:text-white border border-blue-500/20 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all"><Edit3 className="w-3 h-3"/></button>
-                          <button disabled={actionLoading === t.id} onClick={() => handleMarkCompleted(t)} className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-white border border-emerald-500/20 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 disabled:opacity-50"><CheckSquare className="w-3 h-3"/> Complete</button>
-                          <button disabled={actionLoading === t.id} onClick={() => handleCancelMatch(t)} className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 px-3 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 disabled:opacity-50"><Ban className="w-3 h-3"/> Cancel & Refund</button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -783,24 +800,27 @@ export default function AdminDashboard() {
                   <div className="bg-zinc-900 border border-zinc-800 p-8 text-center rounded text-zinc-500 font-bold uppercase tracking-wider">No history found.</div>
                 ) : (
                   <div className="space-y-4 opacity-75">
-                    {historyMatches.map((t) => (
-                      <div key={t.id} className="bg-zinc-950 border border-zinc-800 p-4 rounded flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <div className="flex items-center gap-4 w-full sm:w-auto">
-                          <img src={t.map_img} alt="map" className="w-12 h-12 object-cover rounded border border-zinc-700 grayscale" />
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-black italic text-base uppercase tracking-wide text-zinc-400">{t.name}</h3>
-                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>{t.status}</span>
+                    {historyMatches.map((t) => {
+                      const bookedCount = registrations.filter(r => r.tournament_id === t.id).length;
+                      return (
+                        <div key={t.id} className="bg-zinc-950 border border-zinc-800 p-4 rounded flex flex-col sm:flex-row justify-between items-center gap-4">
+                          <div className="flex items-center gap-4 w-full sm:w-auto">
+                            <img src={t.map_img} alt="map" className="w-12 h-12 object-cover rounded border border-zinc-700 grayscale" />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-black italic text-base uppercase tracking-wide text-zinc-400">{t.name}</h3>
+                                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>{t.status}</span>
+                              </div>
+                              <p className="text-xs font-bold text-zinc-500 mt-1">{t.type} • {t.match_time ? new Date(t.match_time).toLocaleDateString() : 'N/A'} • <span className="text-blue-400/70">{bookedCount} / {t.total_slots} SLOTS BOOKED</span></p>
                             </div>
-                            <p className="text-xs font-bold text-zinc-500 mt-1">{t.type} • {t.match_time ? new Date(t.match_time).toLocaleDateString() : 'N/A'}</p>
+                          </div>
+                          <div className="flex gap-2 w-full sm:w-auto">
+                            <button onClick={() => router.push(`/admin/tournament/${t.id}`)} className="bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 px-4 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1"><Eye className="w-3 h-3"/> View Records</button>
+                            <button disabled={actionLoading === t.id} onClick={() => handleDeleteTournament(t)} className="bg-red-900/20 text-red-500 hover:bg-red-600 hover:text-white border border-red-900/30 px-4 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 disabled:opacity-50"><Trash2 className="w-3 h-3"/> Perm Delete</button>
                           </div>
                         </div>
-                        <div className="flex gap-2 w-full sm:w-auto">
-                          <button onClick={() => router.push(`/admin/tournament/${t.id}`)} className="bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 px-4 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1"><Eye className="w-3 h-3"/> View Records</button>
-                          <button disabled={actionLoading === t.id} onClick={() => handleDeleteTournament(t)} className="bg-red-900/20 text-red-500 hover:bg-red-600 hover:text-white border border-red-900/30 px-4 py-2 rounded text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 disabled:opacity-50"><Trash2 className="w-3 h-3"/> Perm Delete</button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
