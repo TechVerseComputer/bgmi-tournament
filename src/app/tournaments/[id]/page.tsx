@@ -94,6 +94,20 @@ export default function TournamentDetailPage() {
     setShowModal(true);
   };
 
+  // --- NEW: ADMIN NOTIFICATION HELPER ---
+  const notifyAdmin = async (type: string, message: string, amount: number | null = null) => {
+    try {
+      await supabase.from('admin_notifications').insert([{
+        type,
+        message,
+        player_name: user?.email || team.p1_ign || 'Unknown Player',
+        amount
+      }]);
+    } catch (err) {
+      console.error("Admin notification failed silently", err);
+    }
+  };
+
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSlot) return alert("Please select a drop slot!");
@@ -169,6 +183,9 @@ export default function TournamentDetailPage() {
       alert("Slot Booked Successfully!");
       setShowModal(false);
       
+      // --- NEW: TRIGGER NOTIFICATION ---
+      await notifyAdmin('SLOT_BOOKING', `New Slot Booking: ${tournament.name} (Slot S${selectedSlot})`, isFree ? 0 : tournament.fee);
+
       const { data: regData } = await supabase.from('registrations').select('*').eq('tournament_id', id);
       if (regData) setRegistrations(regData);
 
