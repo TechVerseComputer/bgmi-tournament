@@ -340,7 +340,7 @@ export default function TournamentsPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6 px-1 md:px-0">
             {/* CSS GRID REFACTOR: 2 columns mobile, 3 tablet, 4 desktop */}
             {filteredTournaments.map((t) => {
-              // --- VARIABLES & LOGIC (UNTOUCHED) ---
+              // --- VARIABLES & LOGIC (UPDATED TO BE UNIVERSAL) ---
               const isFree = t.entry_type === 'FREE' || t.fee === 0;
               const bookedCount = t.registrations?.length || 0;
               const maxSlots = Number(t.total_slots || 25);
@@ -354,29 +354,30 @@ export default function TournamentsPage() {
               
               const totalPrizePool = activePrizes.reduce((a: number, b: number) => a + Number(b), 0);
               
-              // --- STRICT STATUS & COUNTDOWN ENGINE ---
+              // --- STRICT STATUS & COUNTDOWN ENGINE (Removed isFree condition) ---
               const isTimePassed = t.registration_closing_time && currentTime ? currentTime > new Date(t.registration_closing_time).getTime() : false;
               const isUnderReview = t.status === 'UNDER REVIEW';
-              const isMinFailed = isFree && isTimePassed && !isMinReached;
+              const isMinFailed = isTimePassed && !isMinReached; // Universally applied
               
               const isClosed = isTimePassed || t.status === 'FULL' || t.status === 'COMPLETED' || t.status === 'CANCELLED' || isUnderReview || isMinFailed;
               
               let displayStatus = t.status || 'OPEN';
               if (isTimePassed && t.status === 'OPEN') {
                 displayStatus = isMinFailed ? 'MIN NOT REACHED' : 'REGISTRATION CLOSED';
-              } else if (isFree && t.status === 'OPEN') {
+              } else if (t.status === 'OPEN') {
+                // Universally apply "MATCH CONFIRMED" vs "WAITING FOR PLAYERS"
                 displayStatus = isMinReached ? 'MATCH CONFIRMED' : 'WAITING FOR PLAYERS';
               }
 
               const countdown = formatCountdown(t.registration_closing_time);
 
               return (
-                <div key={t.id} className={`bg-zinc-900 border ${isClosed ? 'border-red-900/30' : 'border-zinc-800'} rounded-xl overflow-hidden group hover:border-orange-500 transition-colors flex flex-col h-full shadow-lg relative`}>
+                <div key={t.id} className={`bg-zinc-900/80 border ${isClosed ? 'border-red-900/30' : 'border-zinc-800'} rounded-2xl overflow-hidden group hover:border-orange-500/80 transition-all duration-300 hover:shadow-[0_0_25px_rgba(249,115,22,0.15)] flex flex-col h-full backdrop-blur-sm`}>
                   
                   {/* COMPACT IMAGE WRAPPER */}
                   <div className="h-28 md:h-40 overflow-hidden relative shrink-0">
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent z-10" />
-                    <img src={t.map_img} alt={t.name} className={`w-full h-full object-cover transition-transform duration-500 ${isClosed ? 'grayscale opacity-50' : 'group-hover:scale-110'}`} />
+                    <img src={t.map_img} alt={t.name} className={`w-full h-full object-cover transition-transform duration-700 ${isClosed ? 'grayscale opacity-75' : 'group-hover:scale-110'}`} />
                     
                     {/* FREE ENTRY BADGE */}
                     {isFree && (
@@ -388,18 +389,19 @@ export default function TournamentsPage() {
                     <span className={`absolute top-2 right-2 z-20 backdrop-blur-md px-2 py-0.5 rounded text-[7px] md:text-[9px] font-black uppercase border truncate max-w-[60%] text-right ${
                        displayStatus === 'MATCH CONFIRMED' ? 'bg-emerald-500/80 text-black border-emerald-400' :
                        (displayStatus === 'MIN NOT REACHED' || (isClosed && !isFree)) ? 'bg-red-500/90 text-white border-red-400' :
-                       'bg-black/70 text-orange-400 border-orange-500/30'
+                       'bg-black/60 text-orange-400 border-orange-500/30'
                     }`}>
                       {displayStatus}
                     </span>
+                    
                     <h3 className="absolute bottom-2 left-3 z-20 font-black italic text-sm md:text-xl tracking-wider text-white drop-shadow-md truncate w-[90%]">{t.name}</h3>
                   </div>
-
+                  
                   {/* COMPACT CONTENT WRAPPER */}
                   <div className="p-2.5 md:p-4 space-y-2.5 flex-1 flex flex-col justify-between">
                     <div className="space-y-2.5">
                       
-                      {/* 1. MATCH DETAILS */}
+                      {/* 1. MATCH DETAILS (Horizontal Stack) */}
                       <div className="flex flex-wrap items-center gap-1.5 text-[8px] md:text-xs font-bold">
                         <span className="border border-orange-500/30 bg-orange-500/10 text-orange-500 px-1.5 py-0.5 rounded flex items-center gap-0.5"><Users className="w-2.5 h-2.5 shrink-0" /> {t.type}</span>
                         <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-1.5 py-0.5 rounded">{t.perspective}</span>
@@ -433,20 +435,19 @@ export default function TournamentsPage() {
                         </div>
                       </div>
 
-                      {/* 4. UNIVERSAL SLOTS BOOKED */}
+                      {/* 4. UNIVERSAL SLOTS BOOKED (Removed isFree condition) */}
                       <div className="bg-zinc-950 p-1.5 md:p-2.5 rounded border border-zinc-800/80 flex justify-between items-center min-w-0">
                          <div className="min-w-0 pr-1">
                            <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider truncate">Slots Booked</p>
                            <p className="text-xs md:text-sm font-black text-white">{bookedCount} <span className="text-zinc-500 text-[10px]">/ {t.total_slots}</span></p>
                          </div>
-                         {isFree && (
-                           <div className="text-right flex flex-col items-end shrink-0">
-                             <p className={`text-[8px] md:text-[9px] font-black uppercase flex items-center gap-0.5 ${isMinReached ? 'text-emerald-500' : 'text-amber-500'}`}>
-                                {isMinReached ? <CheckCircle2 className="w-2.5 h-2.5 shrink-0"/> : <AlertCircle className="w-2.5 h-2.5 shrink-0"/>}
-                                {isMinReached ? 'Confirmed' : `Min ${minSlots}`}
-                             </p>
-                           </div>
-                         )}
+                         
+                         <div className="text-right flex flex-col items-end shrink-0">
+                           <p className={`text-[8px] md:text-[9px] font-black uppercase flex items-center gap-0.5 ${isMinReached ? 'text-emerald-500' : 'text-amber-500'}`}>
+                              {isMinReached ? <CheckCircle2 className="w-2.5 h-2.5 shrink-0"/> : <AlertCircle className="w-2.5 h-2.5 shrink-0"/>}
+                              {isMinReached ? 'Confirmed' : `Min ${minSlots}`}
+                           </p>
+                         </div>
                       </div>
 
                     </div>
