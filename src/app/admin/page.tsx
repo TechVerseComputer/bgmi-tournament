@@ -328,7 +328,7 @@ export default function AdminDashboard() {
   const handleSaveTournament = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // --- UPDATED: Universal Minimum Slots Validation ---
+    // --- UPDATED: Universal Validation for all Entry Types ---
     if (newTourney.minimum_slots_required <= 0 || newTourney.minimum_slots_required > newTourney.total_slots) {
       alert(`Minimum Slots Required must be between 1 and ${newTourney.total_slots}.`);
       return;
@@ -358,7 +358,7 @@ export default function AdminDashboard() {
         perspective: String(newTourney.perspective),
         entry_type: String(newTourney.entry_type),
         fee: newTourney.entry_type === 'FREE' ? 0 : Number(newTourney.fee),
-        // --- UPDATED: Always save minimum_slots_required ---
+        // --- UPDATED: Save Minimum Slots universally ---
         minimum_slots_required: Number(newTourney.minimum_slots_required),
         first_prize: Number(newTourney.prizes[0] || 0),
         second_prize: Number(newTourney.prizes[1] || 0),
@@ -637,7 +637,6 @@ export default function AdminDashboard() {
             <p className="text-emerald-500 text-sm mt-1 font-bold flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Authenticated as {user.email}</p>
           </div>
           <div className="flex gap-4 w-full md:w-auto">
-            {/* --- NEW: BELL ICON --- */}
             <button onClick={() => setShowNotifPanel(true)} className="relative flex-none bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-4 py-2.5 rounded border border-zinc-700 transition-all flex items-center justify-center">
               <Bell className="w-5 h-5"/>
               {unreadCount > 0 && (
@@ -889,25 +888,6 @@ export default function AdminDashboard() {
                     {activeMatches.map((t) => {
                       const bookedCount = registrations.filter(r => r.tournament_id === t.id).length;
                       
-                      // --- UPDATED: Universal Status Logic for Active Matches ---
-                      const maxSlots = Number(t.total_slots || 25);
-                      const minSlots = Number(t.minimum_slots_required || maxSlots);
-                      const isMinReached = bookedCount >= minSlots;
-
-                      const isTimePassed = t.registration_closing_time && currentTime ? currentTime > new Date(t.registration_closing_time).getTime() : false;
-                      const isUnderReview = t.status === 'UNDER REVIEW';
-                      
-                      const isMinFailed = isTimePassed && !isMinReached; 
-                      
-                      const isClosed = isTimePassed || t.status === 'FULL' || t.status === 'COMPLETED' || t.status === 'CANCELLED' || isUnderReview || isMinFailed;
-                      
-                      let displayStatus = t.status || 'OPEN';
-                      if (isTimePassed && t.status === 'OPEN') {
-                        displayStatus = isMinFailed ? 'MIN NOT REACHED' : 'REGISTRATION CLOSED';
-                      } else if (t.status === 'OPEN') {
-                        displayStatus = isMinReached ? 'MATCH CONFIRMED' : 'WAITING FOR PLAYERS';
-                      }
-
                       return (
                         <div key={t.id} className="bg-zinc-900 border border-zinc-800 p-4 rounded flex flex-col sm:flex-row justify-between items-center gap-4">
                           <div className="flex items-center gap-4 w-full sm:w-auto">
@@ -920,17 +900,15 @@ export default function AdminDashboard() {
                                 ) : (
                                   <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded border bg-orange-500/10 text-orange-500 border-orange-500/20">₹{t.fee} ENTRY</span>
                                 )}
-                                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${displayStatus === 'MATCH CONFIRMED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : displayStatus === 'WAITING FOR PLAYERS' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : displayStatus === 'MIN NOT REACHED' ? 'bg-red-500/10 text-red-500 border-red-500/20' : t.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : t.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
-                                  {displayStatus}
-                                </span>
+                                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : t.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>{t.status}</span>
                               </div>
                               <div className="flex gap-2 text-xs font-bold text-zinc-400 mt-1 flex-wrap">
                                 <span className="text-orange-500">
                                   {t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'No Time Set'}
                                 </span> • <span>{t.type}</span> • 
                                 <span className="text-blue-400 font-black">{bookedCount} / {t.total_slots} SLOTS</span> •
-                                <span className={`${isMinReached ? 'text-emerald-500' : 'text-amber-500'} font-black`}>
-                                  {isMinReached ? 'CONFIRMED' : `MIN ${minSlots} REQ.`}
+                                <span className={`${bookedCount >= (t.minimum_slots_required || t.total_slots) ? 'text-emerald-500' : 'text-amber-500'} font-black`}>
+                                  MIN {t.minimum_slots_required || t.total_slots} REQ.
                                 </span>
                               </div>
                             </div>
@@ -957,8 +935,6 @@ export default function AdminDashboard() {
                   <div className="space-y-4 opacity-75">
                     {historyMatches.map((t) => {
                       const bookedCount = registrations.filter(r => r.tournament_id === t.id).length;
-                      const maxSlots = Number(t.total_slots || 25);
-                      const minSlots = Number(t.minimum_slots_required || maxSlots);
                       
                       return (
                         <div key={t.id} className="bg-zinc-950 border border-zinc-800 p-4 rounded flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -972,7 +948,7 @@ export default function AdminDashboard() {
                               <p className="text-xs font-bold text-zinc-500 mt-1 flex flex-wrap gap-1 items-center">
                                 {t.type} • {t.match_time ? new Date(t.match_time).toLocaleDateString() : 'N/A'} • 
                                 <span className="text-blue-400/70">{bookedCount} / {t.total_slots} SLOTS</span> •
-                                <span className="text-amber-500/70">MIN {minSlots} REQ.</span>
+                                <span className="text-amber-500/70">MIN {t.minimum_slots_required || t.total_slots} REQ.</span>
                               </p>
                             </div>
                           </div>
