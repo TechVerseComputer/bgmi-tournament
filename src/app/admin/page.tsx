@@ -328,7 +328,7 @@ export default function AdminDashboard() {
   const handleSaveTournament = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // --- UPDATED: Universal Validation for both Free and Paid ---
+    // --- UPDATED: Universal Minimum Slots Validation ---
     if (newTourney.minimum_slots_required <= 0 || newTourney.minimum_slots_required > newTourney.total_slots) {
       alert(`Minimum Slots Required must be between 1 and ${newTourney.total_slots}.`);
       return;
@@ -358,7 +358,7 @@ export default function AdminDashboard() {
         perspective: String(newTourney.perspective),
         entry_type: String(newTourney.entry_type),
         fee: newTourney.entry_type === 'FREE' ? 0 : Number(newTourney.fee),
-        // --- UPDATED: Save min slots universally ---
+        // --- UPDATED: Always save minimum_slots_required ---
         minimum_slots_required: Number(newTourney.minimum_slots_required),
         first_prize: Number(newTourney.prizes[0] || 0),
         second_prize: Number(newTourney.prizes[1] || 0),
@@ -637,6 +637,7 @@ export default function AdminDashboard() {
             <p className="text-emerald-500 text-sm mt-1 font-bold flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Authenticated as {user.email}</p>
           </div>
           <div className="flex gap-4 w-full md:w-auto">
+            {/* --- NEW: BELL ICON --- */}
             <button onClick={() => setShowNotifPanel(true)} className="relative flex-none bg-zinc-900 hover:bg-zinc-800 text-zinc-300 px-4 py-2.5 rounded border border-zinc-700 transition-all flex items-center justify-center">
               <Bell className="w-5 h-5"/>
               {unreadCount > 0 && (
@@ -919,7 +920,7 @@ export default function AdminDashboard() {
                                 ) : (
                                   <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded border bg-orange-500/10 text-orange-500 border-orange-500/20">₹{t.fee} ENTRY</span>
                                 )}
-                                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${displayStatus === 'MATCH CONFIRMED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : displayStatus === 'WAITING FOR PLAYERS' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
+                                <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${displayStatus === 'MATCH CONFIRMED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : displayStatus === 'WAITING FOR PLAYERS' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : displayStatus === 'MIN NOT REACHED' ? 'bg-red-500/10 text-red-500 border-red-500/20' : t.status === 'FULL' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : t.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
                                   {displayStatus}
                                 </span>
                               </div>
@@ -968,7 +969,7 @@ export default function AdminDashboard() {
                                 <h3 className="font-black italic text-base uppercase tracking-wide text-zinc-400">{t.name}</h3>
                                 <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded border ${t.status === 'COMPLETED' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>{t.status}</span>
                               </div>
-                              <p className="text-xs font-bold text-zinc-500 mt-1 flex flex-wrap gap-1">
+                              <p className="text-xs font-bold text-zinc-500 mt-1 flex flex-wrap gap-1 items-center">
                                 {t.type} • {t.match_time ? new Date(t.match_time).toLocaleDateString() : 'N/A'} • 
                                 <span className="text-blue-400/70">{bookedCount} / {t.total_slots} SLOTS</span> •
                                 <span className="text-amber-500/70">MIN {minSlots} REQ.</span>
