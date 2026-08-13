@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Crosshair, Users, Trophy, X, AlertCircle, Search, Clock, SlidersHorizontal, RotateCcw, Timer, CheckCircle2 } from 'lucide-react';
+import { Crosshair, Users, Trophy, X, AlertCircle, Search, Clock, SlidersHorizontal, RotateCcw, Timer, CheckCircle2, ChevronRight, ChevronLeft } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 
 const getServerTime = async () => {
@@ -43,11 +43,13 @@ export default function TournamentsPage() {
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // NEW: Stepper State
+  const [bookingStep, setBookingStep] = useState(1);
+  
   const [team, setTeam] = useState({ p1_ign: '', p1_id: '', p2_ign: '', p2_id: '', p3_ign: '', p3_id: '', p4_ign: '', p4_id: '' });
 
   useEffect(() => {
     const initPage = async () => {
-      // UPGRADED SORTING: Order by match_time ascending (Nearest upcoming first)
       const { data: tourneyData } = await supabase
         .from('tournaments')
         .select('*, registrations(id)')
@@ -56,7 +58,6 @@ export default function TournamentsPage() {
         .order('match_time', { ascending: true, nullsFirst: false });
         
       if (tourneyData) {
-        // Strict client-side chronological sort + push TBA to bottom
         const sortedTourneys = tourneyData.sort((a, b) => {
           if (!a.match_time) return 1;
           if (!b.match_time) return -1;
@@ -80,7 +81,6 @@ export default function TournamentsPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // --- NEW: ADMIN NOTIFICATION HELPER ---
   const notifyAdmin = async (type: string, message: string, amount: number | null = null) => {
     try {
       await supabase.from('admin_notifications').insert([{
@@ -118,17 +118,60 @@ export default function TournamentsPage() {
     }
     setSelectedMatch(match);
     setSelectedSlot(null);
+    setBookingStep(1); // Reset to Step 1
     const { data: regs } = await supabase.from('registrations').select('slot_number').eq('tournament_id', match.id);
     if (regs) setBookedSlots(regs.map(r => r.slot_number).filter(s => s !== null));
   };
 
-  const handleConfirmBooking = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // NEW: Validations for steps
+  const handleNextToStep2 = () => {
+    const type = selectedMatch?.type || 'SQUAD';
+    const numPlayers = type === 'SOLO' ? 1 : type === 'DUO' ? 2 : 4;
+    for (let i = 1; i <= numPlayers; i++) {
+      const ignKey = `p${i}_ign` as keyof typeof team;
+      const idKey = `p${i}_id` as keyof typeof team;
+      if (!team[ignKey] || !team[idKey]) {
+        return alert(`Please enter In-Game Name and Game ID for Player ${i}`);
+      }
+    }
+    setBookingStep(2);
+  };
+
+  const handleNextToStep3 = () => {
     if (!selectedSlot) return alert("Please select a drop slot!");
+    setBookingStep(3);
+  };
+
+  const handleConfirmBooking = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!selectedSlot) return alert("Please select a drop slot!");
+    
+    const isFreeMatch = selectedMatch.entry_type === 'FREE' || selectedMatch.fee === 0;
+
+    if (!isFreeMatch && walletBalance < selectedMatch.fee) {
+      return alert("Insufficient balance! Please add funds to your wallet.");
+    }
     
     setIsSubmitting(true);
     try {
-      // 1. Send data to secure backend API
+      if (['FULL', 'COMPLETED', 'CANCELLED', 'UNDER REVIEW'].includes(selectedMatch.status)) {
+        alert(`REGISTRATION FAILED: This match is currently ${selectedMatch.status}.`);
+        setIsSubmitting(false);
+        setSelectedMatch(null);
+        return;
+      }
+
+      if (selectedMatch.registration_closing_time) {
+        const trueServerTime = await getServerTime();
+        const closingTime = new Date(selectedMatch.registration_closing_time).getTime();
+        if (trueServerTime >= closingTime) {
+          alert("REGISTRATION FAILED: The registration window for this match has officially closed.");
+          setIsSubmitting(false);
+          setSelectedMatch(null);
+          return;
+        }
+      }
+
       const res = await fetch('/api/tournaments/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -147,13 +190,12 @@ export default function TournamentsPage() {
       alert("Slot Booked Successfully!");
       
       setSelectedMatch(null);
+      setBookingStep(1); // Reset
       setTeam({ p1_ign: '', p1_id: '', p2_ign: '', p2_id: '', p3_ign: '', p3_id: '', p4_ign: '', p4_id: '' });
       
-      // Refresh wallet
       const { data: wallet } = await supabase.from('wallets').select('balance').eq('user_id', user.id).single();
       if (wallet) setWalletBalance(wallet.balance);
 
-      // Refresh the specific tournament card count smoothly AND keep it sorted
       const { data: updatedTourney } = await supabase.from('tournaments').select('*, registrations(id)').eq('id', selectedMatch.id).single();
       if (updatedTourney) {
         setTournaments(prev => {
@@ -186,7 +228,6 @@ export default function TournamentsPage() {
   const filteredTournaments = tournaments.filter(t => {
     const matchesType = filter === 'ALL' || t.type === filter;
     const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase());
-    
     const fee = Number(t.fee || 0);
     const passesMinFee = minFee === '' || fee >= Number(minFee);
     const passesMaxFee = maxFee === '' || fee <= Number(maxFee);
@@ -286,7 +327,6 @@ export default function TournamentsPage() {
           <div className="text-center text-zinc-500 font-bold uppercase tracking-widest py-12">No tournaments found matching your filters.</div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6 px-1 md:px-0">
-            {/* CSS GRID REFACTOR: 2 columns mobile, 3 tablet, 4 desktop */}
             {filteredTournaments.map((t) => {
               const isFree = t.entry_type === 'FREE' || t.fee === 0;
               const bookedCount = t.registrations?.length || 0;
@@ -301,7 +341,6 @@ export default function TournamentsPage() {
               
               const totalPrizePool = activePrizes.reduce((a: number, b: number) => a + Number(b), 0);
               
-              // --- STRICT STATUS & COUNTDOWN ENGINE ---
               const isTimePassed = t.registration_closing_time && currentTime ? currentTime > new Date(t.registration_closing_time).getTime() : false;
               const isUnderReview = t.status === 'UNDER REVIEW';
               const isMinFailed = isTimePassed && !isMinReached; 
@@ -320,12 +359,10 @@ export default function TournamentsPage() {
               return (
                 <div key={t.id} className={`bg-zinc-900 border ${isClosed ? 'border-red-900/30' : 'border-zinc-800'} rounded-xl overflow-hidden group hover:border-orange-500 transition-colors flex flex-col h-full shadow-lg relative`}>
                   
-                  {/* COMPACT IMAGE WRAPPER */}
                   <div className="h-28 md:h-40 overflow-hidden relative shrink-0">
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent z-10" />
                     <img src={t.map_img} alt={t.name} className={`w-full h-full object-cover transition-transform duration-500 ${isClosed ? 'grayscale opacity-50' : 'group-hover:scale-110'}`} />
                     
-                    {/* FREE ENTRY BADGE */}
                     {isFree && (
                       <span className="absolute top-2 left-2 z-20 bg-emerald-500 text-black font-black text-[8px] md:text-[10px] uppercase px-2 py-0.5 rounded shadow-lg">
                         FREE ENTRY
@@ -342,11 +379,9 @@ export default function TournamentsPage() {
                     <h3 className="absolute bottom-2 left-3 z-20 font-black italic text-sm md:text-xl tracking-wider text-white drop-shadow-md truncate w-[90%]">{t.name}</h3>
                   </div>
 
-                  {/* COMPACT CONTENT WRAPPER */}
                   <div className="p-2.5 md:p-4 space-y-2.5 flex-1 flex flex-col justify-between">
                     <div className="space-y-2.5">
                       
-                      {/* 1. MATCH DETAILS */}
                       <div className="flex flex-wrap items-center gap-1.5 text-[8px] md:text-xs font-bold">
                         <span className="border border-orange-500/30 bg-orange-500/10 text-orange-500 px-1.5 py-0.5 rounded flex items-center gap-0.5"><Users className="w-2.5 h-2.5 shrink-0" /> {t.type}</span>
                         <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-1.5 py-0.5 rounded">{t.perspective}</span>
@@ -356,7 +391,6 @@ export default function TournamentsPage() {
                         </span>
                       </div>
 
-                      {/* 2. PRIZE POOL */}
                       <div className="bg-gradient-to-r from-orange-500/15 via-zinc-950 to-zinc-950 border border-orange-500/30 p-2 md:p-3 rounded-lg flex justify-between items-center shadow-inner">
                         <div>
                           <p className="text-[8px] md:text-[9px] font-black uppercase text-orange-400 tracking-wider">Total Prize</p>
@@ -368,7 +402,6 @@ export default function TournamentsPage() {
                         </div>
                       </div>
 
-                      {/* 3. ENTRY FEE & COUNTDOWN GRID */}
                       <div className="flex gap-1.5">
                         <div className="flex-1 bg-zinc-950 p-1.5 md:p-2.5 rounded border border-zinc-800/80 flex flex-col justify-center min-w-0">
                           <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider truncate">Entry</p>
@@ -380,7 +413,6 @@ export default function TournamentsPage() {
                         </div>
                       </div>
 
-                      {/* 4. UNIVERSAL SLOTS BOOKED */}
                       <div className="bg-zinc-950 p-1.5 md:p-2.5 rounded border border-zinc-800/80 flex justify-between items-center min-w-0">
                          <div className="min-w-0 pr-1">
                            <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider truncate">Slots Booked</p>
@@ -396,7 +428,6 @@ export default function TournamentsPage() {
 
                     </div>
 
-                    {/* 5. ACTIONS */}
                     <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-zinc-800/80 mt-auto">
                       <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-1.5 md:py-2.5 rounded-lg text-[9px] md:text-[10px] transition-colors border border-zinc-700 flex items-center justify-center min-h-[32px] md:min-h-[40px]">
                         DETAILS
@@ -420,36 +451,50 @@ export default function TournamentsPage() {
         )}
       </section>
 
-      {/* Quick Booking Modal */}
+      {/* 3-Step Booking Modal */}
       {selectedMatch && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-[#111116] w-full max-w-2xl rounded-xl border border-zinc-800 relative my-8">
-            <button onClick={() => setSelectedMatch(null)} className="absolute top-4 right-4 text-zinc-400 hover:text-white bg-zinc-900 p-2 rounded-full"><X className="w-5 h-5"/></button>
-            <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-black uppercase tracking-wide text-white">{selectedMatch.name}</h2>
+          <div className="bg-[#111116] w-full max-w-2xl rounded-xl border border-zinc-800 relative my-8 overflow-hidden">
+            <button onClick={() => setSelectedMatch(null)} className="absolute top-4 right-4 text-zinc-400 hover:text-white bg-zinc-900 p-2 rounded-full z-10"><X className="w-5 h-5"/></button>
+            
+            {/* Modal Header */}
+            <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
+              <div className="pr-8">
+                <h2 className="text-xl font-black uppercase tracking-wide text-white truncate">{selectedMatch.name}</h2>
                 <p className="text-zinc-500 text-xs font-bold">{selectedMatch.type} • {selectedMatch.perspective}</p>
               </div>
-              <div className="text-right">
+              <div className="text-right shrink-0">
                 <p className={`font-black text-xl ${selectedMatch.entry_type === 'FREE' || selectedMatch.fee === 0 ? 'text-emerald-500' : 'text-orange-500'}`}>
                   {selectedMatch.entry_type === 'FREE' || selectedMatch.fee === 0 ? 'FREE' : `₹${selectedMatch.fee}`}
                 </p>
                 <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Entry Fee</p>
               </div>
             </div>
-            
-            {/* Hide Balance warning for Free entry */}
-            {selectedMatch.entry_type !== 'FREE' && selectedMatch.fee > 0 && walletBalance < selectedMatch.fee && (
-              <div className="bg-red-500/10 border-b border-red-500/20 p-4 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-red-500 text-sm font-bold"><AlertCircle className="w-5 h-5" /> Insufficient Wallet Balance (₹{walletBalance})</div>
-                <button onClick={() => router.push('/dashboard')} className="bg-red-500 text-white text-xs font-black uppercase px-4 py-2 rounded hover:bg-red-600 transition-colors">Add Funds</button>
+
+            {/* Stepper Progress Indicator */}
+            <div className="px-6 py-4 border-b border-zinc-800 bg-zinc-950 flex justify-between items-center text-[10px] sm:text-xs font-black uppercase tracking-widest">
+              <div className={`flex flex-col items-center gap-1 ${bookingStep >= 1 ? 'text-orange-500' : 'text-zinc-600'}`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center border-2 ${bookingStep >= 1 ? 'border-orange-500 bg-orange-500/20' : 'border-zinc-700 bg-zinc-800'}`}>1</span>
+                <span className="hidden sm:block">Details</span>
               </div>
-            )}
+              <div className={`flex-1 h-px mx-4 ${bookingStep >= 2 ? 'bg-orange-500/50' : 'bg-zinc-800'}`}></div>
+              <div className={`flex flex-col items-center gap-1 ${bookingStep >= 2 ? 'text-orange-500' : 'text-zinc-600'}`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center border-2 ${bookingStep >= 2 ? 'border-orange-500 bg-orange-500/20' : 'border-zinc-700 bg-zinc-800'}`}>2</span>
+                <span className="hidden sm:block">Slot</span>
+              </div>
+              <div className={`flex-1 h-px mx-4 ${bookingStep >= 3 ? 'bg-orange-500/50' : 'bg-zinc-800'}`}></div>
+              <div className={`flex flex-col items-center gap-1 ${bookingStep === 3 ? 'text-orange-500' : 'text-zinc-600'}`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center border-2 ${bookingStep === 3 ? 'border-orange-500 bg-orange-500/20' : 'border-zinc-700 bg-zinc-800'}`}>3</span>
+                <span className="hidden sm:block">Review</span>
+              </div>
+            </div>
             
-            <form onSubmit={handleConfirmBooking} className="p-6 space-y-6">
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-4">Squad Details</h3>
-                <div className="space-y-4">
+            <div className="p-6 space-y-6">
+              
+              {/* STEP 1: Player Details */}
+              {bookingStep === 1 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-2">Squad Details</h3>
                   {Array.from({ length: selectedMatch.type === 'SOLO' ? 1 : selectedMatch.type === 'DUO' ? 2 : 4 }, (_, i) => i + 1).map((num) => (
                     <div key={num} className="bg-zinc-900/50 p-4 rounded-lg border border-zinc-800/50">
                       <p className="text-xs font-bold text-orange-500 mb-3 uppercase tracking-wider flex items-center gap-2">
@@ -461,33 +506,87 @@ export default function TournamentsPage() {
                       </div>
                     </div>
                   ))}
+                  <div className="pt-4 mt-4 border-t border-zinc-800 flex gap-4">
+                    <button type="button" onClick={() => setSelectedMatch(null)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors">Cancel</button>
+                    <button type="button" onClick={handleNextToStep2} className="flex-1 bg-orange-500 hover:bg-orange-400 text-black font-black uppercase py-4 rounded transition-colors flex items-center justify-center gap-2">Next <ChevronRight className="w-4 h-4"/></button>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-4">Choose Drop Slot</h3>
-                <div className="grid grid-cols-5 gap-2">
-                  {Array.from({ length: selectedMatch.total_slots || 25 }, (_, i) => i + 1).map((slot) => {
-                    const isBooked = bookedSlots.includes(slot);
-                    const isSelected = selectedSlot === slot;
-                    return (
-                      <button type="button" key={slot} disabled={isBooked} onClick={() => setSelectedSlot(slot)} className={`py-3 rounded text-sm font-black transition-all ${isBooked ? 'bg-red-500/10 text-red-500/50 border border-red-500/10 cursor-not-allowed' : isSelected ? 'bg-orange-500 text-black border-2 border-orange-500' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-orange-500'}`}>
-                        S{slot}
-                      </button>
-                    );
-                  })}
+              )}
+
+              {/* STEP 2: Choose Slot */}
+              {bookingStep === 2 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-2">Choose Drop Slot</h3>
+                  <div className="grid grid-cols-5 gap-2 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                    {Array.from({ length: selectedMatch.total_slots || 25 }, (_, i) => i + 1).map((slot) => {
+                      const isBooked = bookedSlots.includes(slot);
+                      const isSelected = selectedSlot === slot;
+                      return (
+                        <button type="button" key={slot} disabled={isBooked} onClick={() => setSelectedSlot(slot)} className={`py-3 rounded text-sm font-black transition-all ${isBooked ? 'bg-red-500/10 text-red-500/50 border border-red-500/10 cursor-not-allowed' : isSelected ? 'bg-orange-500 text-black border-2 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-orange-500'}`}>
+                          S{slot}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="pt-4 mt-4 border-t border-zinc-800 flex gap-4">
+                    <button type="button" onClick={() => setBookingStep(1)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"><ChevronLeft className="w-4 h-4"/> Back</button>
+                    <button type="button" onClick={handleNextToStep3} className="flex-1 bg-orange-500 hover:bg-orange-400 text-black font-black uppercase py-4 rounded transition-colors flex items-center justify-center gap-2">Next <ChevronRight className="w-4 h-4"/></button>
+                  </div>
                 </div>
-              </div>
-              <div className="pt-4 border-t border-zinc-800 flex gap-4">
-                <button type="button" onClick={() => setSelectedMatch(null)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors">Cancel</button>
-                <button 
-                  type="submit" 
-                  disabled={isSubmitting || !selectedSlot || (selectedMatch.entry_type !== 'FREE' && selectedMatch.fee > 0 && walletBalance < selectedMatch.fee)} 
-                  className={`flex-[2] font-black uppercase tracking-widest py-4 rounded transition-colors disabled:opacity-50 ${selectedMatch.entry_type === 'FREE' || selectedMatch.fee === 0 ? 'bg-emerald-500 hover:bg-emerald-400 text-black' : 'bg-orange-500 hover:bg-orange-400 text-black'}`}
-                >
-                  {isSubmitting ? 'Processing...' : (selectedMatch.entry_type === 'FREE' || selectedMatch.fee === 0) ? 'Confirm Registration' : `Confirm & Pay ₹${selectedMatch.fee}`}
-                </button>
-              </div>
-            </form>
+              )}
+
+              {/* STEP 3: Review & Confirm */}
+              {bookingStep === 3 && (
+                <div className="space-y-6 animate-fadeIn">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-2">Review & Confirm</h3>
+                  
+                  <div className="bg-zinc-900/50 p-5 rounded-lg border border-zinc-800/50 space-y-4">
+                    <div className="flex justify-between border-b border-zinc-800 pb-3">
+                      <span className="text-zinc-400 text-xs font-bold uppercase">Match</span>
+                      <span className="text-white text-sm font-black uppercase text-right">{selectedMatch.name} <br/><span className="text-orange-500 text-[10px]">{selectedMatch.type} • {selectedMatch.perspective}</span></span>
+                    </div>
+                    <div className="flex justify-between border-b border-zinc-800 pb-3">
+                      <span className="text-zinc-400 text-xs font-bold uppercase">Time</span>
+                      <span className="text-white text-xs font-bold">{selectedMatch.match_time ? new Date(selectedMatch.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-zinc-800 pb-3">
+                      <span className="text-zinc-400 text-xs font-bold uppercase">Team</span>
+                      <span className="text-white text-xs font-bold">{team.p1_ign}'s Squad</span>
+                    </div>
+                    <div className="flex justify-between border-b border-zinc-800 pb-3">
+                      <span className="text-zinc-400 text-xs font-bold uppercase">Drop Slot</span>
+                      <span className="text-orange-500 text-sm font-black">S{selectedSlot}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="text-zinc-400 text-xs font-bold uppercase">Total Entry Fee</span>
+                      <span className={`text-xl font-black ${selectedMatch.entry_type === 'FREE' || selectedMatch.fee === 0 ? 'text-emerald-500' : 'text-orange-500'}`}>
+                        {selectedMatch.entry_type === 'FREE' || selectedMatch.fee === 0 ? 'FREE ENTRY' : `₹${selectedMatch.fee}`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {selectedMatch.entry_type !== 'FREE' && selectedMatch.fee > 0 && walletBalance < selectedMatch.fee && (
+                    <div className="bg-red-500/10 border border-red-500/20 p-4 rounded flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-red-500 text-sm font-bold"><AlertCircle className="w-5 h-5" /> Insufficient Wallet Balance (₹{walletBalance})</div>
+                      <button onClick={() => router.push('/dashboard')} className="bg-red-500 text-white text-xs font-black uppercase px-4 py-2 rounded hover:bg-red-600 transition-colors">Add Funds</button>
+                    </div>
+                  )}
+
+                  <div className="pt-4 border-t border-zinc-800 flex gap-4">
+                    <button type="button" onClick={() => setBookingStep(2)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"><ChevronLeft className="w-4 h-4"/> Back</button>
+                    <button 
+                      type="button" 
+                      onClick={handleConfirmBooking}
+                      disabled={isSubmitting || !selectedSlot || (selectedMatch.entry_type !== 'FREE' && selectedMatch.fee > 0 && walletBalance < selectedMatch.fee)} 
+                      className={`flex-[2] font-black uppercase tracking-widest py-4 rounded transition-colors shadow-lg disabled:opacity-50 ${selectedMatch.entry_type === 'FREE' || selectedMatch.fee === 0 ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-orange-500 hover:bg-orange-400 text-black shadow-[0_0_15px_rgba(249,115,22,0.3)]'}`}
+                    >
+                      {isSubmitting ? 'Processing...' : (selectedMatch.entry_type === 'FREE' || selectedMatch.fee === 0) ? 'JOIN FREE' : `JOIN & PAY ₹${selectedMatch.fee}`}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+            </div>
           </div>
         </div>
       )}
