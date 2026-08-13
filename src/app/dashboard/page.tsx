@@ -256,6 +256,12 @@ export default function PlayerDashboard() {
   });
   const nextMatch = upcomingMatches.length > 0 ? upcomingMatches[0] : null;
 
+  // --- DYNAMIC WINNINGS CALCULATION ---
+  // Strictly isolates genuine PRIZE_WIN transactions for this specific user.
+  const actualWinnings = transactions
+    .filter(tx => tx.type === 'PRIZE_WIN' && tx.status === 'SUCCESS')
+    .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+
   return (
     <main className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans pb-28 md:pb-24">
       <div className="max-w-6xl mx-auto">
@@ -327,7 +333,7 @@ export default function PlayerDashboard() {
                   <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Total Deposited</p>
                 </div>
                 <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-6">
-                  <p className="text-amber-500 font-black text-2xl mb-1">₹{wallet.total_won}</p>
+                  <p className="text-amber-500 font-black text-2xl mb-1">₹{actualWinnings}</p>
                   <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Total Winnings</p>
                 </div>
               </div>
@@ -348,7 +354,7 @@ export default function PlayerDashboard() {
                   </div>
                   <div className="text-right">
                     <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mb-0.5">Winnings</p>
-                    <p className="text-xs font-black text-amber-500">₹{wallet.total_won}</p>
+                    <p className="text-xs font-black text-amber-500">₹{actualWinnings}</p>
                   </div>
                 </div>
               </div>
