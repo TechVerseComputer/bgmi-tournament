@@ -204,7 +204,7 @@ export default function Home() {
           <div className="h-1 w-16 md:w-20 bg-orange-500 mt-3 md:mt-4 rounded-full" />
         </div>
 
-        {/* CSS GRID REFACTOR: 2 columns mobile, 3 tablet, 4 desktop. Gap tightly controlled */}
+        {/* CSS GRID REFACTOR: 2 columns mobile, 3 tablet, 4 desktop */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6 px-1 md:px-0">
           {latestTournaments.map((t) => {
             const isFree = t.entry_type === 'FREE' || t.fee === 0;
@@ -212,6 +212,10 @@ export default function Home() {
             const maxSlots = Number(t.total_slots || 25);
             const minSlots = Number(t.minimum_slots_required || maxSlots);
             const isMinReached = bookedCount >= minSlots;
+
+            // NEW: Progress Bar Calculations
+            const fillPercentage = Math.min(100, Math.max(0, (bookedCount / maxSlots) * 100));
+            const spotsLeft = Math.max(0, maxSlots - bookedCount);
 
             const winnerCount = t.total_winners || (t.prize_breakdown?.length > 0 ? t.prize_breakdown.length : 2);
             const activePrizes = t.prize_breakdown?.length > 0 
@@ -299,19 +303,29 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* 4. UNIVERSAL SLOTS BOOKED */}
-                    <div className="bg-zinc-950 p-1.5 md:p-2.5 rounded border border-zinc-800/80 flex justify-between items-center min-w-0">
-                       <div className="min-w-0 pr-1">
-                         <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider truncate">Slots Booked</p>
-                         <p className="text-xs md:text-sm font-black text-white">{bookedCount} <span className="text-zinc-500 text-[10px]">/ {t.total_slots}</span></p>
-                       </div>
-                       
-                       <div className="text-right flex flex-col items-end shrink-0">
-                         <p className={`text-[8px] md:text-[9px] font-black uppercase flex items-center gap-0.5 ${isMinReached ? 'text-emerald-500' : 'text-amber-500'}`}>
-                            {isMinReached ? <CheckCircle2 className="w-2.5 h-2.5 shrink-0"/> : <AlertCircle className="w-2.5 h-2.5 shrink-0"/>}
-                            {isMinReached ? 'Confirmed' : `Min ${minSlots}`}
-                         </p>
-                       </div>
+                    {/* 4. UNIVERSAL SLOTS BOOKED WITH PROGRESS BAR */}
+                    <div className="bg-zinc-950 p-2 md:p-3 rounded border border-zinc-800/80 flex flex-col gap-2 min-w-0">
+                      <div className="flex justify-between items-center w-full">
+                         <div className="min-w-0 pr-1">
+                           <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider truncate">Slots Booked</p>
+                           <p className="text-xs md:text-sm font-black text-white">{bookedCount} <span className="text-zinc-500 text-[10px]">/ {t.total_slots}</span></p>
+                         </div>
+                         <div className="text-right flex flex-col items-end shrink-0">
+                           <p className={`text-[8px] md:text-[9px] font-black uppercase flex items-center gap-0.5 ${isMinReached ? 'text-emerald-500' : 'text-amber-500'}`}>
+                              {isMinReached ? <CheckCircle2 className="w-2.5 h-2.5 shrink-0"/> : <AlertCircle className="w-2.5 h-2.5 shrink-0"/>}
+                              {isMinReached ? 'Confirmed' : `Min ${minSlots}`}
+                           </p>
+                         </div>
+                      </div>
+                      {/* PROGRESS BAR ROW */}
+                      <div className="w-full">
+                        <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+                          <div className={`h-full transition-all duration-500 ${spotsLeft === 0 ? 'bg-red-500' : 'bg-orange-500'}`} style={{ width: `${fillPercentage}%` }} />
+                        </div>
+                        <p className="text-[8px] md:text-[9px] font-bold mt-1.5 uppercase tracking-wider text-right">
+                          {spotsLeft === 0 ? <span className="text-red-500">SOLD OUT</span> : <span className="text-zinc-400">{spotsLeft} Spots Left</span>}
+                        </p>
+                      </div>
                     </div>
 
                   </div>
