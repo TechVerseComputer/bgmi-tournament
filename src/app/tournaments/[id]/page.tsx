@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
-import { Trophy, Users, Clock, ShieldAlert, ArrowLeft, CheckCircle, AlertCircle, Timer, UploadCloud, ImageIcon, CheckCircle2, X } from 'lucide-react';
+import { Trophy, Users, Clock, ShieldAlert, ArrowLeft, CheckCircle, AlertCircle, Timer, UploadCloud, ImageIcon, CheckCircle2, X, ChevronRight, ChevronLeft } from 'lucide-react';
 
 const getServerTime = async () => {
   try {
@@ -32,6 +32,10 @@ export default function TournamentDetailPage() {
   const [showModal, setShowModal] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // NEW: Stepper State
+  const [bookingStep, setBookingStep] = useState(1);
+  
   const [team, setTeam] = useState({ p1_ign: '', p1_id: '', p2_ign: '', p2_id: '', p3_ign: '', p3_id: '', p4_ign: '', p4_id: '' });
 
   // Screenshot Submission States
@@ -91,14 +95,34 @@ export default function TournamentDetailPage() {
       router.push('/dashboard');
       return;
     }
+    setBookingStep(1); // Reset to Step 1
+    setSelectedSlot(null);
     setShowModal(true);
   };
 
-  const handleConfirmBooking = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // NEW: Validations for steps
+  const handleNextToStep2 = () => {
+    const type = tournament?.type || 'SQUAD';
+    const numPlayers = type === 'SOLO' ? 1 : type === 'DUO' ? 2 : 4;
+    for (let i = 1; i <= numPlayers; i++) {
+      const ignKey = `p${i}_ign` as keyof typeof team;
+      const idKey = `p${i}_id` as keyof typeof team;
+      if (!team[ignKey] || !team[idKey]) {
+        return alert(`Please enter In-Game Name and Game ID for Player ${i}`);
+      }
+    }
+    setBookingStep(2);
+  };
+
+  const handleNextToStep3 = () => {
+    if (!selectedSlot) return alert("Please select a drop slot!");
+    setBookingStep(3);
+  };
+
+  const handleConfirmBooking = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!selectedSlot) return alert("Please select a drop slot!");
     
-    // --- FREE ENTRY CHECK ---
     const isFree = tournament.entry_type === 'FREE' || tournament.fee === 0;
     
     if (!isFree && walletBalance < tournament.fee) {
@@ -124,9 +148,9 @@ export default function TournamentDetailPage() {
 
       alert("Slot Booked Successfully!");
       setShowModal(false);
+      setBookingStep(1); // Reset
       setTeam({ p1_ign: '', p1_id: '', p2_ign: '', p2_id: '', p3_ign: '', p3_id: '', p4_ign: '', p4_id: '' });
 
-      // Refresh component states
       const { data: wallet } = await supabase.from('wallets').select('balance').eq('user_id', user.id).single();
       if (wallet) setWalletBalance(wallet.balance);
       
@@ -154,7 +178,6 @@ export default function TournamentDetailPage() {
     
     setIsUploadingResult(true);
     try {
-      // 1. Upload file securely to Supabase Storage
       const fileExt = resultFile.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `screenshots/${fileName}`;
@@ -164,7 +187,6 @@ export default function TournamentDetailPage() {
       
       const { data: publicUrlData } = supabase.storage.from('match-results').getPublicUrl(filePath);
 
-      // 2. Send the URL to the secure backend API
       const res = await fetch('/api/tournaments/submit-result', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -204,15 +226,10 @@ export default function TournamentDetailPage() {
   const minSlots = Number(tournament.minimum_slots_required || maxSlots);
   const isMinReached = bookedCount >= minSlots;
   
-  // 1. MAXIMUM / PRIMARY PRIZE POOL (When full - Disabled if Free)
   const maxPool = !isFree && tournament.fee > 0 ? Math.floor(maxSlots * Number(tournament.fee || 0) * 0.85) : 0;
-  
-  // 2. LIVE SCALING POOL (Current entries - Disabled if Free)
   const totalLivePool = !isFree && bookedCount > 0 ? Math.floor(bookedCount * Number(tournament.fee || 0) * 0.85) : 0;
-  
   const winnerCount = tournament.total_winners || (tournament.prize_breakdown?.length > 0 ? tournament.prize_breakdown.length : 2);
 
-  // Calculate Max Prizes Breakdown
   let maxPrizes: number[] = [];
   if (!isFree && tournament.fee > 0 && maxPool > 0) {
     if (winnerCount === 1) {
@@ -250,7 +267,6 @@ export default function TournamentDetailPage() {
   }
   const maxTotalPool = maxPrizes.reduce((a, b) => a + Number(b), 0);
 
-  // Calculate Live Scaled Prizes Breakdown
   let activePrizes: number[] = [];
   if (!isFree && tournament.fee > 0 && totalLivePool > 0) {
     if (winnerCount === 1) {
@@ -287,28 +303,25 @@ export default function TournamentDetailPage() {
       : [tournament.first_prize || 0, tournament.second_prize || 0].slice(0, winnerCount);
   }
 
-  // --- STRICT STATUS ENGINE (UPDATED UNIVERSALLY) ---
   const isTimePassed = tournament.registration_closing_time && currentTime ? currentTime > new Date(tournament.registration_closing_time).getTime() : false;
   const isUnderReview = tournament.status === 'UNDER REVIEW';
-  const isMinFailed = isTimePassed && !isMinReached; // Removed isFree condition
+  const isMinFailed = isTimePassed && !isMinReached; 
   
   const isClosed = isTimePassed || tournament.status === 'FULL' || tournament.status === 'COMPLETED' || tournament.status === 'CANCELLED' || isUnderReview || isMinFailed;
   
   let displayStatus = tournament.status || 'OPEN';
-  
   if (isTimePassed && tournament.status === 'OPEN') {
     displayStatus = isMinFailed ? 'MIN NOT REACHED' : 'REGISTRATION CLOSED';
   } else if (tournament.status === 'OPEN') {
-    displayStatus = isMinReached ? 'MATCH CONFIRMED' : 'WAITING FOR PLAYERS'; // Universal check
+    displayStatus = isMinReached ? 'MATCH CONFIRMED' : 'WAITING FOR PLAYERS';
   }
 
   const countdown = formatCountdown(tournament.registration_closing_time);
   
-  // --- PLAYER REVIEW TIMER LOGIC ---
   let reviewTimeLeft = 0;
   if (isUnderReview && tournament.review_started_at && currentTime) {
     const reviewStart = new Date(tournament.review_started_at).getTime();
-    const reviewEnd = reviewStart + (30 * 60 * 1000); // 30 minutes
+    const reviewEnd = reviewStart + (30 * 60 * 1000); 
     reviewTimeLeft = reviewEnd - currentTime;
     if (reviewTimeLeft < 0) reviewTimeLeft = 0;
   }
@@ -320,7 +333,6 @@ export default function TournamentDetailPage() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} remaining`;
   };
 
-  // Registration Check
   const myRegistration = user ? registrations.find(r => r.user_id === user.id) : null;
   const isMatchActiveOrCompleted = tournament.status === 'FULL' || tournament.status === 'COMPLETED' || isUnderReview;
 
@@ -357,7 +369,6 @@ export default function TournamentDetailPage() {
       <div className="max-w-7xl mx-auto px-4 lg:px-8 mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           
-          {/* PLAYER REVIEW BANNER */}
           {isUnderReview && (
             <div className="bg-amber-500/10 border border-amber-500/30 p-6 rounded-xl flex flex-col md:flex-row justify-between items-center gap-4 shadow-[0_0_20px_rgba(245,158,11,0.1)]">
               <div>
@@ -388,7 +399,6 @@ export default function TournamentDetailPage() {
                 {tournament.match_time ? new Date(tournament.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}
               </p>
             </div>
-            {/* UNIVERSAL SLOTS DISPLAY */}
             <div>
               <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Slots: {bookedCount} / {maxSlots}</p>
               <p className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 mt-1 ${isMinReached ? 'text-emerald-500' : 'text-amber-500'}`}>
@@ -398,7 +408,6 @@ export default function TournamentDetailPage() {
             </div>
           </div>
 
-          {/* PRIZE POOL & LIVE SCALING SECTION */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-zinc-800 pb-4">
               <div>
@@ -479,7 +488,6 @@ export default function TournamentDetailPage() {
               {user && <div className="flex justify-between text-zinc-400"><p>Wallet Balance</p><p className="text-emerald-500">₹{walletBalance}</p></div>}
             </div>
 
-            {/* --- CAPTAIN EVIDENCE SUBMISSION WIDGET --- */}
             {myRegistration ? (
               <div className="border-t border-zinc-800 pt-4 space-y-4">
                 <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-lg flex items-center justify-between">
@@ -529,65 +537,140 @@ export default function TournamentDetailPage() {
         </div>
       </div>
 
-      {/* Quick Booking Modal */}
+      {/* 3-Step Booking Modal */}
       {showModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-[#111116] w-full max-w-2xl rounded-xl border border-zinc-800 relative my-8">
-            <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-zinc-400 hover:text-white bg-zinc-900 p-2 rounded-full"><X className="w-5 h-5"/></button>
-            <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-black uppercase tracking-wide text-white">{tournament.name}</h2>
+          <div className="bg-[#111116] w-full max-w-2xl rounded-xl border border-zinc-800 relative my-8 overflow-hidden">
+            <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-zinc-400 hover:text-white bg-zinc-900 p-2 rounded-full z-10"><X className="w-5 h-5"/></button>
+            
+            {/* Modal Header */}
+            <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
+              <div className="pr-8">
+                <h2 className="text-xl font-black uppercase tracking-wide text-white truncate">{tournament.name}</h2>
                 <p className="text-zinc-500 text-xs font-bold">{tournament.type} • {tournament.perspective}</p>
               </div>
-              <div className="text-right">
+              <div className="text-right shrink-0">
                 <p className={`font-black text-xl ${isFree ? 'text-emerald-500' : 'text-orange-500'}`}>{isFree ? 'FREE' : `₹${tournament.fee}`}</p>
                 <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Entry Fee</p>
               </div>
             </div>
             
-            {/* Hide Balance warning for Free entry */}
-            {!isFree && walletBalance < tournament.fee && (
-              <div className="bg-red-500/10 border-b border-red-500/20 p-4 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-red-500 text-sm font-bold"><AlertCircle className="w-5 h-5" /> Insufficient Wallet Balance (₹{walletBalance})</div>
-                <button onClick={() => router.push('/dashboard')} className="bg-red-500 text-white text-xs font-black uppercase px-4 py-2 rounded hover:bg-red-600 transition-colors">Add Funds</button>
+            {/* Stepper Progress Indicator */}
+            <div className="px-6 py-4 border-b border-zinc-800 bg-zinc-950 flex justify-between items-center text-[10px] sm:text-xs font-black uppercase tracking-widest">
+              <div className={`flex flex-col items-center gap-1 ${bookingStep >= 1 ? 'text-orange-500' : 'text-zinc-600'}`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center border-2 ${bookingStep >= 1 ? 'border-orange-500 bg-orange-500/20' : 'border-zinc-700 bg-zinc-800'}`}>1</span>
+                <span className="hidden sm:block">Details</span>
               </div>
-            )}
+              <div className={`flex-1 h-px mx-4 ${bookingStep >= 2 ? 'bg-orange-500/50' : 'bg-zinc-800'}`}></div>
+              <div className={`flex flex-col items-center gap-1 ${bookingStep >= 2 ? 'text-orange-500' : 'text-zinc-600'}`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center border-2 ${bookingStep >= 2 ? 'border-orange-500 bg-orange-500/20' : 'border-zinc-700 bg-zinc-800'}`}>2</span>
+                <span className="hidden sm:block">Slot</span>
+              </div>
+              <div className={`flex-1 h-px mx-4 ${bookingStep >= 3 ? 'bg-orange-500/50' : 'bg-zinc-800'}`}></div>
+              <div className={`flex flex-col items-center gap-1 ${bookingStep === 3 ? 'text-orange-500' : 'text-zinc-600'}`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center border-2 ${bookingStep === 3 ? 'border-orange-500 bg-orange-500/20' : 'border-zinc-700 bg-zinc-800'}`}>3</span>
+                <span className="hidden sm:block">Review</span>
+              </div>
+            </div>
 
-            <form onSubmit={handleConfirmBooking} className="p-6 space-y-6">
-              <div className="space-y-4">
-                {Array.from({ length: tournament.type === 'SOLO' ? 1 : tournament.type === 'DUO' ? 2 : 4 }, (_, i) => i + 1).map((num) => (
-                  <div key={num} className="bg-zinc-900/50 p-4 rounded-lg border border-zinc-800/50">
-                    <p className="text-xs font-bold text-orange-500 mb-3 uppercase tracking-wider flex items-center gap-2">
-                      {num === 1 && <Trophy className="w-3 h-3"/>} Player {num} {num === 1 && '(Captain)'}
-                    </p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <input required type="text" placeholder="In-Game Name (IGN)" value={team[`p${num}_ign` as keyof typeof team]} onChange={e => setTeam({...team, [`p${num}_ign`]: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-3 text-sm focus:border-orange-500 outline-none text-zinc-300" />
-                      <input required type="text" placeholder="Game ID (Numbers)" value={team[`p${num}_id` as keyof typeof team]} onChange={e => setTeam({...team, [`p${num}_id`]: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-3 text-sm focus:border-orange-500 outline-none font-mono text-zinc-300" />
+            <div className="p-6 space-y-6">
+              
+              {/* STEP 1: Player Details */}
+              {bookingStep === 1 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-2">Squad Details</h3>
+                  {Array.from({ length: tournament.type === 'SOLO' ? 1 : tournament.type === 'DUO' ? 2 : 4 }, (_, i) => i + 1).map((num) => (
+                    <div key={num} className="bg-zinc-900/50 p-4 rounded-lg border border-zinc-800/50">
+                      <p className="text-xs font-bold text-orange-500 mb-3 uppercase tracking-wider flex items-center gap-2">
+                        {num === 1 && <Trophy className="w-3 h-3"/>} Player {num} {num === 1 && '(Captain)'}
+                      </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <input required type="text" placeholder="In-Game Name (IGN)" value={team[`p${num}_ign` as keyof typeof team]} onChange={e => setTeam({...team, [`p${num}_ign`]: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-3 text-sm focus:border-orange-500 outline-none text-zinc-300" />
+                        <input required type="text" placeholder="Game ID (Numbers)" value={team[`p${num}_id` as keyof typeof team]} onChange={e => setTeam({...team, [`p${num}_id`]: e.target.value})} className="w-full bg-zinc-950 border border-zinc-800 rounded p-3 text-sm focus:border-orange-500 outline-none font-mono text-zinc-300" />
+                      </div>
+                    </div>
+                  ))}
+                  <div className="pt-4 mt-4 border-t border-zinc-800 flex gap-4">
+                    <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors">Cancel</button>
+                    <button type="button" onClick={handleNextToStep2} className="flex-1 bg-orange-500 hover:bg-orange-400 text-black font-black uppercase py-4 rounded transition-colors flex items-center justify-center gap-2">Next <ChevronRight className="w-4 h-4"/></button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: Choose Slot */}
+              {bookingStep === 2 && (
+                <div className="space-y-4 animate-fadeIn">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-2">Choose Drop Slot</h3>
+                  <div className="grid grid-cols-5 gap-2 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                    {Array.from({ length: maxSlots }, (_, i) => i + 1).map((slot) => {
+                      const isBooked = bookedSlotNumbers.includes(slot);
+                      const isSelected = selectedSlot === slot;
+                      return (
+                        <button type="button" key={slot} disabled={isBooked} onClick={() => setSelectedSlot(slot)} className={`py-3 rounded text-sm font-black transition-all ${isBooked ? 'bg-red-500/10 text-red-500/50 border border-red-500/10 cursor-not-allowed' : isSelected ? 'bg-orange-500 text-black border-2 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-orange-500'}`}>
+                          S{slot}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="pt-4 mt-4 border-t border-zinc-800 flex gap-4">
+                    <button type="button" onClick={() => setBookingStep(1)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"><ChevronLeft className="w-4 h-4"/> Back</button>
+                    <button type="button" onClick={handleNextToStep3} className="flex-1 bg-orange-500 hover:bg-orange-400 text-black font-black uppercase py-4 rounded transition-colors flex items-center justify-center gap-2">Next <ChevronRight className="w-4 h-4"/></button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3: Review & Confirm */}
+              {bookingStep === 3 && (
+                <div className="space-y-6 animate-fadeIn">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-2">Review & Confirm</h3>
+                  
+                  <div className="bg-zinc-900/50 p-5 rounded-lg border border-zinc-800/50 space-y-4">
+                    <div className="flex justify-between border-b border-zinc-800 pb-3">
+                      <span className="text-zinc-400 text-xs font-bold uppercase">Match</span>
+                      <span className="text-white text-sm font-black uppercase text-right">{tournament.name} <br/><span className="text-orange-500 text-[10px]">{tournament.type} • {tournament.perspective}</span></span>
+                    </div>
+                    <div className="flex justify-between border-b border-zinc-800 pb-3">
+                      <span className="text-zinc-400 text-xs font-bold uppercase">Time</span>
+                      <span className="text-white text-xs font-bold">{tournament.match_time ? new Date(tournament.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : 'TBA'}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-zinc-800 pb-3">
+                      <span className="text-zinc-400 text-xs font-bold uppercase">Team</span>
+                      <span className="text-white text-xs font-bold">{team.p1_ign}'s Squad</span>
+                    </div>
+                    <div className="flex justify-between border-b border-zinc-800 pb-3">
+                      <span className="text-zinc-400 text-xs font-bold uppercase">Drop Slot</span>
+                      <span className="text-orange-500 text-sm font-black">S{selectedSlot}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="text-zinc-400 text-xs font-bold uppercase">Total Entry Fee</span>
+                      <span className={`text-xl font-black ${isFree ? 'text-emerald-500' : 'text-orange-500'}`}>
+                        {isFree ? 'FREE ENTRY' : `₹${tournament.fee}`}
+                      </span>
                     </div>
                   </div>
-                ))}
-              </div>
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-4">Choose Drop Slot</h3>
-                <div className="grid grid-cols-5 gap-2">
-                  {Array.from({ length: maxSlots }, (_, i) => i + 1).map((slot) => {
-                    const isBooked = bookedSlotNumbers.includes(slot);
-                    const isSelected = selectedSlot === slot;
-                    return (
-                      <button type="button" key={slot} disabled={isBooked} onClick={() => setSelectedSlot(slot)} className={`py-3 rounded text-sm font-black transition-all ${isBooked ? 'bg-red-500/10 text-red-500/50 border border-red-500/10 cursor-not-allowed' : isSelected ? 'bg-orange-500 text-black border-2 border-orange-500' : 'bg-zinc-900 text-zinc-400 border border-zinc-800 hover:border-orange-500'}`}>
-                        S{slot}
-                      </button>
-                    );
-                  })}
+
+                  {!isFree && walletBalance < tournament.fee && (
+                    <div className="bg-red-500/10 border border-red-500/20 p-4 rounded flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-red-500 text-sm font-bold"><AlertCircle className="w-5 h-5" /> Insufficient Wallet Balance (₹{walletBalance})</div>
+                      <button onClick={() => router.push('/dashboard')} className="bg-red-500 text-white text-xs font-black uppercase px-4 py-2 rounded hover:bg-red-600 transition-colors">Add Funds</button>
+                    </div>
+                  )}
+
+                  <div className="pt-4 border-t border-zinc-800 flex gap-4">
+                    <button type="button" onClick={() => setBookingStep(2)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2"><ChevronLeft className="w-4 h-4"/> Back</button>
+                    <button 
+                      type="button" 
+                      onClick={handleConfirmBooking}
+                      disabled={isSubmitting || !selectedSlot || (!isFree && walletBalance < tournament.fee)} 
+                      className={`flex-[2] font-black uppercase tracking-widest py-4 rounded transition-colors shadow-lg disabled:opacity-50 ${isFree ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-orange-500 hover:bg-orange-400 text-black shadow-[0_0_15px_rgba(249,115,22,0.3)]'}`}
+                    >
+                      {isSubmitting ? 'Processing...' : isFree ? 'JOIN FREE' : `JOIN & PAY ₹${tournament.fee}`}
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="pt-4 border-t border-zinc-800 flex gap-4">
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-zinc-900 text-white font-bold uppercase py-4 rounded hover:bg-zinc-800 transition-colors">Cancel</button>
-                <button type="submit" disabled={isSubmitting || !selectedSlot || (!isFree && walletBalance < tournament.fee)} className={`flex-[2] font-black uppercase tracking-widest py-4 rounded transition-colors disabled:opacity-50 ${isFree ? 'bg-emerald-500 hover:bg-emerald-400 text-black' : 'bg-orange-500 hover:bg-orange-400 text-black'}`}>
-                  {isSubmitting ? 'Processing...' : isFree ? 'Confirm Registration' : `Confirm & Pay ₹${tournament.fee}`}
-                </button>
-              </div>
-            </form>
+              )}
+
+            </div>
           </div>
         </div>
       )}
