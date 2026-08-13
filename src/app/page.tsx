@@ -5,12 +5,13 @@ import { Users, ChevronRight, ShieldCheck, Clock, AlertTriangle, Zap, Trophy, He
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
 
-// Your High-End Custom Gaming Wallpapers
+// --- UPDATED: Local BGMI Hero Images ---
+// Place these images inside your public/images/hero/ folder
 const heroImages = [
-  'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop', 
-  'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=2070&auto=format&fit=crop', 
-  'https://images.unsplash.com/photo-1552820728-8b83bb6b773f?q=80&w=2070&auto=format&fit=crop', 
-  'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?q=80&w=2070&auto=format&fit=crop'  
+  '/images/hero/bgmi-1.jpg', 
+  '/images/hero/bgmi-2.jpg', 
+  '/images/hero/bgmi-3.jpg', 
+  '/images/hero/bgmi-4.jpg'  
 ];
 
 export default function Home() {
@@ -110,7 +111,7 @@ export default function Home() {
             className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-in-out ${
               index === currentSlide ? 'opacity-40 scale-105' : 'opacity-0 scale-100'
             }`}
-            style={{ backgroundImage: `url(${img})` }}
+            style={{ backgroundImage: `url('${img}')` }}
           />
         ))}
         <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/60 to-transparent" />
@@ -206,7 +207,6 @@ export default function Home() {
         {/* CSS GRID REFACTOR: 2 columns mobile, 3 tablet, 4 desktop. Gap tightly controlled */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6 px-1 md:px-0">
           {latestTournaments.map((t) => {
-            // --- VARIABLES & LOGIC (UPDATED TO BE UNIVERSAL) ---
             const isFree = t.entry_type === 'FREE' || t.fee === 0;
             const bookedCount = t.registrations?.length || 0;
             const maxSlots = Number(t.total_slots || 25);
@@ -220,10 +220,9 @@ export default function Home() {
               
             const totalPrizePool = activePrizes.reduce((a: number, b: number) => a + Number(b), 0);
 
-            // --- STRICT STATUS & COUNTDOWN ENGINE (Removed isFree condition) ---
             const isTimePassed = t.registration_closing_time && currentTime > new Date(t.registration_closing_time).getTime();
             const isUnderReview = t.status === 'UNDER REVIEW';
-            const isMinFailed = isTimePassed && !isMinReached; // Universally applied
+            const isMinFailed = isTimePassed && !isMinReached;
             
             const isClosed = isTimePassed || t.status === 'FULL' || t.status === 'COMPLETED' || t.status === 'CANCELLED' || isUnderReview || isMinFailed;
             
@@ -231,7 +230,6 @@ export default function Home() {
             if (isTimePassed && t.status === 'OPEN') {
               displayStatus = isMinFailed ? 'MIN NOT REACHED' : 'REGISTRATION CLOSED';
             } else if (t.status === 'OPEN') {
-              // Universally apply "MATCH CONFIRMED" vs "WAITING FOR PLAYERS"
               displayStatus = isMinReached ? 'MATCH CONFIRMED' : 'WAITING FOR PLAYERS';
             }
 
@@ -301,7 +299,7 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* 4. UNIVERSAL SLOTS BOOKED (Removed isFree condition entirely) */}
+                    {/* 4. UNIVERSAL SLOTS BOOKED */}
                     <div className="bg-zinc-950 p-1.5 md:p-2.5 rounded border border-zinc-800/80 flex justify-between items-center min-w-0">
                        <div className="min-w-0 pr-1">
                          <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider truncate">Slots Booked</p>
@@ -483,7 +481,8 @@ export default function Home() {
       {/* --- CTA BANNER SECTION --- */}
       <section className="py-12 md:py-20 px-4 max-w-7xl mx-auto">
         <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-zinc-900 via-orange-950/40 to-zinc-900 border border-orange-500/30 p-6 sm:p-10 md:p-16 flex flex-col md:flex-row items-center justify-between gap-6 md:gap-8 shadow-2xl">
-          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-15" />
+          {/* --- UPDATED CTA IMAGE --- */}
+          <div className="absolute inset-0 bg-[url('/images/hero/bgmi-cta.jpg')] bg-cover bg-center opacity-15" />
           <div className="relative z-10 text-center md:text-left space-y-2 md:space-y-3 w-full">
             <h2 className="text-2xl sm:text-3xl md:text-5xl font-black italic uppercase tracking-tight leading-tight">Ready to Dominate the <span className="text-orange-500 block md:inline">Battleground?</span></h2>
             <p className="text-zinc-300 font-medium text-xs sm:text-sm md:text-base px-2 md:px-0">Gather your squad, lock in your drop slot, and start winning today.</p>
