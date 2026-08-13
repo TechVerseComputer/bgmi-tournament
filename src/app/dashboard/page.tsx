@@ -116,29 +116,27 @@ export default function PlayerDashboard() {
     if (amount > MAX_DEPOSIT) return alert(`Maximum deposit amount is ₹${MAX_DEPOSIT}.`);
     
     if (!utrNumber || utrNumber.length < 12) return alert("Please enter a valid 12-digit UTR number.");
-    setIsSubmitting(true);
     
-    const { error } = await supabase.from('transactions').insert([{
-      user_id: user.id,
-      type: 'DEPOSIT',
-      amount: amount,
-      reference_id: utrNumber,
-      description: 'Wallet Deposit via UPI'
-    }]);
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/wallet/deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, amount, utrNumber, userEmail: user.email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
 
-    if (error) {
-      alert("Database Error: " + error.message);
-    } else {
-      await notifyAdmin('DEPOSIT', 'New Deposit Request', amount);
-      
       alert("Deposit request submitted! Our team will verify the UTR shortly.");
       setShowQRModal(false);
       setDepositAmount('');
       setUtrNumber('');
       fetchWalletData(user.id);
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    setIsSubmitting(false);
   };
 
   const handleWithdrawSubmit = async (e: React.FormEvent) => {
@@ -157,25 +155,24 @@ export default function PlayerDashboard() {
     if (amount > wallet.balance) return alert("Insufficient balance.");
     
     setIsSubmitting(true);
-    const { error } = await supabase.from('transactions').insert([{
-      user_id: user.id,
-      type: 'WITHDRAWAL',
-      amount: amount,
-      upi_id: upiId,
-      description: 'Withdrawal to UPI'
-    }]);
+    try {
+      const res = await fetch('/api/wallet/withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, amount, upiId, userEmail: user.email })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
 
-    if (error) {
-       alert("Database Error: " + error.message);
-    } else {
-      await notifyAdmin('WITHDRAWAL', 'New Withdrawal Request', amount);
-      
       alert("Withdrawal request submitted! Funds will be transferred shortly.");
       setWithdrawAmount('');
       setUpiId('');
       fetchWalletData(user.id);
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   const handleResultImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -202,22 +199,19 @@ export default function PlayerDashboard() {
       
       const { data: publicUrlData } = supabase.storage.from('match-results').getPublicUrl(filePath);
 
-      const existingResult = myResults.find(r => r.registration_id === resultModalObj.id);
+      const res = await fetch('/api/tournaments/submit-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tournamentId: resultModalObj.tournament_id,
+          registrationId: resultModalObj.id,
+          userId: user.id,
+          imageUrl: publicUrlData.publicUrl
+        })
+      });
 
-      if (existingResult) {
-        await supabase.from('match_results').update({ 
-          image_url: publicUrlData.publicUrl, 
-          status: 'PENDING', 
-          admin_note: null 
-        }).eq('id', existingResult.id);
-      } else {
-        await supabase.from('match_results').insert([{
-          tournament_id: resultModalObj.tournament_id,
-          registration_id: resultModalObj.id,
-          user_id: user.id,
-          image_url: publicUrlData.publicUrl
-        }]);
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
 
       alert("Result submitted successfully! Our admins will review it shortly.");
       setResultModalObj(null);
