@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, ShieldCheck, X, Home, LogOut, Gamepad2, Clock, Key, AlertCircle, UploadCloud, ImageIcon, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { Wallet, ArrowDownToLine, ArrowUpFromLine, History, QrCode, ShieldCheck, X, Home, LogOut, Gamepad2, Clock, Key, AlertCircle, UploadCloud, ImageIcon, CheckCircle2, ArrowLeft, Trophy } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -85,7 +85,7 @@ export default function PlayerDashboard() {
     router.push('/');
   };
 
-  // --- NEW: ADMIN NOTIFICATION HELPER ---
+  // --- ADMIN NOTIFICATION HELPER ---
   const notifyAdmin = async (type: string, message: string, amount: number | null = null) => {
     try {
       await supabase.from('admin_notifications').insert([{
@@ -129,7 +129,6 @@ export default function PlayerDashboard() {
     if (error) {
       alert("Database Error: " + error.message);
     } else {
-      // --- NEW: TRIGGER NOTIFICATION ---
       await notifyAdmin('DEPOSIT', 'New Deposit Request', amount);
       
       alert("Deposit request submitted! Our team will verify the UTR shortly.");
@@ -169,7 +168,6 @@ export default function PlayerDashboard() {
     if (error) {
        alert("Database Error: " + error.message);
     } else {
-      // --- NEW: TRIGGER NOTIFICATION ---
       await notifyAdmin('WITHDRAWAL', 'New Withdrawal Request', amount);
       
       alert("Withdrawal request submitted! Funds will be transferred shortly.");
@@ -249,18 +247,20 @@ export default function PlayerDashboard() {
     );
   }
 
-  // Pre-calculate upcoming match for mobile app view
+  // Pre-calculate upcoming match for mobile app view & desktop widgets
   const upcomingMatches = myMatches.filter((m: any) => {
     const t = Array.isArray(m.tournaments) ? m.tournaments[0] : m.tournaments;
     return t && t.status !== 'COMPLETED' && t.status !== 'CANCELLED';
   });
   const nextMatch = upcomingMatches.length > 0 ? upcomingMatches[0] : null;
 
-  // --- DYNAMIC WINNINGS CALCULATION ---
-  // Strictly isolates genuine PRIZE_WIN transactions for this specific user.
+  // --- DYNAMIC CALCULATIONS ---
   const actualWinnings = transactions
     .filter(tx => tx.type === 'PRIZE_WIN' && tx.status === 'SUCCESS')
     .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+    
+  const matchesPlayedCount = myMatches.length;
+  const matchesWonCount = transactions.filter(tx => tx.type === 'PRIZE_WIN' && tx.status === 'SUCCESS').length;
 
   return (
     <main className="min-h-screen bg-[#050505] text-white p-4 md:p-8 font-sans pb-28 md:pb-24">
@@ -314,32 +314,156 @@ export default function PlayerDashboard() {
         {/* --- OVERVIEW TAB --- */}
         {activeTab === 'overview' && (
           <>
-            {/* DESKTOP VIEW */}
-            <div className="hidden md:block space-y-6">
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex flex-col md:flex-row justify-between items-center gap-6">
-                <div>
-                  <p className="text-zinc-400 font-bold text-sm uppercase tracking-wider flex items-center gap-2 mb-2"><Wallet className="w-4 h-4 text-emerald-500"/> Available Balance</p>
-                  <p className="text-5xl font-black text-white">₹{wallet.balance}</p>
+            {/* --- UPGRADED DESKTOP VIEW --- */}
+            <div className="hidden md:flex flex-col space-y-6">
+              
+              {/* QUICK STATS ROW */}
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                {/* Balance */}
+                <div className="bg-gradient-to-br from-zinc-900 to-black border border-zinc-800 rounded-xl p-5 flex flex-col justify-center relative overflow-hidden group hover:border-emerald-500/50 transition-colors shadow-lg">
+                  <div className="absolute -right-4 -top-4 opacity-5"><Wallet size={80}/></div>
+                  <p className="text-zinc-500 font-bold text-xs uppercase tracking-wider mb-1">Available Balance</p>
+                  <p className="text-3xl font-black text-white">₹{wallet.balance}</p>
                 </div>
-                <div className="flex gap-4 w-full md:w-auto">
-                  <button onClick={() => setActiveTab('deposit')} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-wider px-6 py-3 rounded flex items-center justify-center gap-2 transition-colors"><ArrowDownToLine className="w-5 h-5"/> Add Money</button>
-                  <button onClick={() => setActiveTab('withdraw')} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase tracking-wider px-6 py-3 rounded border border-zinc-700 flex items-center justify-center gap-2 transition-colors"><ArrowUpFromLine className="w-5 h-5"/> Withdraw</button>
+                {/* Deposited */}
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col justify-center relative overflow-hidden group hover:border-emerald-500/30 transition-colors shadow-lg">
+                  <p className="text-zinc-500 font-bold text-xs uppercase tracking-wider mb-1">Total Deposited</p>
+                  <p className="text-2xl font-black text-emerald-500">₹{wallet.total_deposited}</p>
+                </div>
+                {/* Winnings */}
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col justify-center relative overflow-hidden group hover:border-amber-500/30 transition-colors shadow-lg">
+                  <p className="text-zinc-500 font-bold text-xs uppercase tracking-wider mb-1">Total Winnings</p>
+                  <p className="text-2xl font-black text-amber-500">₹{actualWinnings}</p>
+                </div>
+                {/* Matches Played */}
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col justify-center relative overflow-hidden group hover:border-blue-500/30 transition-colors shadow-lg">
+                  <p className="text-zinc-500 font-bold text-xs uppercase tracking-wider mb-1">Matches Played</p>
+                  <p className="text-2xl font-black text-white">{matchesPlayedCount}</p>
+                </div>
+                {/* Matches Won */}
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col justify-center relative overflow-hidden group hover:border-orange-500/30 transition-colors shadow-lg">
+                  <p className="text-zinc-500 font-bold text-xs uppercase tracking-wider mb-1">Matches Won</p>
+                  <p className="text-2xl font-black text-orange-500">{matchesWonCount}</p>
                 </div>
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-6">
-                  <p className="text-emerald-500 font-black text-2xl mb-1">₹{wallet.total_deposited}</p>
-                  <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Total Deposited</p>
+
+              {/* MAIN CONTENT GRID */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* LEFT COLUMN */}
+                <div className="lg:col-span-2 space-y-6">
+                  
+                  {/* WALLET ACTIONS */}
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 flex items-center justify-between shadow-lg">
+                    <div>
+                      <h3 className="text-lg font-black uppercase tracking-widest mb-1 text-white">Wallet Management</h3>
+                      <p className="text-xs font-bold text-zinc-500">Deposit funds to join matches or withdraw your winnings instantly.</p>
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={() => setActiveTab('deposit')} className="bg-emerald-500 hover:bg-emerald-400 text-black font-black uppercase tracking-wider px-5 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                        <ArrowDownToLine className="w-4 h-4"/> Add Money
+                      </button>
+                      <button onClick={() => setActiveTab('withdraw')} className="bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 font-black uppercase tracking-wider px-5 py-2.5 rounded-lg flex items-center gap-2 transition-all shadow-lg">
+                        <ArrowUpFromLine className="w-4 h-4"/> Withdraw
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* RECENT / UPCOMING MATCHES PREVIEW */}
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-lg">
+                    <div className="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
+                      <h3 className="font-black italic text-lg uppercase tracking-widest text-zinc-300 flex items-center gap-2">
+                        <Gamepad2 className="w-5 h-5 text-orange-500"/> My Upcoming Drops
+                      </h3>
+                      <button onClick={() => setActiveTab('matches')} className="text-[10px] font-black uppercase tracking-widest text-orange-500 hover:text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 px-3 py-1.5 rounded transition-colors border border-orange-500/20">
+                        Manage All
+                      </button>
+                    </div>
+
+                    {upcomingMatches.length === 0 ? (
+                      <div className="text-center py-8 opacity-70">
+                        <p className="text-zinc-500 font-bold text-sm uppercase tracking-wider mb-4">No active matches found.</p>
+                        <Link href="/tournaments" className="inline-block bg-orange-500 text-black px-6 py-2.5 rounded-lg font-black text-xs uppercase tracking-widest transition-colors hover:bg-orange-400 shadow-[0_0_15px_rgba(249,115,22,0.3)]">Explore Tournaments</Link>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {upcomingMatches.slice(0, 3).map((m: any, idx: number) => {
+                          const t = Array.isArray(m.tournaments) ? m.tournaments[0] : m.tournaments;
+                          if (!t) return null;
+                          return (
+                            <div key={idx} className="bg-zinc-950 border border-zinc-800/80 p-4 rounded-lg flex justify-between items-center group hover:border-zinc-700 transition-colors">
+                              <div className="flex items-center gap-4">
+                                <div className="w-14 h-14 rounded-md bg-zinc-800 overflow-hidden shrink-0 border border-zinc-800">
+                                  <img src={t.map_img} alt="map" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                                <div>
+                                  <h4 className="font-black text-white uppercase tracking-wider text-sm">{t.name}</h4>
+                                  <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-500 mt-1">
+                                    <span className="flex items-center gap-1 text-emerald-500"><Clock className="w-3 h-3"/> {t.match_time ? new Date(t.match_time).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' }) : 'TBA'}</span>
+                                    <span>•</span>
+                                    <span className="bg-zinc-800 px-1.5 py-0.5 rounded text-white border border-zinc-700">SLOT {m.slot_number}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span className={`text-[9px] font-black uppercase px-2.5 py-1.5 rounded border ${t.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>{t.status || 'OPEN'}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-6">
-                  <p className="text-amber-500 font-black text-2xl mb-1">₹{actualWinnings}</p>
-                  <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">Total Winnings</p>
+
+                {/* RIGHT COLUMN */}
+                <div className="lg:col-span-1">
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-lg h-full flex flex-col">
+                    <div className="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
+                      <h3 className="font-black italic text-lg uppercase tracking-widest text-zinc-300 flex items-center gap-2">
+                        <History className="w-5 h-5 text-zinc-400"/> Activity
+                      </h3>
+                      <button onClick={() => setActiveTab('history')} className="text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white bg-zinc-800 border border-zinc-700 px-3 py-1.5 rounded transition-colors">
+                        Full Ledger
+                      </button>
+                    </div>
+
+                    <div className="flex-1">
+                      {transactions.length > 0 ? (
+                        <div className="space-y-4">
+                          {transactions.slice(0, 6).map(tx => (
+                            <div key={tx.id} className="flex justify-between items-center bg-zinc-950 p-3.5 rounded-lg border border-zinc-800/50 group hover:border-zinc-700 transition-colors">
+                              <div className="flex items-center gap-3 min-w-0 pr-2">
+                                <div className={`p-2 rounded-full shrink-0 border ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>
+                                  {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? <ArrowDownToLine size={14}/> : <ArrowUpFromLine size={14}/>}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-bold text-white truncate">{tx.description}</p>
+                                  <p className="text-[9px] text-zinc-500 font-mono mt-0.5">{new Date(tx.created_at).toLocaleDateString()}</p>
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className={`text-sm font-black ${tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? 'text-emerald-500' : 'text-white'}`}>
+                                  {tx.type === 'DEPOSIT' || tx.type === 'PRIZE_WIN' || tx.type === 'REFUND' ? '+' : '-'}₹{tx.amount}
+                                </p>
+                                <p className={`text-[8px] font-black uppercase tracking-wider mt-0.5 ${tx.status === 'PENDING' ? 'text-amber-500' : tx.status === 'SUCCESS' ? 'text-emerald-500' : 'text-red-500'}`}>{tx.status}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full opacity-50 py-10">
+                          <History className="w-8 h-8 text-zinc-600 mb-3"/>
+                          <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">No activity yet.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* MOBILE VIEW (App-Like Flow) */}
+            {/* MOBILE VIEW (App-Like Flow - UNTOUCHED) */}
             <div className="md:hidden space-y-6">
               {/* Premium Compact Wallet Card */}
               <div className="bg-gradient-to-br from-[#121215] to-[#0a0a0c] border border-zinc-800 rounded-2xl p-5 relative overflow-hidden shadow-2xl">
