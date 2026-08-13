@@ -327,12 +327,17 @@ export default function TournamentsPage() {
           <div className="text-center text-zinc-500 font-bold uppercase tracking-widest py-12">No tournaments found matching your filters.</div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6 px-1 md:px-0">
+            {/* CSS GRID REFACTOR: 2 columns mobile, 3 tablet, 4 desktop */}
             {filteredTournaments.map((t) => {
               const isFree = t.entry_type === 'FREE' || t.fee === 0;
               const bookedCount = t.registrations?.length || 0;
               const maxSlots = Number(t.total_slots || 25);
               const minSlots = Number(t.minimum_slots_required || maxSlots);
               const isMinReached = bookedCount >= minSlots;
+
+              // NEW: Progress Bar Calculations
+              const fillPercentage = Math.min(100, Math.max(0, (bookedCount / maxSlots) * 100));
+              const spotsLeft = Math.max(0, maxSlots - bookedCount);
 
               const winnerCount = t.total_winners || (t.prize_breakdown?.length > 0 ? t.prize_breakdown.length : 2);
               const activePrizes = t.prize_breakdown?.length > 0 
@@ -341,7 +346,7 @@ export default function TournamentsPage() {
               
               const totalPrizePool = activePrizes.reduce((a: number, b: number) => a + Number(b), 0);
               
-              const isTimePassed = t.registration_closing_time && currentTime ? currentTime > new Date(t.registration_closing_time).getTime() : false;
+              const isTimePassed = t.registration_closing_time && currentTime > new Date(t.registration_closing_time).getTime();
               const isUnderReview = t.status === 'UNDER REVIEW';
               const isMinFailed = isTimePassed && !isMinReached; 
               
@@ -359,10 +364,12 @@ export default function TournamentsPage() {
               return (
                 <div key={t.id} className={`bg-zinc-900 border ${isClosed ? 'border-red-900/30' : 'border-zinc-800'} rounded-xl overflow-hidden group hover:border-orange-500 transition-colors flex flex-col h-full shadow-lg relative`}>
                   
+                  {/* COMPACT IMAGE WRAPPER */}
                   <div className="h-28 md:h-40 overflow-hidden relative shrink-0">
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent z-10" />
                     <img src={t.map_img} alt={t.name} className={`w-full h-full object-cover transition-transform duration-500 ${isClosed ? 'grayscale opacity-50' : 'group-hover:scale-110'}`} />
                     
+                    {/* FREE ENTRY BADGE */}
                     {isFree && (
                       <span className="absolute top-2 left-2 z-20 bg-emerald-500 text-black font-black text-[8px] md:text-[10px] uppercase px-2 py-0.5 rounded shadow-lg">
                         FREE ENTRY
@@ -379,9 +386,11 @@ export default function TournamentsPage() {
                     <h3 className="absolute bottom-2 left-3 z-20 font-black italic text-sm md:text-xl tracking-wider text-white drop-shadow-md truncate w-[90%]">{t.name}</h3>
                   </div>
 
+                  {/* COMPACT CONTENT WRAPPER */}
                   <div className="p-2.5 md:p-4 space-y-2.5 flex-1 flex flex-col justify-between">
                     <div className="space-y-2.5">
                       
+                      {/* 1. MATCH DETAILS */}
                       <div className="flex flex-wrap items-center gap-1.5 text-[8px] md:text-xs font-bold">
                         <span className="border border-orange-500/30 bg-orange-500/10 text-orange-500 px-1.5 py-0.5 rounded flex items-center gap-0.5"><Users className="w-2.5 h-2.5 shrink-0" /> {t.type}</span>
                         <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-1.5 py-0.5 rounded">{t.perspective}</span>
@@ -391,6 +400,7 @@ export default function TournamentsPage() {
                         </span>
                       </div>
 
+                      {/* 2. PRIZE POOL */}
                       <div className="bg-gradient-to-r from-orange-500/15 via-zinc-950 to-zinc-950 border border-orange-500/30 p-2 md:p-3 rounded-lg flex justify-between items-center shadow-inner">
                         <div>
                           <p className="text-[8px] md:text-[9px] font-black uppercase text-orange-400 tracking-wider">Total Prize</p>
@@ -402,6 +412,7 @@ export default function TournamentsPage() {
                         </div>
                       </div>
 
+                      {/* 3. ENTRY FEE & COUNTDOWN GRID */}
                       <div className="flex gap-1.5">
                         <div className="flex-1 bg-zinc-950 p-1.5 md:p-2.5 rounded border border-zinc-800/80 flex flex-col justify-center min-w-0">
                           <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider truncate">Entry</p>
@@ -413,21 +424,34 @@ export default function TournamentsPage() {
                         </div>
                       </div>
 
-                      <div className="bg-zinc-950 p-1.5 md:p-2.5 rounded border border-zinc-800/80 flex justify-between items-center min-w-0">
-                         <div className="min-w-0 pr-1">
-                           <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider truncate">Slots Booked</p>
-                           <p className="text-xs md:text-sm font-black text-white">{bookedCount} <span className="text-zinc-500 text-[10px]">/ {t.total_slots}</span></p>
-                         </div>
-                         <div className="text-right flex flex-col items-end shrink-0">
-                           <p className={`text-[8px] md:text-[9px] font-black uppercase flex items-center gap-0.5 ${isMinReached ? 'text-emerald-500' : 'text-amber-500'}`}>
-                              {isMinReached ? <CheckCircle2 className="w-2.5 h-2.5 shrink-0"/> : <AlertCircle className="w-2.5 h-2.5 shrink-0"/>}
-                              {isMinReached ? 'Confirmed' : `Min ${minSlots}`}
-                           </p>
-                         </div>
+                      {/* 4. UNIVERSAL SLOTS BOOKED WITH PROGRESS BAR */}
+                      <div className="bg-zinc-950 p-2 md:p-3 rounded border border-zinc-800/80 flex flex-col gap-2 min-w-0">
+                        <div className="flex justify-between items-center w-full">
+                           <div className="min-w-0 pr-1">
+                             <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider truncate">Slots Booked</p>
+                             <p className="text-xs md:text-sm font-black text-white">{bookedCount} <span className="text-zinc-500 text-[10px]">/ {t.total_slots}</span></p>
+                           </div>
+                           <div className="text-right flex flex-col items-end shrink-0">
+                             <p className={`text-[8px] md:text-[9px] font-black uppercase flex items-center gap-0.5 ${isMinReached ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                {isMinReached ? <CheckCircle2 className="w-2.5 h-2.5 shrink-0"/> : <AlertCircle className="w-2.5 h-2.5 shrink-0"/>}
+                                {isMinReached ? 'Confirmed' : `Min ${minSlots}`}
+                             </p>
+                           </div>
+                        </div>
+                        {/* PROGRESS BAR ROW */}
+                        <div className="w-full">
+                          <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+                            <div className={`h-full transition-all duration-500 ${spotsLeft === 0 ? 'bg-red-500' : 'bg-orange-500'}`} style={{ width: `${fillPercentage}%` }} />
+                          </div>
+                          <p className="text-[8px] md:text-[9px] font-bold mt-1.5 uppercase tracking-wider text-right">
+                            {spotsLeft === 0 ? <span className="text-red-500">SOLD OUT</span> : <span className="text-zinc-400">{spotsLeft} Spots Left</span>}
+                          </p>
+                        </div>
                       </div>
 
                     </div>
 
+                    {/* 5. ACTIONS */}
                     <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-zinc-800/80 mt-auto">
                       <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-1.5 md:py-2.5 rounded-lg text-[9px] md:text-[10px] transition-colors border border-zinc-700 flex items-center justify-center min-h-[32px] md:min-h-[40px]">
                         DETAILS
