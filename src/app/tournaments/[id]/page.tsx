@@ -94,20 +94,6 @@ export default function TournamentDetailPage() {
     setShowModal(true);
   };
 
-  // --- NEW: ADMIN NOTIFICATION HELPER ---
-  const notifyAdmin = async (type: string, message: string, amount: number | null = null) => {
-    try {
-      await supabase.from('admin_notifications').insert([{
-        type,
-        message,
-        player_name: user?.email || team.p1_ign || 'Unknown Player',
-        amount
-      }]);
-    } catch (err) {
-      console.error("Admin notification failed silently", err);
-    }
-  };
-
   const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSlot) return alert("Please select a drop slot!");
@@ -121,71 +107,29 @@ export default function TournamentDetailPage() {
 
     setIsSubmitting(true);
     try {
-      if (tournament.status === 'FULL' || tournament.status === 'COMPLETED' || tournament.status === 'CANCELLED' || tournament.status === 'UNDER REVIEW') {
-        alert(`REGISTRATION FAILED: This match is currently ${tournament.status}.`);
-        setIsSubmitting(false);
-        setShowModal(false);
-        return;
-      }
+      const res = await fetch('/api/tournaments/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tournamentId: tournament.id,
+          userId: user.id,
+          userEmail: user.email,
+          selectedSlot,
+          team
+        })
+      });
 
-      if (tournament.registration_closing_time) {
-        const trueServerTime = await getServerTime();
-        const closingTime = new Date(tournament.registration_closing_time).getTime();
-        
-        if (trueServerTime >= closingTime) {
-          alert("REGISTRATION FAILED: The registration window for this match has officially closed.");
-          setIsSubmitting(false);
-          setShowModal(false);
-          return;
-        }
-      }
-
-      const playerCount = tournament.type === 'SOLO' ? 1 : tournament.type === 'DUO' ? 2 : 4;
-      const uniqueWalletTxId = `WALLET_tx_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-
-      const { error: regError } = await supabase.from('registrations').insert([{
-        tournament_id: tournament.id, 
-        user_id: user.id, 
-        squad_name: team.p1_ign + "'s Squad", 
-        igl_email: user.email,
-        player_1_id: team.p1_id, 
-        player_1_ign: team.p1_ign, 
-        player_2_id: playerCount >= 2 ? team.p2_id : null, 
-        player_2_ign: playerCount >= 2 ? team.p2_ign : null,
-        player_3_id: playerCount >= 4 ? team.p3_id : null, 
-        player_3_ign: playerCount >= 4 ? team.p3_ign : null,
-        player_4_id: playerCount >= 4 ? team.p4_id : null, 
-        player_4_ign: playerCount >= 4 ? team.p4_ign : null,
-        utr_number: isFree ? `FREE_ENTRY_${Date.now()}` : uniqueWalletTxId, 
-        payment_status: 'Verified', 
-        slot_number: selectedSlot
-      }]);
-
-      if (regError) throw regError;
-
-      // --- PAID TOURNAMENT WALLET DEDUCTION (Bypassed if Free) ---
-      if (!isFree) {
-        const newBalance = walletBalance - tournament.fee;
-        const { error: walletError } = await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', user.id);
-
-        if (walletError) {
-          await supabase.from('registrations').delete().eq('tournament_id', tournament.id).eq('slot_number', selectedSlot);
-          throw new Error("Wallet deduction failed. Registration cancelled.");
-        }
-
-        await supabase.from('transactions').insert([{
-          user_id: user.id, type: 'TOURNAMENT_FEE', amount: tournament.fee, status: 'SUCCESS', description: `Entry fee for ${tournament.name} (Slot ${selectedSlot})`
-        }]);
-
-        setWalletBalance(newBalance);
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
 
       alert("Slot Booked Successfully!");
       setShowModal(false);
-      
-      // --- NEW: TRIGGER NOTIFICATION ---
-      await notifyAdmin('SLOT_BOOKING', `New Slot Booking: ${tournament.name} (Slot S${selectedSlot})`, isFree ? 0 : tournament.fee);
+      setTeam({ p1_ign: '', p1_id: '', p2_ign: '', p2_id: '', p3_ign: '', p3_id: '', p4_ign: '', p4_id: '' });
 
+      // Refresh component states
+      const { data: wallet } = await supabase.from('wallets').select('balance').eq('user_id', user.id).single();
+      if (wallet) setWalletBalance(wallet.balance);
+      
       const { data: regData } = await supabase.from('registrations').select('*').eq('tournament_id', id);
       if (regData) setRegistrations(regData);
 
@@ -210,6 +154,7 @@ export default function TournamentDetailPage() {
     
     setIsUploadingResult(true);
     try {
+      // 1. Upload file securely to Supabase Storage
       const fileExt = resultFile.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `screenshots/${fileName}`;
@@ -219,20 +164,20 @@ export default function TournamentDetailPage() {
       
       const { data: publicUrlData } = supabase.storage.from('match-results').getPublicUrl(filePath);
 
-      if (myResult) {
-        await supabase.from('match_results').update({ 
-          image_url: publicUrlData.publicUrl, 
-          status: 'PENDING', 
-          admin_note: null 
-        }).eq('id', myResult.id);
-      } else {
-        await supabase.from('match_results').insert([{
-          tournament_id: tournament.id,
-          registration_id: myRegistration.id,
-          user_id: user.id,
-          image_url: publicUrlData.publicUrl
-        }]);
-      }
+      // 2. Send the URL to the secure backend API
+      const res = await fetch('/api/tournaments/submit-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tournamentId: tournament.id,
+          registrationId: myRegistration.id,
+          userId: user.id,
+          imageUrl: publicUrlData.publicUrl
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
 
       alert("Result submitted successfully! Our admins will review it shortly.");
       setShowResultModal(false);
