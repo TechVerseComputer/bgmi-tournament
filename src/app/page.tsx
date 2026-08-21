@@ -537,7 +537,7 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-3">
             {latestTournaments.map((t) => {
               const stats = getTournamentStats(t);
 
@@ -562,76 +562,77 @@ export default function Home() {
               return (
                 <article
                   key={t.id}
-                  className={`group flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border bg-[#0b0d10] shadow-[0_10px_30px_rgba(0,0,0,0.18)] transition-all duration-300 ${
+                  className={`group flex h-full min-w-0 flex-col overflow-hidden rounded-xl border bg-[#0a0c0f] transition-all duration-300 sm:rounded-2xl ${
                     stats.isClosed
-                      ? 'border-white/[0.06]'
-                      : 'border-white/[0.09] hover:-translate-y-1 hover:border-orange-500/35 hover:shadow-[0_18px_45px_rgba(0,0,0,0.35)]'
+                      ? 'border-white/[0.07]'
+                      : 'border-white/[0.09] hover:-translate-y-1 hover:border-orange-500/35 hover:shadow-[0_18px_50px_rgba(0,0,0,0.35)]'
                   }`}
                 >
-                  {/* Tournament artwork */}
-                  <div className="relative h-24 overflow-hidden sm:h-36 lg:h-40">
+                  {/* Artwork */}
+                  <div className="relative h-[104px] overflow-hidden sm:h-40 lg:h-44">
                     <img
                       src={t.map_img}
                       alt={t.name}
                       className={`h-full w-full object-cover transition-transform duration-700 ${
                         stats.isClosed
                           ? 'grayscale opacity-55'
-                          : 'group-hover:scale-105'
+                          : 'group-hover:scale-[1.04]'
                       }`}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0b0d10] via-black/20 to-black/25" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0a0c0f] via-black/15 to-black/20" />
 
-                    {stats.isFree && (
-                      <span className="absolute left-2 top-2 rounded-md bg-emerald-500 px-2 py-1 text-[7px] font-black uppercase tracking-wider text-black sm:left-3 sm:top-3 sm:text-[8px]">
-                        Free Entry
+                    <div className="absolute left-2 top-2 flex max-w-[calc(100%-16px)] items-center gap-1.5 sm:left-3 sm:top-3">
+                      {stats.isFree && (
+                        <span className="rounded-md bg-emerald-500 px-1.5 py-1 text-[6px] font-black uppercase tracking-wider text-black sm:px-2 sm:text-[8px]">
+                          Free
+                        </span>
+                      )}
+                      <span
+                        className={`truncate rounded-md border px-1.5 py-1 text-[6px] font-black uppercase tracking-wider backdrop-blur-md sm:px-2 sm:text-[8px] ${
+                          stats.displayStatus === 'MATCH CONFIRMED'
+                            ? 'border-emerald-400/25 bg-emerald-500/90 text-black'
+                            : stats.displayStatus === 'OPEN FOR PLAYERS'
+                              ? 'border-orange-400/20 bg-black/65 text-orange-300'
+                              : 'border-white/10 bg-black/65 text-zinc-300'
+                        }`}
+                      >
+                        {stats.displayStatus}
                       </span>
-                    )}
+                    </div>
 
-                    <span
-                      className={`absolute right-2 top-2 rounded-md border px-2 py-1 text-[7px] font-black uppercase tracking-wider backdrop-blur-md sm:right-3 sm:top-3 sm:text-[8px] ${
-                        stats.displayStatus === 'MATCH CONFIRMED'
-                          ? 'border-emerald-400/30 bg-emerald-500/90 text-black'
-                          : stats.displayStatus === 'OPEN FOR PLAYERS'
-                            ? 'border-orange-400/20 bg-black/65 text-orange-300'
-                            : 'border-white/10 bg-black/65 text-zinc-300'
-                      }`}
-                    >
-                      {stats.displayStatus}
-                    </span>
-
-                    <div className="absolute bottom-2 left-3 right-3 sm:bottom-3 sm:left-4 sm:right-4">
-                      <h3 className="truncate text-sm font-black uppercase tracking-tight text-white sm:text-lg">
+                    <div className="absolute bottom-2 left-2.5 right-2.5 sm:bottom-3 sm:left-4 sm:right-4">
+                      <h3 className="truncate text-sm font-black uppercase tracking-tight text-white sm:text-xl">
                         {t.name}
                       </h3>
                     </div>
                   </div>
 
-                  <div className="flex flex-1 flex-col p-2.5 sm:p-4">
-                    {/* Primary schedule — deliberately the strongest information */}
-                    <div className="rounded-xl border border-orange-500/20 bg-orange-500/[0.055] p-2.5 sm:p-3.5">
-                      <div className="flex items-start justify-between gap-2">
+                  {/* Information */}
+                  <div className="flex flex-1 flex-col">
+                    {/* Schedule: the player's first question */}
+                    <div className="border-b border-white/[0.07] px-2.5 py-2.5 sm:px-4 sm:py-3.5">
+                      <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="flex items-center gap-1.5 text-[7px] font-black uppercase tracking-[0.16em] text-orange-400 sm:text-[9px]">
-                            <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                          <p className="text-[7px] font-black uppercase tracking-[0.16em] text-orange-400 sm:text-[9px]">
                             Match Schedule
                           </p>
-                          <p className="mt-1 text-xs font-bold text-zinc-200 sm:text-sm">
-                            {matchDate}
+                          <p className="mt-1 truncate text-[11px] font-bold text-zinc-300 sm:text-sm">
+                            {matchDate} · IST
                           </p>
-                          <p className="mt-0.5 text-lg font-black leading-none text-white sm:text-2xl">
+                          <p className="mt-0.5 truncate text-base font-black leading-none text-white sm:text-2xl">
                             {matchTime}
                           </p>
                         </div>
 
-                        <div className="shrink-0 rounded-lg border border-white/[0.08] bg-black/25 px-2 py-1.5 text-right">
+                        <div className="shrink-0 text-right">
                           <p className="text-[6px] font-black uppercase tracking-widest text-zinc-600 sm:text-[7px]">
                             Match
                           </p>
-                          <p className="mt-0.5 text-[9px] font-black uppercase text-orange-300 sm:text-[10px]">
+                          <p className="mt-0.5 text-[9px] font-black uppercase text-orange-300 sm:text-sm">
                             {t.type || 'MATCH'}
                           </p>
                           {t.perspective && (
-                            <p className="mt-0.5 text-[7px] font-bold uppercase text-zinc-500 sm:text-[8px]">
+                            <p className="mt-0.5 text-[7px] font-bold uppercase tracking-wider text-zinc-500 sm:text-[8px]">
                               {t.perspective}
                             </p>
                           )}
@@ -639,32 +640,32 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Core information — each value appears only once */}
-                    <div className="mt-2 grid grid-cols-2 overflow-hidden rounded-xl border border-white/[0.07] bg-black/20">
-                      <div className="border-b border-white/[0.06] px-2.5 py-2.5 sm:px-3 sm:py-3">
-                        <p className="text-[7px] font-black uppercase tracking-widest text-zinc-600 sm:text-[8px]">
+                    {/* Core facts: four values, each shown once */}
+                    <div className="grid grid-cols-2 border-b border-white/[0.07]">
+                      <div className="border-b border-white/[0.06] px-2.5 py-2.5 sm:px-4 sm:py-3">
+                        <p className="text-[6px] font-black uppercase tracking-widest text-zinc-600 sm:text-[8px]">
                           Prize Pool
                         </p>
-                        <p className="mt-1 text-sm font-black text-emerald-400 sm:text-base">
+                        <p className="mt-1 text-sm font-black text-emerald-400 sm:text-lg">
                           ₹{stats.totalPrizePool}
                         </p>
                       </div>
 
-                      <div className="border-b border-l border-white/[0.06] px-2.5 py-2.5 sm:px-3 sm:py-3">
-                        <p className="text-[7px] font-black uppercase tracking-widest text-zinc-600 sm:text-[8px]">
+                      <div className="border-b border-l border-white/[0.06] px-2.5 py-2.5 sm:px-4 sm:py-3">
+                        <p className="text-[6px] font-black uppercase tracking-widest text-zinc-600 sm:text-[8px]">
                           1st Prize
                         </p>
-                        <p className="mt-1 text-sm font-black text-amber-300 sm:text-base">
+                        <p className="mt-1 text-sm font-black text-amber-300 sm:text-lg">
                           ₹{stats.activePrizes[0] || 0}
                         </p>
                       </div>
 
-                      <div className="px-2.5 py-2.5 sm:px-3 sm:py-3">
-                        <p className="text-[7px] font-black uppercase tracking-widest text-zinc-600 sm:text-[8px]">
-                          Entry Fee
+                      <div className="px-2.5 py-2.5 sm:px-4 sm:py-3">
+                        <p className="text-[6px] font-black uppercase tracking-widest text-zinc-600 sm:text-[8px]">
+                          Entry
                         </p>
                         <p
-                          className={`mt-1 text-sm font-black sm:text-base ${
+                          className={`mt-1 text-sm font-black sm:text-lg ${
                             stats.isFree ? 'text-emerald-400' : 'text-orange-400'
                           }`}
                         >
@@ -672,34 +673,34 @@ export default function Home() {
                         </p>
                       </div>
 
-                      <div className="border-l border-white/[0.06] px-2.5 py-2.5 sm:px-3 sm:py-3">
-                        <p className="text-[7px] font-black uppercase tracking-widest text-zinc-600 sm:text-[8px]">
+                      <div className="border-l border-white/[0.06] px-2.5 py-2.5 sm:px-4 sm:py-3">
+                        <p className="text-[6px] font-black uppercase tracking-widest text-zinc-600 sm:text-[8px]">
                           Slots
                         </p>
-                        <p className="mt-1 text-sm font-black text-white sm:text-base">
+                        <p className="mt-1 text-sm font-black text-white sm:text-lg">
                           {stats.bookedCount}/{stats.maxSlots}
                         </p>
                       </div>
                     </div>
 
-                    {/* Registration state */}
-                    <div className="mt-2 rounded-xl border border-white/[0.07] bg-white/[0.02] p-2.5 sm:p-3">
+                    {/* Availability: compact, useful, not another large panel */}
+                    <div className="px-2.5 py-2.5 sm:px-4 sm:py-3">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-[7px] font-black uppercase tracking-widest text-zinc-500 sm:text-[8px]">
-                          {stats.isClosed ? 'Registration Status' : 'Registration Closes'}
+                        <p className="text-[7px] font-black uppercase tracking-wider text-zinc-500 sm:text-[8px]">
+                          {stats.isClosed ? 'Registration' : 'Closes in'}
                         </p>
                         <p
                           className={`text-[8px] font-black uppercase tracking-wider sm:text-[9px] ${
                             stats.isClosed ? 'text-red-400' : 'text-orange-400'
                           }`}
                         >
-                          {stats.isClosed ? 'CLOSED' : stats.countdown || 'OPEN'}
+                          {stats.isClosed ? 'Closed' : stats.countdown || 'Open'}
                         </p>
                       </div>
 
-                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+                      <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.08] sm:h-1.5">
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${
+                          className={`h-full rounded-full ${
                             stats.spotsLeft === 0 ? 'bg-red-500' : 'bg-orange-500'
                           }`}
                           style={{ width: `${stats.fillPercentage}%` }}
@@ -708,15 +709,15 @@ export default function Home() {
 
                       <div className="mt-1.5 flex items-center justify-between gap-2">
                         <p
-                          className={`text-[7px] font-black uppercase tracking-wider sm:text-[8px] ${
+                          className={`truncate text-[7px] font-black uppercase tracking-wider sm:text-[8px] ${
                             stats.isMinReached ? 'text-emerald-400' : 'text-amber-400'
                           }`}
                         >
                           {stats.isMinReached
                             ? 'Match Confirmed'
-                            : `Minimum ${stats.minSlots} Players`}
+                            : `Min ${stats.minSlots} Players`}
                         </p>
-                        <p className="text-[7px] font-black uppercase tracking-wider text-zinc-500 sm:text-[8px]">
+                        <p className="shrink-0 text-[7px] font-black uppercase tracking-wider text-zinc-500 sm:text-[8px]">
                           {stats.spotsLeft === 0
                             ? 'Sold Out'
                             : `${stats.spotsLeft} Spots Left`}
@@ -725,10 +726,10 @@ export default function Home() {
                     </div>
 
                     {/* Actions */}
-                    <div className="mt-2 grid grid-cols-2 gap-2 sm:mt-3">
+                    <div className="mt-auto grid grid-cols-2 gap-1.5 border-t border-white/[0.07] p-2.5 sm:gap-2 sm:p-3">
                       <Link
                         href={`/tournaments/${t.id}`}
-                        className="inline-flex min-h-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] px-2 text-[8px] font-black uppercase tracking-widest text-zinc-200 transition-colors hover:bg-white/[0.08] sm:min-h-10 sm:text-[9px]"
+                        className="inline-flex min-h-9 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.035] px-2 text-[7px] font-black uppercase tracking-widest text-zinc-200 transition-colors hover:bg-white/[0.08] sm:min-h-10 sm:rounded-xl sm:text-[9px]"
                       >
                         Details
                       </Link>
@@ -736,14 +737,14 @@ export default function Home() {
                       {stats.isClosed ? (
                         <button
                           disabled
-                          className="min-h-9 cursor-not-allowed rounded-xl border border-white/[0.06] bg-white/[0.025] px-2 text-[8px] font-black uppercase tracking-widest text-zinc-600 sm:min-h-10 sm:text-[9px]"
+                          className="min-h-9 cursor-not-allowed rounded-lg border border-white/[0.06] bg-white/[0.02] px-2 text-[7px] font-black uppercase tracking-widest text-zinc-600 sm:min-h-10 sm:rounded-xl sm:text-[9px]"
                         >
                           Closed
                         </button>
                       ) : (
                         <Link
                           href={`/tournaments/${t.id}`}
-                          className={`inline-flex min-h-9 items-center justify-center gap-1 rounded-xl px-2 text-[8px] font-black uppercase tracking-widest transition-colors sm:min-h-10 sm:text-[9px] ${
+                          className={`inline-flex min-h-9 items-center justify-center gap-1 rounded-lg px-2 text-[7px] font-black uppercase tracking-widest transition-colors sm:min-h-10 sm:rounded-xl sm:text-[9px] ${
                             stats.isFree
                               ? 'bg-emerald-500 text-black hover:bg-emerald-400'
                               : 'bg-orange-500 text-black hover:bg-orange-400'
