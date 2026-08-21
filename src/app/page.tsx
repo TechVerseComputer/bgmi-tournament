@@ -10,7 +10,6 @@ import {
   Zap,
   Trophy,
   Headphones,
-  Flame,
   Timer,
   Gamepad2,
   FileText,
@@ -23,6 +22,7 @@ import {
   Swords,
   Crosshair,
   Smartphone,
+  Download,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
@@ -42,6 +42,8 @@ export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [currentTime, setCurrentTime] = useState<number>(Date.now());
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<any>(null);
+  const [isAppInstalled, setIsAppInstalled] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -118,6 +120,23 @@ export default function Home() {
 
     initPage();
 
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setDeferredInstallPrompt(event);
+    };
+
+    const handleAppInstalled = () => {
+      setIsAppInstalled(true);
+      setDeferredInstallPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsAppInstalled(true);
+    }
+
     const slideInterval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % heroImages.length);
     }, 4500);
@@ -130,8 +149,23 @@ export default function Home() {
     return () => {
       clearInterval(slideInterval);
       clearInterval(timeInterval);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredInstallPrompt) {
+      return;
+    }
+
+    try {
+      await deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+    } finally {
+      setDeferredInstallPrompt(null);
+    }
+  };
 
   const formatCountdown = (closingTime: string) => {
     if (!closingTime || !currentTime) return null;
@@ -278,22 +312,48 @@ export default function Home() {
             place.
           </p>
 
-          <div className="mt-8 flex w-full max-w-xl flex-col gap-3 sm:flex-row sm:justify-center">
+          <div className="mt-8 flex w-full max-w-2xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
             <Link
               href="/tournaments"
-              className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500 px-6 py-3.5 text-sm font-black uppercase tracking-widest text-black shadow-[0_12px_35px_rgba(249,115,22,0.22)] transition-all hover:bg-orange-400 hover:-translate-y-0.5"
+              className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3.5 text-xs font-black uppercase tracking-widest text-black shadow-[0_12px_35px_rgba(249,115,22,0.22)] transition-all hover:-translate-y-0.5 hover:bg-orange-400 sm:text-sm"
             >
-              <Swords className="h-5 w-5" />
+              <Swords className="h-4 w-4 sm:h-5 sm:w-5" />
               Find a Tournament
             </Link>
 
             <Link
               href="/how-to-play"
-              className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-6 py-3.5 text-sm font-black uppercase tracking-widest text-white backdrop-blur-md transition-all hover:border-white/20 hover:bg-white/[0.1]"
+              className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-5 py-3.5 text-xs font-black uppercase tracking-widest text-white backdrop-blur-md transition-all hover:border-white/20 hover:bg-white/[0.1] sm:text-sm"
             >
               How It Works
               <ArrowRight className="h-4 w-4" />
             </Link>
+
+            <button
+              type="button"
+              onClick={handleInstallApp}
+              disabled={!deferredInstallPrompt || isAppInstalled}
+              aria-label={isAppInstalled ? 'BGMI Arena is installed' : 'Install BGMI Arena app'}
+              title={
+                isAppInstalled
+                  ? 'BGMI Arena is already installed'
+                  : deferredInstallPrompt
+                    ? 'Install BGMI Arena'
+                    : 'Install option appears when your browser supports PWA installation'
+              }
+              className={`inline-flex min-h-12 min-w-12 items-center justify-center rounded-xl border px-4 transition-all sm:px-3 ${
+                isAppInstalled
+                  ? 'cursor-default border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                  : deferredInstallPrompt
+                    ? 'border-orange-500/25 bg-orange-500/10 text-orange-300 hover:-translate-y-0.5 hover:border-orange-400/50 hover:bg-orange-500/15'
+                    : 'cursor-not-allowed border-white/10 bg-white/[0.04] text-zinc-600'
+              }`}
+            >
+              <Download className="h-4 w-4" />
+              <span className="sr-only">
+                {isAppInstalled ? 'Installed' : 'Install App'}
+              </span>
+            </button>
           </div>
 
           {/* Live data snapshot — only based on tournaments already loaded */}
@@ -315,7 +375,7 @@ export default function Home() {
               </p>
             </div>
             <div className="px-3 py-4 sm:px-6">
-              <p className="text-lg font-black text-emerald-400 sm:text-2xl">
+              <p className="text-base font-black text-emerald-400 sm:text-2xl">
                 {totalFeaturedPlayers}
               </p>
               <p className="mt-1 text-[8px] font-bold uppercase tracking-widest text-zinc-500 sm:text-[10px]">
@@ -477,7 +537,7 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {latestTournaments.map((t) => {
               const stats = getTournamentStats(t);
 
@@ -490,7 +550,7 @@ export default function Home() {
                       : 'border-white/[0.08] hover:-translate-y-1 hover:border-orange-500/35 hover:shadow-[0_18px_45px_rgba(0,0,0,0.35)]'
                   }`}
                 >
-                  <div className="relative h-48 overflow-hidden sm:h-52">
+                  <div className="relative h-36 overflow-hidden sm:h-44 lg:h-48">
                     <img
                       src={t.map_img}
                       alt={t.name}
@@ -521,14 +581,31 @@ export default function Home() {
                     </span>
 
                     <div className="absolute bottom-3 left-4 right-4">
-                      <h3 className="truncate text-xl font-black uppercase tracking-tight text-white sm:text-2xl">
+                      <h3 className="truncate text-lg font-black uppercase tracking-tight text-white sm:text-xl">
                         {t.name}
                       </h3>
                     </div>
                   </div>
 
-                  <div className="flex flex-1 flex-col p-4 sm:p-5">
-                    <div className="flex flex-wrap items-center gap-2 text-[9px] font-black uppercase tracking-wider">
+                  <div className="flex flex-1 flex-col p-3 sm:p-4">
+                    <div className="mb-3 grid grid-cols-3 overflow-hidden rounded-xl border border-white/[0.07] bg-black/30">
+                      <div className="px-2 py-2">
+                        <p className="text-[7px] font-black uppercase tracking-widest text-zinc-600">Prize</p>
+                        <p className="mt-0.5 text-xs font-black text-emerald-400">₹{stats.totalPrizePool}</p>
+                      </div>
+                      <div className="border-x border-white/[0.06] px-2 py-2">
+                        <p className="text-[7px] font-black uppercase tracking-widest text-zinc-600">Entry</p>
+                        <p className={`mt-0.5 text-xs font-black ${stats.isFree ? 'text-emerald-400' : 'text-orange-400'}`}>
+                          {stats.isFree ? 'FREE' : `₹${t.fee}`}
+                        </p>
+                      </div>
+                      <div className="px-2 py-2">
+                        <p className="text-[7px] font-black uppercase tracking-widest text-zinc-600">Slots</p>
+                        <p className="mt-0.5 text-xs font-black text-white">{stats.bookedCount}/{stats.maxSlots}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 text-[8px] font-black uppercase tracking-wider">
                       <span className="inline-flex items-center gap-1 rounded-md border border-orange-500/20 bg-orange-500/[0.07] px-2 py-1 text-orange-400">
                         <Users className="h-3 w-3" />
                         {t.type}
@@ -550,21 +627,21 @@ export default function Home() {
                       </span>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3">
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-2.5 sm:p-3">
                         <p className="text-[8px] font-black uppercase tracking-widest text-zinc-500">
                           Prize Pool
                         </p>
-                        <p className="mt-1 text-lg font-black text-emerald-400">
+                        <p className="mt-1 text-base font-black text-emerald-400">
                           ₹{stats.totalPrizePool}
                         </p>
                       </div>
 
-                      <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3">
+                      <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-2.5 sm:p-3">
                         <p className="text-[8px] font-black uppercase tracking-widest text-zinc-500">
                           1st Place
                         </p>
-                        <p className="mt-1 text-lg font-black text-amber-300">
+                        <p className="mt-1 text-base font-black text-amber-300">
                           ₹{stats.activePrizes[0] || 0}
                         </p>
                       </div>
@@ -666,7 +743,7 @@ export default function Home() {
                       </p>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-2">
+                    <div className="mt-3 grid grid-cols-2 gap-2">
                       <Link
                         href={`/tournaments/${t.id}`}
                         className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-[9px] font-black uppercase tracking-widest text-zinc-200 transition-colors hover:bg-white/[0.08]"
@@ -764,14 +841,14 @@ export default function Home() {
 
       {/* HOW IT WORKS */}
       <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6 md:py-20 lg:px-8">
-        <div className="text-center">
+        <div className="max-w-2xl">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-400">
             Simple Process
           </p>
           <h2 className="mt-2 text-3xl font-black uppercase tracking-[-0.03em] sm:text-4xl">
             How It Works
           </h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-zinc-500">
+          <p className="mt-3 max-w-xl text-sm leading-6 text-zinc-500">
             Four straightforward steps from account creation to your
             tournament result.
           </p>
@@ -980,13 +1057,35 @@ export default function Home() {
             </div>
           </div>
 
-          <Link
-            href="/how-to-play"
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-5 py-3 text-[10px] font-black uppercase tracking-widest text-white transition-colors hover:bg-white/[0.1]"
-          >
-            Learn More
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-44">
+            <button
+              type="button"
+              onClick={handleInstallApp}
+              disabled={!deferredInstallPrompt || isAppInstalled}
+              className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${
+                isAppInstalled
+                  ? 'cursor-default border border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                  : deferredInstallPrompt
+                    ? 'bg-orange-500 text-black hover:bg-orange-400'
+                    : 'border border-white/10 bg-white/[0.05] text-zinc-500'
+              }`}
+            >
+              <Download className="h-4 w-4" />
+              {isAppInstalled
+                ? 'App Installed'
+                : deferredInstallPrompt
+                  ? 'Install App'
+                  : 'Install Available in Browser'}
+            </button>
+
+            <Link
+              href="/how-to-play"
+              className="inline-flex items-center justify-center gap-1 text-[9px] font-black uppercase tracking-widest text-zinc-500 transition-colors hover:text-orange-400"
+            >
+              Installation Help
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
         </div>
       </section>
 
