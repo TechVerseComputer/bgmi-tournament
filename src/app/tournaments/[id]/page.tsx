@@ -33,7 +33,6 @@ export default function TournamentDetailPage() {
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // NEW: Stepper State
   const [bookingStep, setBookingStep] = useState(1);
   
   const [team, setTeam] = useState({ p1_ign: '', p1_id: '', p2_ign: '', p2_id: '', p3_ign: '', p3_id: '', p4_ign: '', p4_id: '' });
@@ -89,18 +88,27 @@ export default function TournamentDetailPage() {
     return `${h.toString().padStart(2, '0')}H ${m.toString().padStart(2, '0')}M ${s.toString().padStart(2, '0')}S`;
   };
 
+  // SECURE: Calculates if user is registered in this page's state
+  const myRegistration = user ? registrations.find(r => r.user_id === user.id) : null;
+
   const handleOpenModal = () => {
     if (!user) {
       alert("You must be logged in to join a match.");
       router.push('/dashboard');
       return;
     }
-    setBookingStep(1); // Reset to Step 1
+    
+    // SECURE: Double-check registration before opening modal
+    if (myRegistration) {
+      alert("You are already registered for this match.");
+      return;
+    }
+
+    setBookingStep(1);
     setSelectedSlot(null);
     setShowModal(true);
   };
 
-  // NEW: Validations for steps
   const handleNextToStep2 = () => {
     const type = tournament?.type || 'SQUAD';
     const numPlayers = type === 'SOLO' ? 1 : type === 'DUO' ? 2 : 4;
@@ -123,6 +131,13 @@ export default function TournamentDetailPage() {
     if (e) e.preventDefault();
     if (!selectedSlot) return alert("Please select a drop slot!");
     
+    // SECURE: Final frontend check to prevent duplicate submission
+    if (myRegistration) {
+      alert("You are already registered for this match.");
+      setShowModal(false);
+      return;
+    }
+
     const isFree = tournament.entry_type === 'FREE' || tournament.fee === 0;
     
     if (!isFree && walletBalance < tournament.fee) {
@@ -148,7 +163,7 @@ export default function TournamentDetailPage() {
 
       alert("Slot Booked Successfully!");
       setShowModal(false);
-      setBookingStep(1); // Reset
+      setBookingStep(1); 
       setTeam({ p1_ign: '', p1_id: '', p2_ign: '', p2_id: '', p3_ign: '', p3_id: '', p4_ign: '', p4_id: '' });
 
       const { data: wallet } = await supabase.from('wallets').select('balance').eq('user_id', user.id).single();
@@ -158,6 +173,12 @@ export default function TournamentDetailPage() {
       if (regData) setRegistrations(regData);
 
     } catch (error: any) { 
+      // If backend throws the 409 Duplicate Error, catch it cleanly
+      if (error.message.includes("already joined")) {
+        const { data: regData } = await supabase.from('registrations').select('*').eq('tournament_id', id);
+        if (regData) setRegistrations(regData);
+        setShowModal(false);
+      }
       alert("Error booking slot: " + error.message); 
     } finally { 
       setIsSubmitting(false); 
@@ -218,7 +239,6 @@ export default function TournamentDetailPage() {
   if (loading) return <div className="min-h-screen bg-[#0a0a0a] text-orange-500 font-bold flex items-center justify-center animate-pulse">Loading Match Details...</div>;
   if (!tournament) return <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center font-bold">Match not found.</div>;
 
-  // --- VARIABLES ---
   const isFree = tournament.entry_type === 'FREE' || tournament.fee === 0;
   const bookedSlotNumbers = registrations.map(r => r.slot_number).filter(s => s !== null);
   const bookedCount = registrations.length;
@@ -333,7 +353,6 @@ export default function TournamentDetailPage() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} remaining`;
   };
 
-  const myRegistration = user ? registrations.find(r => r.user_id === user.id) : null;
   const isMatchActiveOrCompleted = tournament.status === 'FULL' || tournament.status === 'COMPLETED' || isUnderReview;
 
   return (
@@ -539,11 +558,10 @@ export default function TournamentDetailPage() {
 
       {/* 3-Step Booking Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 backdrop-blur-sm overflow-y-auto">
           <div className="bg-[#111116] w-full max-w-2xl rounded-xl border border-zinc-800 relative my-8 overflow-hidden">
             <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-zinc-400 hover:text-white bg-zinc-900 p-2 rounded-full z-10"><X className="w-5 h-5"/></button>
             
-            {/* Modal Header */}
             <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
               <div className="pr-8">
                 <h2 className="text-xl font-black uppercase tracking-wide text-white truncate">{tournament.name}</h2>
@@ -554,8 +572,7 @@ export default function TournamentDetailPage() {
                 <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">Entry Fee</p>
               </div>
             </div>
-            
-            {/* Stepper Progress Indicator */}
+
             <div className="px-6 py-4 border-b border-zinc-800 bg-zinc-950 flex justify-between items-center text-[10px] sm:text-xs font-black uppercase tracking-widest">
               <div className={`flex flex-col items-center gap-1 ${bookingStep >= 1 ? 'text-orange-500' : 'text-zinc-600'}`}>
                 <span className={`w-6 h-6 rounded-full flex items-center justify-center border-2 ${bookingStep >= 1 ? 'border-orange-500 bg-orange-500/20' : 'border-zinc-700 bg-zinc-800'}`}>1</span>
@@ -572,10 +589,9 @@ export default function TournamentDetailPage() {
                 <span className="hidden sm:block">Review</span>
               </div>
             </div>
-
+            
             <div className="p-6 space-y-6">
               
-              {/* STEP 1: Player Details */}
               {bookingStep === 1 && (
                 <div className="space-y-4 animate-fadeIn">
                   <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-2">Squad Details</h3>
@@ -597,7 +613,6 @@ export default function TournamentDetailPage() {
                 </div>
               )}
 
-              {/* STEP 2: Choose Slot */}
               {bookingStep === 2 && (
                 <div className="space-y-4 animate-fadeIn">
                   <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-2">Choose Drop Slot</h3>
@@ -619,7 +634,6 @@ export default function TournamentDetailPage() {
                 </div>
               )}
 
-              {/* STEP 3: Review & Confirm */}
               {bookingStep === 3 && (
                 <div className="space-y-6 animate-fadeIn">
                   <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-2">Review & Confirm</h3>
