@@ -38,12 +38,14 @@ export default function TournamentsPage() {
   const [user, setUser] = useState<any>(null);
   const [walletBalance, setWalletBalance] = useState(0);
   
+  // SECURE: Track which tournaments the user has already joined
+  const [myRegisteredTourneyIds, setMyRegisteredTourneyIds] = useState<Set<string>>(new Set());
+  
   const [selectedMatch, setSelectedMatch] = useState<any>(null);
   const [bookedSlots, setBookedSlots] = useState<number[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // NEW: Stepper State
   const [bookingStep, setBookingStep] = useState(1);
   
   const [team, setTeam] = useState({ p1_ign: '', p1_id: '', p2_ign: '', p2_id: '', p3_ign: '', p3_id: '', p4_ign: '', p4_id: '' });
@@ -71,6 +73,12 @@ export default function TournamentsPage() {
         setUser(session.user);
         const { data: wallet } = await supabase.from('wallets').select('balance').eq('user_id', session.user.id).single();
         if (wallet) setWalletBalance(wallet.balance);
+        
+        // SECURE: Fetch user's existing registrations to block duplicate joins on the UI
+        const { data: myRegs } = await supabase.from('registrations').select('tournament_id').eq('user_id', session.user.id);
+        if (myRegs) {
+          setMyRegisteredTourneyIds(new Set(myRegs.map(r => r.tournament_id)));
+        }
       }
       setLoading(false);
     };
@@ -116,14 +124,20 @@ export default function TournamentsPage() {
       router.push('/dashboard');
       return;
     }
+    
+    // SECURE: Double-check registration before opening modal
+    if (myRegisteredTourneyIds.has(match.id)) {
+      alert("You are already registered for this tournament.");
+      return;
+    }
+
     setSelectedMatch(match);
     setSelectedSlot(null);
-    setBookingStep(1); // Reset to Step 1
+    setBookingStep(1);
     const { data: regs } = await supabase.from('registrations').select('slot_number').eq('tournament_id', match.id);
     if (regs) setBookedSlots(regs.map(r => r.slot_number).filter(s => s !== null));
   };
 
-  // NEW: Validations for steps
   const handleNextToStep2 = () => {
     const type = selectedMatch?.type || 'SQUAD';
     const numPlayers = type === 'SOLO' ? 1 : type === 'DUO' ? 2 : 4;
@@ -146,6 +160,13 @@ export default function TournamentsPage() {
     if (e) e.preventDefault();
     if (!selectedSlot) return alert("Please select a drop slot!");
     
+    // SECURE: Final frontend check to prevent duplicate submission
+    if (myRegisteredTourneyIds.has(selectedMatch.id)) {
+      alert("You are already registered for this tournament.");
+      setSelectedMatch(null);
+      return;
+    }
+
     const isFreeMatch = selectedMatch.entry_type === 'FREE' || selectedMatch.fee === 0;
 
     if (!isFreeMatch && walletBalance < selectedMatch.fee) {
@@ -189,8 +210,11 @@ export default function TournamentsPage() {
 
       alert("Slot Booked Successfully!");
       
+      // SECURE: Update local state to instantly change button to REGISTERED
+      setMyRegisteredTourneyIds(prev => new Set(prev).add(selectedMatch.id));
+      
       setSelectedMatch(null);
-      setBookingStep(1); // Reset
+      setBookingStep(1); 
       setTeam({ p1_ign: '', p1_id: '', p2_ign: '', p2_id: '', p3_ign: '', p3_id: '', p4_ign: '', p4_id: '' });
       
       const { data: wallet } = await supabase.from('wallets').select('balance').eq('user_id', user.id).single();
@@ -209,6 +233,11 @@ export default function TournamentsPage() {
       }
 
     } catch (error: any) { 
+      // If backend throws the 409 Duplicate Error, catch it cleanly
+      if (error.message.includes("already joined")) {
+        setMyRegisteredTourneyIds(prev => new Set(prev).add(selectedMatch.id));
+        setSelectedMatch(null);
+      }
       alert("Error booking slot: " + error.message); 
     } finally { 
       setIsSubmitting(false); 
@@ -252,7 +281,6 @@ export default function TournamentsPage() {
         <Crosshair className="w-16 h-16 text-orange-500 mx-auto mb-4 drop-shadow-[0_0_15px_rgba(249,115,22,0.5)]" />
         <h1 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter mb-4">Active <span className="text-orange-500">Battlegrounds</span></h1>
         
-        {/* Advanced Search & Filter Bar */}
         <div className="max-w-3xl mx-auto mt-8 flex flex-col gap-4 px-4">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
@@ -279,7 +307,6 @@ export default function TournamentsPage() {
             ))}
           </div>
 
-          {/* Collapsible Advanced Filter Panel */}
           {showFilters && (
             <div className="bg-zinc-900/90 border border-zinc-800 p-6 rounded-2xl backdrop-blur-md grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-left animate-fadeIn">
               <div>
@@ -327,7 +354,6 @@ export default function TournamentsPage() {
           <div className="text-center text-zinc-500 font-bold uppercase tracking-widest py-12">No tournaments found matching your filters.</div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6 px-1 md:px-0">
-            {/* CSS GRID REFACTOR: 2 columns mobile, 3 tablet, 4 desktop */}
             {filteredTournaments.map((t) => {
               const isFree = t.entry_type === 'FREE' || t.fee === 0;
               const bookedCount = t.registrations?.length || 0;
@@ -335,9 +361,8 @@ export default function TournamentsPage() {
               const minSlots = Number(t.minimum_slots_required || maxSlots);
               const isMinReached = bookedCount >= minSlots;
 
-              // NEW: Progress Bar Calculations
-              const fillPercentage = Math.min(100, Math.max(0, (bookedCount / maxSlots) * 100));
-              const spotsLeft = Math.max(0, maxSlots - bookedCount);
+              // SECURE: UI Check if already registered
+              const isAlreadyRegistered = myRegisteredTourneyIds.has(t.id);
 
               const winnerCount = t.total_winners || (t.prize_breakdown?.length > 0 ? t.prize_breakdown.length : 2);
               const activePrizes = t.prize_breakdown?.length > 0 
@@ -346,7 +371,7 @@ export default function TournamentsPage() {
               
               const totalPrizePool = activePrizes.reduce((a: number, b: number) => a + Number(b), 0);
               
-              const isTimePassed = t.registration_closing_time && currentTime > new Date(t.registration_closing_time).getTime();
+              const isTimePassed = t.registration_closing_time && currentTime ? currentTime > new Date(t.registration_closing_time).getTime() : false;
               const isUnderReview = t.status === 'UNDER REVIEW';
               const isMinFailed = isTimePassed && !isMinReached; 
               
@@ -364,12 +389,10 @@ export default function TournamentsPage() {
               return (
                 <div key={t.id} className={`bg-zinc-900 border ${isClosed ? 'border-red-900/30' : 'border-zinc-800'} rounded-xl overflow-hidden group hover:border-orange-500 transition-colors flex flex-col h-full shadow-lg relative`}>
                   
-                  {/* COMPACT IMAGE WRAPPER */}
                   <div className="h-28 md:h-40 overflow-hidden relative shrink-0">
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-transparent to-transparent z-10" />
                     <img src={t.map_img} alt={t.name} className={`w-full h-full object-cover transition-transform duration-500 ${isClosed ? 'grayscale opacity-50' : 'group-hover:scale-110'}`} />
                     
-                    {/* FREE ENTRY BADGE */}
                     {isFree && (
                       <span className="absolute top-2 left-2 z-20 bg-emerald-500 text-black font-black text-[8px] md:text-[10px] uppercase px-2 py-0.5 rounded shadow-lg">
                         FREE ENTRY
@@ -386,11 +409,9 @@ export default function TournamentsPage() {
                     <h3 className="absolute bottom-2 left-3 z-20 font-black italic text-sm md:text-xl tracking-wider text-white drop-shadow-md truncate w-[90%]">{t.name}</h3>
                   </div>
 
-                  {/* COMPACT CONTENT WRAPPER */}
                   <div className="p-2.5 md:p-4 space-y-2.5 flex-1 flex flex-col justify-between">
                     <div className="space-y-2.5">
                       
-                      {/* 1. MATCH DETAILS */}
                       <div className="flex flex-wrap items-center gap-1.5 text-[8px] md:text-xs font-bold">
                         <span className="border border-orange-500/30 bg-orange-500/10 text-orange-500 px-1.5 py-0.5 rounded flex items-center gap-0.5"><Users className="w-2.5 h-2.5 shrink-0" /> {t.type}</span>
                         <span className="border border-zinc-700 bg-zinc-800/80 text-zinc-300 px-1.5 py-0.5 rounded">{t.perspective}</span>
@@ -400,7 +421,6 @@ export default function TournamentsPage() {
                         </span>
                       </div>
 
-                      {/* 2. PRIZE POOL */}
                       <div className="bg-gradient-to-r from-orange-500/15 via-zinc-950 to-zinc-950 border border-orange-500/30 p-2 md:p-3 rounded-lg flex justify-between items-center shadow-inner">
                         <div>
                           <p className="text-[8px] md:text-[9px] font-black uppercase text-orange-400 tracking-wider">Total Prize</p>
@@ -412,7 +432,6 @@ export default function TournamentsPage() {
                         </div>
                       </div>
 
-                      {/* 3. ENTRY FEE & COUNTDOWN GRID */}
                       <div className="flex gap-1.5">
                         <div className="flex-1 bg-zinc-950 p-1.5 md:p-2.5 rounded border border-zinc-800/80 flex flex-col justify-center min-w-0">
                           <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider truncate">Entry</p>
@@ -424,40 +443,32 @@ export default function TournamentsPage() {
                         </div>
                       </div>
 
-                      {/* 4. UNIVERSAL SLOTS BOOKED WITH PROGRESS BAR */}
-                      <div className="bg-zinc-950 p-2 md:p-3 rounded border border-zinc-800/80 flex flex-col gap-2 min-w-0">
-                        <div className="flex justify-between items-center w-full">
-                           <div className="min-w-0 pr-1">
-                             <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider truncate">Slots Booked</p>
-                             <p className="text-xs md:text-sm font-black text-white">{bookedCount} <span className="text-zinc-500 text-[10px]">/ {t.total_slots}</span></p>
-                           </div>
-                           <div className="text-right flex flex-col items-end shrink-0">
-                             <p className={`text-[8px] md:text-[9px] font-black uppercase flex items-center gap-0.5 ${isMinReached ? 'text-emerald-500' : 'text-amber-500'}`}>
-                                {isMinReached ? <CheckCircle2 className="w-2.5 h-2.5 shrink-0"/> : <AlertCircle className="w-2.5 h-2.5 shrink-0"/>}
-                                {isMinReached ? 'Confirmed' : `Min ${minSlots}`}
-                             </p>
-                           </div>
-                        </div>
-                        {/* PROGRESS BAR ROW */}
-                        <div className="w-full">
-                          <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
-                            <div className={`h-full transition-all duration-500 ${spotsLeft === 0 ? 'bg-red-500' : 'bg-orange-500'}`} style={{ width: `${fillPercentage}%` }} />
-                          </div>
-                          <p className="text-[8px] md:text-[9px] font-bold mt-1.5 uppercase tracking-wider text-right">
-                            {spotsLeft === 0 ? <span className="text-red-500">SOLD OUT</span> : <span className="text-zinc-400">{spotsLeft} Spots Left</span>}
-                          </p>
-                        </div>
+                      <div className="bg-zinc-950 p-1.5 md:p-2.5 rounded border border-zinc-800/80 flex justify-between items-center min-w-0">
+                         <div className="min-w-0 pr-1">
+                           <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-wider truncate">Slots Booked</p>
+                           <p className="text-xs md:text-sm font-black text-white">{bookedCount} <span className="text-zinc-500 text-[10px]">/ {t.total_slots}</span></p>
+                         </div>
+                         <div className="text-right flex flex-col items-end shrink-0">
+                           <p className={`text-[8px] md:text-[9px] font-black uppercase flex items-center gap-0.5 ${isMinReached ? 'text-emerald-500' : 'text-amber-500'}`}>
+                              {isMinReached ? <CheckCircle2 className="w-2.5 h-2.5 shrink-0"/> : <AlertCircle className="w-2.5 h-2.5 shrink-0"/>}
+                              {isMinReached ? 'Confirmed' : `Min ${minSlots}`}
+                           </p>
+                         </div>
                       </div>
 
                     </div>
 
-                    {/* 5. ACTIONS */}
                     <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-zinc-800/80 mt-auto">
                       <Link href={`/tournaments/${t.id}`} className="text-center bg-zinc-800 hover:bg-zinc-700 text-white font-bold uppercase tracking-wider py-1.5 md:py-2.5 rounded-lg text-[9px] md:text-[10px] transition-colors border border-zinc-700 flex items-center justify-center min-h-[32px] md:min-h-[40px]">
                         DETAILS
                       </Link>
                       
-                      {isClosed ? (
+                      {/* SECURE: Button dynamically transforms if registered */}
+                      {isAlreadyRegistered ? (
+                        <Link href={`/tournaments/${t.id}`} className="text-center bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 font-black uppercase tracking-wider py-1.5 md:py-2.5 rounded-lg text-[9px] md:text-[10px] transition-colors flex items-center justify-center min-h-[32px] md:min-h-[40px]">
+                          REGISTERED
+                        </Link>
+                      ) : isClosed ? (
                         <button disabled className="text-center bg-zinc-800 text-zinc-500 font-black uppercase tracking-wider py-1.5 md:py-2.5 rounded-lg text-[9px] md:text-[10px] cursor-not-allowed border border-zinc-700 flex items-center justify-center min-h-[32px] md:min-h-[40px]">
                           CLOSED
                         </button>
@@ -481,7 +492,6 @@ export default function TournamentsPage() {
           <div className="bg-[#111116] w-full max-w-2xl rounded-xl border border-zinc-800 relative my-8 overflow-hidden">
             <button onClick={() => setSelectedMatch(null)} className="absolute top-4 right-4 text-zinc-400 hover:text-white bg-zinc-900 p-2 rounded-full z-10"><X className="w-5 h-5"/></button>
             
-            {/* Modal Header */}
             <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
               <div className="pr-8">
                 <h2 className="text-xl font-black uppercase tracking-wide text-white truncate">{selectedMatch.name}</h2>
@@ -495,7 +505,6 @@ export default function TournamentsPage() {
               </div>
             </div>
 
-            {/* Stepper Progress Indicator */}
             <div className="px-6 py-4 border-b border-zinc-800 bg-zinc-950 flex justify-between items-center text-[10px] sm:text-xs font-black uppercase tracking-widest">
               <div className={`flex flex-col items-center gap-1 ${bookingStep >= 1 ? 'text-orange-500' : 'text-zinc-600'}`}>
                 <span className={`w-6 h-6 rounded-full flex items-center justify-center border-2 ${bookingStep >= 1 ? 'border-orange-500 bg-orange-500/20' : 'border-zinc-700 bg-zinc-800'}`}>1</span>
@@ -515,7 +524,6 @@ export default function TournamentsPage() {
             
             <div className="p-6 space-y-6">
               
-              {/* STEP 1: Player Details */}
               {bookingStep === 1 && (
                 <div className="space-y-4 animate-fadeIn">
                   <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-2">Squad Details</h3>
@@ -537,7 +545,6 @@ export default function TournamentsPage() {
                 </div>
               )}
 
-              {/* STEP 2: Choose Slot */}
               {bookingStep === 2 && (
                 <div className="space-y-4 animate-fadeIn">
                   <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-2">Choose Drop Slot</h3>
@@ -559,7 +566,6 @@ export default function TournamentsPage() {
                 </div>
               )}
 
-              {/* STEP 3: Review & Confirm */}
               {bookingStep === 3 && (
                 <div className="space-y-6 animate-fadeIn">
                   <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-2">Review & Confirm</h3>
