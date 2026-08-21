@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Montserrat, Source_Sans_3 } from 'next/font/google';
 import {
   Users,
   ChevronRight,
@@ -26,6 +27,20 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createClient } from '@/utils/supabase/client';
+
+const montserrat = Montserrat({
+  subsets: ['latin'],
+  variable: '--font-montserrat',
+  display: 'swap',
+  weight: ['500', '600', '700', '800', '900'],
+});
+
+const sourceSans = Source_Sans_3({
+  subsets: ['latin'],
+  variable: '--font-source-sans',
+  display: 'swap',
+  weight: ['400', '500', '600', '700'],
+});
 
 // Local BGMI hero artwork.
 // Keep these files in public/images/hero/.
@@ -271,6 +286,11 @@ export default function Home() {
     0
   );
 
+  const featuredPrizePool = latestTournaments.reduce(
+    (sum, t) => sum + getTournamentStats(t).totalPrizePool,
+    0
+  );
+
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#050608] font-sans text-white selection:bg-orange-500 selection:text-white">
       {/* HERO */}
@@ -356,31 +376,45 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Live data snapshot — only based on tournaments already loaded */}
-          <div className="mt-10 grid w-full max-w-3xl grid-cols-3 overflow-hidden rounded-2xl border border-white/[0.08] bg-black/40 backdrop-blur-xl">
-            <div className="px-3 py-4 sm:px-6">
-              <p className="text-lg font-black text-white sm:text-2xl">
-                {latestTournaments.length}
-              </p>
-              <p className="mt-1 text-[8px] font-bold uppercase tracking-widest text-zinc-500 sm:text-[10px]">
-                Featured Matches
-              </p>
-            </div>
-            <div className="border-x border-white/[0.08] px-3 py-4 sm:px-6">
-              <p className="text-lg font-black text-orange-400 sm:text-2xl">
-                {openTournamentCount}
-              </p>
-              <p className="mt-1 text-[8px] font-bold uppercase tracking-widest text-zinc-500 sm:text-[10px]">
-                Open Now
-              </p>
-            </div>
-            <div className="px-3 py-4 sm:px-6">
-              <p className="text-base font-black text-emerald-400 sm:text-2xl">
-                {totalFeaturedPlayers}
-              </p>
-              <p className="mt-1 text-[8px] font-bold uppercase tracking-widest text-zinc-500 sm:text-[10px]">
-                Slots Filled
-              </p>
+          {/* Live platform snapshot — dynamic data from the featured tournament feed */}
+          <div className="mt-10 w-full max-w-4xl overflow-hidden rounded-2xl border border-white/[0.10] bg-black/48 shadow-[0_18px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+            <div className="grid grid-cols-3">
+              <div className="relative px-3 py-4 sm:px-7 sm:py-5">
+                <div className="mb-2 flex items-center justify-center gap-1.5 text-[7px] font-bold uppercase tracking-[0.18em] text-zinc-500 sm:text-[9px]">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                  Live
+                </div>
+                <p className="text-xl font-black tracking-tight text-white sm:text-3xl">
+                  {openTournamentCount}
+                </p>
+                <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.12em] text-zinc-400 sm:text-[10px]">
+                  Open Matches
+                </p>
+              </div>
+
+              <div className="border-x border-white/[0.09] px-3 py-4 text-center sm:px-7 sm:py-5">
+                <p className="mb-2 text-[7px] font-bold uppercase tracking-[0.18em] text-orange-400 sm:text-[9px]">
+                  Prize Money
+                </p>
+                <p className="text-xl font-black tracking-tight text-orange-400 sm:text-3xl">
+                  ₹{featuredPrizePool}
+                </p>
+                <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.12em] text-zinc-400 sm:text-[10px]">
+                  Featured Pool
+                </p>
+              </div>
+
+              <div className="px-3 py-4 text-center sm:px-7 sm:py-5">
+                <p className="mb-2 text-[7px] font-bold uppercase tracking-[0.18em] text-emerald-400 sm:text-[9px]">
+                  Player Activity
+                </p>
+                <p className="text-xl font-black tracking-tight text-emerald-400 sm:text-3xl">
+                  {totalFeaturedPlayers}
+                </p>
+                <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.12em] text-zinc-400 sm:text-[10px]">
+                  Slots Filled
+                </p>
+              </div>
             </div>
           </div>
 
@@ -401,7 +435,16 @@ export default function Home() {
         </div>
       </section>
 
-      {/* LOGGED-IN PLAYER AREA */}
+      <div
+        className={`${montserrat.variable} ${sourceSans.variable}`}
+        style={{ fontFamily: 'var(--font-source-sans)' }}
+      >
+        <style>{`
+          h2, h3, h4, button, a {
+            font-family: var(--font-montserrat), sans-serif;
+          }
+        `}</style>
+        {/* LOGGED-IN PLAYER AREA */}
       {user && (
         <section className="border-b border-white/[0.06] bg-[#080a0d]">
           <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 md:py-10 lg:px-8">
@@ -625,14 +668,14 @@ export default function Home() {
                         </div>
 
                         <div className="shrink-0 text-right">
-                          <p className="text-[6px] font-black uppercase tracking-widest text-zinc-600 sm:text-[7px]">
+                          <p className="text-[7px] font-bold uppercase tracking-widest text-zinc-500 sm:text-[8px]">
                             Match
                           </p>
-                          <p className="mt-0.5 text-[9px] font-black uppercase text-orange-300 sm:text-sm">
+                          <p className="mt-0.5 text-[10px] font-black uppercase text-orange-300 sm:text-base">
                             {t.type || 'MATCH'}
                           </p>
                           {t.perspective && (
-                            <p className="mt-0.5 text-[7px] font-bold uppercase tracking-wider text-zinc-500 sm:text-[8px]">
+                            <p className="mt-0.5 text-[9px] font-bold uppercase tracking-wider text-zinc-400 sm:text-[10px]">
                               {t.perspective}
                             </p>
                           )}
@@ -729,7 +772,7 @@ export default function Home() {
                     <div className="mt-auto grid grid-cols-2 gap-1.5 border-t border-white/[0.07] p-2.5 sm:gap-2 sm:p-3">
                       <Link
                         href={`/tournaments/${t.id}`}
-                        className="inline-flex min-h-9 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.035] px-2 text-[7px] font-black uppercase tracking-widest text-zinc-200 transition-colors hover:bg-white/[0.08] sm:min-h-10 sm:rounded-xl sm:text-[9px]"
+                        className="inline-flex min-h-10 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.035] px-2.5 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-200 transition-colors hover:bg-white/[0.08] sm:min-h-11 sm:rounded-xl sm:text-[11px]"
                       >
                         Details
                       </Link>
@@ -737,14 +780,14 @@ export default function Home() {
                       {stats.isClosed ? (
                         <button
                           disabled
-                          className="min-h-9 cursor-not-allowed rounded-lg border border-white/[0.06] bg-white/[0.02] px-2 text-[7px] font-black uppercase tracking-widest text-zinc-600 sm:min-h-10 sm:rounded-xl sm:text-[9px]"
+                          className="min-h-10 cursor-not-allowed rounded-lg border border-white/[0.06] bg-white/[0.02] px-2.5 text-[9px] font-black uppercase tracking-[0.12em] text-zinc-600 sm:min-h-11 sm:rounded-xl sm:text-[11px]"
                         >
                           Closed
                         </button>
                       ) : (
                         <Link
                           href={`/tournaments/${t.id}`}
-                          className={`inline-flex min-h-9 items-center justify-center gap-1 rounded-lg px-2 text-[7px] font-black uppercase tracking-widest transition-colors sm:min-h-10 sm:rounded-xl sm:text-[9px] ${
+                          className={`inline-flex min-h-10 items-center justify-center gap-1 rounded-lg px-2.5 text-[9px] font-black uppercase tracking-[0.12em] transition-colors sm:min-h-11 sm:rounded-xl sm:text-[11px] ${
                             stats.isFree
                               ? 'bg-emerald-500 text-black hover:bg-emerald-400'
                               : 'bg-orange-500 text-black hover:bg-orange-400'
@@ -1110,6 +1153,7 @@ export default function Home() {
           </div>
         </div>
       </section>
+      </div>
     </main>
   );
 }
