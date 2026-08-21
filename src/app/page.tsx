@@ -537,20 +537,38 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
             {latestTournaments.map((t) => {
               const stats = getTournamentStats(t);
+
+              const matchDate = t.match_time
+                ? new Date(t.match_time).toLocaleDateString('en-IN', {
+                    timeZone: 'Asia/Kolkata',
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })
+                : 'Date TBA';
+
+              const matchTime = t.match_time
+                ? new Date(t.match_time).toLocaleTimeString('en-IN', {
+                    timeZone: 'Asia/Kolkata',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                : 'Time TBA';
 
               return (
                 <article
                   key={t.id}
-                  className={`group flex h-full flex-col overflow-hidden rounded-2xl border bg-[#0b0d10] transition-all duration-300 ${
+                  className={`group flex h-full min-w-0 flex-col overflow-hidden rounded-xl border bg-[#0b0d10] transition-all duration-300 sm:rounded-2xl ${
                     stats.isClosed
                       ? 'border-white/[0.06]'
-                      : 'border-white/[0.08] hover:-translate-y-1 hover:border-orange-500/35 hover:shadow-[0_18px_45px_rgba(0,0,0,0.35)]'
+                      : 'border-white/[0.09] hover:-translate-y-1 hover:border-orange-500/35 hover:shadow-[0_18px_45px_rgba(0,0,0,0.35)]'
                   }`}
                 >
-                  <div className="relative h-36 overflow-hidden sm:h-44 lg:h-48">
+                  {/* MAP / TITLE */}
+                  <div className="relative h-28 overflow-hidden sm:h-40 lg:h-44">
                     <img
                       src={t.map_img}
                       alt={t.name}
@@ -560,16 +578,16 @@ export default function Home() {
                           : 'group-hover:scale-105'
                       }`}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0b0d10] via-black/10 to-black/30" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0b0d10] via-black/10 to-black/25" />
 
                     {stats.isFree && (
-                      <span className="absolute left-3 top-3 rounded-md bg-emerald-500 px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-black">
+                      <span className="absolute left-2 top-2 rounded-md bg-emerald-500 px-2 py-1 text-[7px] font-black uppercase tracking-wider text-black sm:left-3 sm:top-3 sm:text-[9px]">
                         Free Entry
                       </span>
                     )}
 
                     <span
-                      className={`absolute right-3 top-3 rounded-md border px-2.5 py-1 text-[8px] font-black uppercase tracking-wider backdrop-blur-md ${
+                      className={`absolute right-2 top-2 max-w-[52%] truncate rounded-md border px-2 py-1 text-[6px] font-black uppercase tracking-wider backdrop-blur-md sm:right-3 sm:top-3 sm:text-[8px] ${
                         stats.displayStatus === 'MATCH CONFIRMED'
                           ? 'border-emerald-400/30 bg-emerald-500/90 text-black'
                           : stats.displayStatus === 'OPEN FOR PLAYERS'
@@ -580,173 +598,162 @@ export default function Home() {
                       {stats.displayStatus}
                     </span>
 
-                    <div className="absolute bottom-3 left-4 right-4">
-                      <h3 className="truncate text-lg font-black uppercase tracking-tight text-white sm:text-xl">
+                    <div className="absolute bottom-2 left-2 right-2 sm:bottom-3 sm:left-4 sm:right-4">
+                      <h3 className="truncate text-sm font-black uppercase tracking-tight text-white sm:text-xl">
                         {t.name}
                       </h3>
                     </div>
                   </div>
 
-                  <div className="flex flex-1 flex-col p-3 sm:p-4">
-                    <div className="mb-3 grid grid-cols-3 overflow-hidden rounded-xl border border-white/[0.07] bg-black/30">
-                      <div className="px-2 py-2">
-                        <p className="text-[7px] font-black uppercase tracking-widest text-zinc-600">Prize</p>
-                        <p className="mt-0.5 text-xs font-black text-emerald-400">₹{stats.totalPrizePool}</p>
+                  <div className="flex flex-1 flex-col p-2.5 sm:p-4">
+                    {/* PRIMARY SCHEDULE — first thing players need */}
+                    <div className="rounded-lg border border-orange-500/20 bg-orange-500/[0.055] p-2.5 sm:rounded-xl sm:p-3.5">
+                      <div className="flex items-center gap-1.5 text-[6px] font-black uppercase tracking-[0.16em] text-orange-400 sm:text-[8px]">
+                        <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                        Match Schedule
                       </div>
-                      <div className="border-x border-white/[0.06] px-2 py-2">
-                        <p className="text-[7px] font-black uppercase tracking-widest text-zinc-600">Entry</p>
-                        <p className={`mt-0.5 text-xs font-black ${stats.isFree ? 'text-emerald-400' : 'text-orange-400'}`}>
-                          {stats.isFree ? 'FREE' : `₹${t.fee}`}
-                        </p>
-                      </div>
-                      <div className="px-2 py-2">
-                        <p className="text-[7px] font-black uppercase tracking-widest text-zinc-600">Slots</p>
-                        <p className="mt-0.5 text-xs font-black text-white">{stats.bookedCount}/{stats.maxSlots}</p>
+
+                      <div className="mt-1.5 flex items-end justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black tracking-tight text-white sm:text-xl">
+                            {matchDate}
+                          </p>
+                          <p className="mt-0.5 text-[8px] font-bold uppercase tracking-wider text-zinc-500 sm:text-[10px]">
+                            {matchTime} IST
+                          </p>
+                        </div>
+
+                        <div className="shrink-0 rounded-md border border-white/[0.08] bg-black/30 px-1.5 py-1 text-right sm:px-2.5 sm:py-1.5">
+                          <p className="text-[6px] font-black uppercase tracking-widest text-zinc-600 sm:text-[7px]">
+                            Match
+                          </p>
+                          <p className="mt-0.5 text-[8px] font-black uppercase text-orange-300 sm:text-[10px]">
+                            {t.type}
+                          </p>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 text-[8px] font-black uppercase tracking-wider">
-                      <span className="inline-flex items-center gap-1 rounded-md border border-orange-500/20 bg-orange-500/[0.07] px-2 py-1 text-orange-400">
-                        <Users className="h-3 w-3" />
-                        {t.type}
-                      </span>
-                      <span className="rounded-md border border-white/[0.07] bg-white/[0.035] px-2 py-1 text-zinc-400">
-                        {t.perspective}
-                      </span>
-                      <span className="ml-auto inline-flex items-center gap-1 text-zinc-500">
-                        <Clock className="h-3 w-3 text-orange-400" />
-                        {t.match_time
-                          ? new Date(
-                              t.match_time
-                            ).toLocaleString('en-IN', {
-                              timeZone: 'Asia/Kolkata',
-                              dateStyle: 'short',
-                              timeStyle: 'short',
-                            }).replace(',', '')
-                          : 'TBA'}
-                      </span>
+                    {/* MODE — no duplicate date/time */}
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="inline-flex min-w-0 items-center gap-1 rounded-md border border-orange-500/20 bg-orange-500/[0.07] px-2 py-1 text-[7px] font-black uppercase tracking-wider text-orange-400 sm:text-[8px]">
+                          <Users className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{t.type}</span>
+                        </span>
+                        <span className="rounded-md border border-white/[0.07] bg-white/[0.035] px-2 py-1 text-[7px] font-black uppercase tracking-wider text-zinc-400 sm:text-[8px]">
+                          {t.perspective}
+                        </span>
+                      </div>
+
+                      {!stats.isClosed && (
+                        <span className="shrink-0 text-[7px] font-black uppercase tracking-wider text-zinc-600 sm:text-[8px]">
+                          Closes {stats.countdown || 'Open'}
+                        </span>
+                      )}
                     </div>
 
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-2.5 sm:p-3">
-                        <p className="text-[8px] font-black uppercase tracking-widest text-zinc-500">
+                    {/* CORE INFORMATION — each value appears once */}
+                    <div className="mt-2 grid grid-cols-3 overflow-hidden rounded-lg border border-white/[0.07] bg-black/25 sm:rounded-xl">
+                      <div className="min-w-0 px-2 py-2 sm:px-3 sm:py-2.5">
+                        <p className="text-[6px] font-black uppercase tracking-widest text-zinc-600 sm:text-[7px]">
                           Prize Pool
                         </p>
-                        <p className="mt-1 text-base font-black text-emerald-400">
+                        <p className="mt-1 truncate text-sm font-black text-emerald-400 sm:text-base">
                           ₹{stats.totalPrizePool}
                         </p>
                       </div>
 
-                      <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-2.5 sm:p-3">
-                        <p className="text-[8px] font-black uppercase tracking-widest text-zinc-500">
-                          1st Place
-                        </p>
-                        <p className="mt-1 text-base font-black text-amber-300">
-                          ₹{stats.activePrizes[0] || 0}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      <div className="rounded-xl border border-white/[0.07] bg-black/20 p-3">
-                        <p className="text-[8px] font-black uppercase tracking-widest text-zinc-500">
-                          Entry Fee
+                      <div className="min-w-0 border-x border-white/[0.06] px-2 py-2 sm:px-3 sm:py-2.5">
+                        <p className="text-[6px] font-black uppercase tracking-widest text-zinc-600 sm:text-[7px]">
+                          Entry
                         </p>
                         <p
-                          className={`mt-1 text-sm font-black ${
-                            stats.isFree
-                              ? 'text-emerald-400'
-                              : 'text-orange-400'
+                          className={`mt-1 truncate text-sm font-black sm:text-base ${
+                            stats.isFree ? 'text-emerald-400' : 'text-orange-400'
                           }`}
                         >
                           {stats.isFree ? 'FREE' : `₹${t.fee}`}
                         </p>
                       </div>
 
+                      <div className="min-w-0 px-2 py-2 sm:px-3 sm:py-2.5">
+                        <p className="text-[6px] font-black uppercase tracking-widest text-zinc-600 sm:text-[7px]">
+                          Slots
+                        </p>
+                        <p className="mt-1 truncate text-sm font-black text-white sm:text-base">
+                          {stats.bookedCount}/{stats.maxSlots}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* FIRST PRIZE + REGISTRATION CLOSE — secondary information */}
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div className="rounded-lg border border-white/[0.07] bg-white/[0.025] px-2.5 py-2 sm:rounded-xl sm:p-3">
+                        <p className="text-[6px] font-black uppercase tracking-widest text-zinc-600 sm:text-[7px]">
+                          1st Prize
+                        </p>
+                        <p className="mt-1 text-sm font-black text-amber-300 sm:text-base">
+                          ₹{stats.activePrizes[0] || 0}
+                        </p>
+                      </div>
+
                       <div
-                        className={`rounded-xl border p-3 ${
+                        className={`rounded-lg border px-2.5 py-2 sm:rounded-xl sm:p-3 ${
                           stats.isClosed
                             ? 'border-red-500/15 bg-red-500/[0.03]'
                             : 'border-orange-500/10 bg-orange-500/[0.025]'
                         }`}
                       >
-                        <p className="flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-zinc-500">
-                          <Timer className="h-3 w-3" />
-                          {stats.isClosed ? 'Status' : 'Closes In'}
+                        <p className="text-[6px] font-black uppercase tracking-widest text-zinc-600 sm:text-[7px]">
+                          Registration
                         </p>
                         <p
-                          className={`mt-1 truncate text-sm font-black ${
-                            stats.isClosed
-                              ? 'text-red-400'
-                              : 'text-orange-400'
+                          className={`mt-1 truncate text-[10px] font-black uppercase sm:text-xs ${
+                            stats.isClosed ? 'text-red-400' : 'text-orange-400'
                           }`}
                         >
-                          {stats.isClosed
-                            ? 'CLOSED'
-                            : stats.countdown || 'OPEN'}
+                          {stats.isClosed ? 'Closed' : stats.countdown || 'Open'}
                         </p>
                       </div>
                     </div>
 
-                    <div className="mt-2 rounded-xl border border-white/[0.07] bg-black/20 p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-[8px] font-black uppercase tracking-widest text-zinc-500">
-                            Slots
-                          </p>
-                          <p className="mt-1 text-sm font-black">
-                            {stats.bookedCount}
-                            <span className="text-zinc-600">
-                              {' '}
-                              / {t.total_slots}
-                            </span>
-                          </p>
-                        </div>
-
-                        <div className="text-right">
-                          <p
-                            className={`flex items-center justify-end gap-1 text-[8px] font-black uppercase tracking-wider ${
-                              stats.isMinReached
-                                ? 'text-emerald-400'
-                                : 'text-amber-400'
-                            }`}
-                          >
-                            {stats.isMinReached ? (
-                              <CheckCircle2 className="h-3 w-3" />
-                            ) : (
-                              <AlertCircle className="h-3 w-3" />
-                            )}
-                            {stats.isMinReached
-                              ? 'Confirmed'
-                              : `Minimum ${stats.minSlots}`}
-                          </p>
-                        </div>
+                    {/* CAPACITY */}
+                    <div className="mt-2 rounded-lg border border-white/[0.07] bg-black/20 p-2.5 sm:rounded-xl sm:p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[7px] font-black uppercase tracking-widest text-zinc-500 sm:text-[8px]">
+                          Capacity
+                        </p>
+                        <p
+                          className={`text-[7px] font-black uppercase tracking-wider sm:text-[8px] ${
+                            stats.isMinReached ? 'text-emerald-400' : 'text-amber-400'
+                          }`}
+                        >
+                          {stats.isMinReached
+                            ? 'Match Confirmed'
+                            : `Minimum ${stats.minSlots}`}
+                        </p>
                       </div>
 
-                      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
                         <div
                           className={`h-full rounded-full transition-all duration-500 ${
-                            stats.spotsLeft === 0
-                              ? 'bg-red-500'
-                              : 'bg-orange-500'
+                            stats.spotsLeft === 0 ? 'bg-red-500' : 'bg-orange-500'
                           }`}
-                          style={{
-                            width: `${stats.fillPercentage}%`,
-                          }}
+                          style={{ width: `${stats.fillPercentage}%` }}
                         />
                       </div>
 
-                      <p className="mt-1.5 text-right text-[8px] font-black uppercase tracking-wider text-zinc-500">
-                        {stats.spotsLeft === 0
-                          ? 'Sold Out'
-                          : `${stats.spotsLeft} spots left`}
+                      <p className="mt-1 text-right text-[6px] font-black uppercase tracking-wider text-zinc-600 sm:text-[7px]">
+                        {stats.spotsLeft === 0 ? 'Sold Out' : `${stats.spotsLeft} spots left`}
                       </p>
                     </div>
 
-                    <div className="mt-3 grid grid-cols-2 gap-2">
+                    {/* ACTIONS */}
+                    <div className="mt-2 grid grid-cols-2 gap-2 sm:mt-3">
                       <Link
                         href={`/tournaments/${t.id}`}
-                        className="inline-flex min-h-10 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-[9px] font-black uppercase tracking-widest text-zinc-200 transition-colors hover:bg-white/[0.08]"
+                        className="inline-flex min-h-9 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 text-[7px] font-black uppercase tracking-widest text-zinc-200 transition-colors hover:bg-white/[0.08] sm:min-h-10 sm:rounded-xl sm:text-[9px]"
                       >
                         Details
                       </Link>
@@ -754,21 +761,21 @@ export default function Home() {
                       {stats.isClosed ? (
                         <button
                           disabled
-                          className="min-h-10 cursor-not-allowed rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 text-[9px] font-black uppercase tracking-widest text-zinc-600"
+                          className="min-h-9 cursor-not-allowed rounded-lg border border-white/[0.06] bg-white/[0.025] px-2 text-[7px] font-black uppercase tracking-widest text-zinc-600 sm:min-h-10 sm:rounded-xl sm:text-[9px]"
                         >
                           Closed
                         </button>
                       ) : (
                         <Link
                           href={`/tournaments/${t.id}`}
-                          className={`inline-flex min-h-10 items-center justify-center gap-1 rounded-xl px-3 text-[9px] font-black uppercase tracking-widest transition-colors ${
+                          className={`inline-flex min-h-9 items-center justify-center gap-1 rounded-lg px-2 text-[7px] font-black uppercase tracking-widest transition-colors sm:min-h-10 sm:rounded-xl sm:text-[9px] ${
                             stats.isFree
                               ? 'bg-emerald-500 text-black hover:bg-emerald-400'
                               : 'bg-orange-500 text-black hover:bg-orange-400'
                           }`}
                         >
                           {stats.isFree ? 'Join Free' : 'Join'}
-                          <ArrowRight className="h-3.5 w-3.5" />
+                          <ArrowRight className="h-3 w-3" />
                         </Link>
                       )}
                     </div>
@@ -777,6 +784,7 @@ export default function Home() {
               );
             })}
           </div>
+</div>
         )}
       </section>
 
